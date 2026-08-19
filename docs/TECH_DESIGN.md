@@ -51,7 +51,9 @@
 ### 3.1 屏幕画面采集
 
 - 源枚举：`desktopCapturer.getSources({ types: ['screen', 'window'] })`
-- 采集：`navigator.mediaDevices.getUserMedia` 带 `chromeMediaSourceId`，或新版 Electron 的 `session.setDisplayMediaRequestHandler` + `getDisplayMedia`
+
+> **窗口源的固有语义（产品决策，2026-08-19 冒烟确认）**：窗口采集锁定的是"选定那一刻的窗口"，目标 App 在录制期间新弹出的窗口录不上。因此产品定为**整屏主模式**，窗口模式仅限单窗口演示场景；App 级采集（SCApplication 粒度，跟随整个 App 的全部窗口）留给原生 helper（kr-04），记 backlog。
+- 采集：**ScreenCaptureKit 路径（已定）** —— Main 进程 `session.setDisplayMediaRequestHandler`（`useSystemPicker: false`，handler 按 Renderer 选好的 sourceId 直接 approve）+ Renderer `navigator.mediaDevices.getDisplayMedia()`。**不再使用 legacy `getUserMedia(chromeMediaSourceId)`**：实测 macOS 15 上 legacy 窗口采集在窗口缩放/移动时帧更新不可靠（画面停滞、黑边错位）；SCK 路径整屏/窗口/遮挡/多屏场景均已实测帧持续更新。
 - 编码：录制期直接用 `MediaRecorder`（vp9/webm 或 h264/mp4，高码率，如 12–20 Mbps）—— 先把画面存下来，质量损失对演示视频够用
 - 进阶（v2）：用 `MediaStreamTrackProcessor` + `VideoFrame` 拿原始帧，WebCodecs 编码，可控关键帧和码率
 
@@ -73,7 +75,7 @@ Screen Studio 能"放大/替换/平滑光标"的前提是：**光标没有被烧
 ### 3.3 鼠标与键盘事件采集（运镜的数据基础）
 
 - **鼠标轨迹**：Main 进程里用 `screen.getCursorScreenPoint()` 以 60–120Hz 轮询，记录 `{ t, x, y }`。够用且零依赖。
-- **点击/键盘事件**：需要全局钩子，用 [`uiohook-nap`](https://www.npmjs.com/package/uiohook-nap)（维护中的 iohook 替代品，支持 macOS/Win/Linux）。记录 mousedown/up、keypress。
+- **点击/键盘事件**：需要全局钩子，用 [`uiohook-napi`](https://www.npmjs.com/package/uiohook-napi)（原 uiohook-nap 已被作者更名为此包；维护中的 iohook 替代品，N-API 预编译免 rebuild，支持 macOS/Win/Linux）。记录 mousedown/up、keypress。
 - 多屏/缩放：记录事件时同时记录 `display.id`、`scaleFactor` 和屏幕 bounds，渲染期做坐标换算。
 
 ### 3.4 音频
