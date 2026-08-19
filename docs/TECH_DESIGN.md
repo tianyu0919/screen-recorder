@@ -1,0 +1,209 @@
+# Screen Studio 类录屏软件 — 技术方案（Electron 跨平台版）
+
+> 目标：一款"录制时记录数据，导出时自动运镜"的演示视频工具。
+> 核心差异点：缩放运镜、鼠标美化不在录制时做，而是在导出/预览阶段基于录制期采集的鼠标事件重新合成。
+
+---
+
+## 1. 产品核心能力拆解
+
+| 能力 | 本质 | 依赖数据 |
+|---|---|---|
+| 自动缩放运镜 | 虚拟相机在画布上做 spring/easing 动画 | 鼠标点击事件（时间戳 + 坐标） |
+| 鼠标平滑/放大 | 光标不录进画面，导出时用矢量光标重绘 | 鼠标轨迹（高频坐标序列） |
+| 点击高亮 | 在点击时刻叠加波纹动画 | 点击事件 |
+| 背景构图 | 录制画面居中 + 四周渐变 padding | 录制分辨率 |
+| 按键回显 | 键盘事件叠加层 | 键盘事件 |
+| 画中画摄像头 | 第二路采集，合成时叠加 | webcam 视频流 |
+
+**结论：所有效果都是"数据驱动的时间线渲染"。录屏只是素材采集。**
+
+---
+
+## 2. 总体架构
+
+```
+┌─────────────────────────────────────────────────────┐
+│ Renderer 进程 (React)                                │
+│  ├─ 录制控制 UI / 预览播放器 / 简单时间线编辑器        │
+│  └─ 运镜渲染器（WebGL，预览 & 导出共用同一套管线）      │
+├─────────────────────────────────────────────────────┤
+│ Main 进程 (Node)                                     │
+│  ├─ 屏幕采集控制（desktopCapturer 源选择）             │
+│  ├─ 全局输入监听（鼠标轨迹 / 点击 / 键盘）             │
+│  ├─ 文件管理（录制会话落盘）                           │
+│  └─ 原生能力桥接（可选 native helper）                │
+├─────────────────────────────────────────────────────┤
+│ Worker 线程                                          │
+│  └─ 离线导出：逐帧渲染 → WebCodecs 编码 → mux mp4     │
+└─────────────────────────────────────────────────────┘
+```
+
+### 关键设计原则：录制与渲染分离
+
+- **录制期**：只做两件事 —— 编码原始画面、高频记录鼠标/键盘事件。CPU 占用尽量低。
+- **渲染期**：预览和导出共用同一个"虚拟相机 + WebGL 合成器"，预览是实时模式，导出是确定性逐帧模式（不受机器性能影响，保证 60fps 输出）。
+
+---
+
+## 3. 录制模块
+
+### 3.1 屏幕画面采集
+
+- 源枚举：`desktopCapturer.getSources({ types: ['screen', 'window'] })`
+- 采集：`navigator.mediaDevices.getUserMedia` 带 `chromeMediaSourceId`，或新版 Electron 的 `session.setDisplayMediaRequestHandler` + `getDisplayMedia`
+- 编码：录制期直接用 `MediaRecorder`（vp9/webm 或 h264/mp4，高码率，如 12–20 Mbps）—— 先把画面存下来，质量损失对演示视频够用
+- 进阶（v2）：用 `MediaStreamTrackProcessor` + `VideoFrame` 拿原始帧，WebCodecs 编码，可控关键帧和码率
+
+### 3.2 光标问题（Electron 路线最大的坑，必须早决策）
+
+Screen Studio 能"放大/替换/平滑光标"的前提是：**光标没有被烧录进原始画面**。
+而 Electron 的屏幕采集在所有平台上**默认把系统光标画进流里**，且没有官方开关。
+
+三个方案：
+
+| 方案 | 做法 | 代价 |
+|---|---|---|
+| A. 接受光标烧录（MVP） | 不做光标替换，只做点击高亮和缩放运镜 | 零成本，但做不了光标放大/平滑 |
+| B. 原生采集 helper（推荐 v2） | macOS 写一个 Swift 小工具用 ScreenCaptureKit（`showsCursor = false`），Windows 用 `Windows.Graphics.Capture`（`IsCursorCaptureEnabled = false`），通过子进程或 N-API 把帧/流喂给 Electron | 每个平台一段原生代码，但是唯一彻底解 |
+| C. 取巧 | 录制时把系统光标设为透明（macOS 可用 `NSCursor.hide` 类 hack，不稳） | 不推荐 |
+
+**建议：MVP 走 A，架构上预留 B 的接口（录制器抽象出 `captureCursor: boolean`）。**
+
+### 3.3 鼠标与键盘事件采集（运镜的数据基础）
+
+- **鼠标轨迹**：Main 进程里用 `screen.getCursorScreenPoint()` 以 60–120Hz 轮询，记录 `{ t, x, y }`。够用且零依赖。
+- **点击/键盘事件**：需要全局钩子，用 [`uiohook-nap`](https://www.npmjs.com/package/uiohook-nap)（维护中的 iohook 替代品，支持 macOS/Win/Linux）。记录 mousedown/up、keypress。
+- 多屏/缩放：记录事件时同时记录 `display.id`、`scaleFactor` 和屏幕 bounds，渲染期做坐标换算。
+
+### 3.4 音频
+
+- 麦克风：`getUserMedia({ audio: true })`，单独一条轨
+- 系统声音：Windows 上 `getDisplayMedia` 可带 loopback；**macOS 上 Electron 拿不到系统声音**（原生 ScreenCaptureKit 可以）—— 又是方案 B 的动机。MVP 阶段 macOS 只录麦克风。
+
+### 3.5 录制会话数据格式（落盘）
+
+```
+recordings/<session-id>/
+├── screen.webm          # 原始屏幕画面
+├── mic.wav              # 麦克风（可选）
+├── webcam.webm          # 摄像头（可选）
+└── events.json          # 元数据 + 事件流
+```
+
+`events.json`：
+
+```json
+{
+  "version": 1,
+  "startTime": 1723987200000,
+  "display": { "id": 1, "bounds": [0, 0, 2560, 1440], "scaleFactor": 2 },
+  "video": { "width": 2560, "height": 1440, "fps": 60, "file": "screen.webm" },
+  "mouseTrack": [[0, 320, 240], [8, 325, 243], ...],
+  "clicks": [{ "t": 1200, "x": 512, "y": 300, "button": 1 }],
+  "keys": [{ "t": 3400, "key": "Enter" }]
+}
+```
+
+> 时间戳全部相对录制开始（ms），与视频帧对齐。鼠标轨迹用数组压缩存储（量大，可上万条/分钟）。
+
+---
+
+## 4. 运镜渲染引擎（核心模块）
+
+这是产品灵魂，预览和导出共用。
+
+### 4.1 虚拟相机模型
+
+- 把录制画面视为一张 `(W, H)` 的大画布，输出是 `1920×1080` 的视口
+- 相机状态：`{ x, y, zoom }`（视口中心点 + 缩放倍率）
+- **自动关键帧生成**：遍历点击事件，在每次点击前 ~200ms 生成"缩放到点击区域"的目标状态，无操作超过 N 秒回到 1.0x 全景。规则参数化（目标缩放倍率、停留时长、回归阈值）
+- **相机动画**：关键帧之间用 spring 阻尼曲线插值（react-spring 的 spring 物理或手写 RK4），保证运动有"肉感"不生硬
+
+### 4.2 渲染器
+
+- **WebGL**（自研 shader 或用 PixiJS）：每帧根据相机状态对视频纹理做仿射变换 + 叠加层（光标、点击波纹、按键徽章）
+- 视频解码：导出用 WebCodecs `VideoDecoder` 精确逐帧取帧；预览可用 `<video>` + `requestVideoFrameCallback`
+- 合成顺序：背景渐变 → 视频画面（圆角 + 阴影）→ 光标（矢量，可缩放/替换）→ 点击波纹 → 按键回显 → webcam 画中画
+
+### 4.3 光标重绘（方案 B 落地后启用）
+
+- 录制轨迹先做**平滑处理**：去抖（最小移动阈值）+ 样条插值（catmull-rom）
+- 光标用 SVG/高分辨率位图按 DPR 缩放渲染，支持换皮肤
+
+### 4.4 导出管线（Worker 线程，离线确定性渲染）
+
+```
+events.json + 相机关键帧
+        │
+   时间轴驱动器（t = 0, 1/60, 2/60 ...）
+        │
+   WebGL 逐帧渲染到 OffscreenCanvas
+        │
+   VideoEncoder (h264, 逐帧喂 VideoFrame)
+        │
+   mp4-muxer.js 封装 → Blob → 写盘
+   音频：mic.wav 直接混入（AudioEncoder 或 ffmpeg.wasm）
+```
+
+要点：
+- **导出不走实时**：帧时间戳由时间轴驱动，渲染慢没关系，保证输出帧率恒定
+- `mp4-muxer` 纯 JS 封装 H.264，无需 ffmpeg；需要 AAC 音频时引入 `ffmpeg.wasm` 或 `mediabunny`
+
+---
+
+## 5. 技术选型清单
+
+| 模块 | 选型 | 备注 |
+|---|---|---|
+| 框架 | Electron + React + TypeScript + Vite（electron-vite） | |
+| 屏幕采集 | desktopCapturer + getDisplayMedia | 原生 helper 走 v2 |
+| 全局输入 | uiohook-nap + `screen.getCursorScreenPoint` 轮询 | |
+| 渲染 | 自研 WebGL 或 PixiJS | 运镜合成 |
+| 视频解码 | WebCodecs VideoDecoder + mediabunny（demux webm/mp4） | |
+| 编码/封装 | WebCodecs VideoEncoder + mp4-muxer | |
+| 状态管理 | zustand | 简单够用 |
+| UI | Tailwind + shadcn/ui | |
+
+> 注意：WebCodecs 在 Electron（Chromium）里可用，H.264 编码需要确认当前 Electron 版本的 openh264/平台硬编支持，fallback 是 VP9+webm 或 ffmpeg.wasm。
+
+---
+
+## 6. 项目结构建议
+
+```
+screen-recorder/
+├── electron/                 # Main 进程
+│   ├── capture/              # 屏幕/音频采集
+│   ├── input/                # 鼠标轨迹轮询、uiohook 事件
+│   └── store/                # 录制会话落盘
+├── src/                      # Renderer
+│   ├── components/           # UI
+│   ├── timeline/             # 事件模型、自动关键帧生成
+│   ├── render/               # 虚拟相机 + WebGL 合成器（预览/导出共用）
+│   └── export/               # Worker 导出管线
+├── docs/TECH_DESIGN.md
+└── package.json
+```
+
+---
+
+## 7. 里程碑规划
+
+| 阶段 | 目标 | 验收标准 |
+|---|---|---|
+| M1 采集底座 | 选屏录制 + 鼠标轨迹/点击同步记录 + 落盘 events.json | 录 1 分钟，事件与视频时间轴对齐误差 < 50ms |
+| M2 回放运镜 | 读取录制会话，自动缩放 + spring 相机预览播放 | 点击处自动 zoom，动画平滑 |
+| M3 导出 | Worker 离线逐帧渲染导出 mp4 | 1080p60 输出，与预览一致 |
+| M4 光标美化 | 原生 helper 采集无光标画面 + 矢量光标重绘 | 光标可放大/换肤，轨迹平滑 |
+| M5 编辑器 | 可手动调关键帧、删片段、webcam 画中画、按键回显 | 完整 MVP 闭环 |
+
+---
+
+## 8. 已知风险
+
+1. **光标烧录**：见 §3.2，决定产品上限，尽早做原生 helper 的 PoC
+2. **macOS 系统声音**：Electron 拿不到，需原生 helper（ScreenCaptureKit 支持音频）
+3. **WebCodecs H.264**：不同 Electron 版本/平台支持不一，需探测 + fallback
+4. **高分辨率性能**：5K 屏幕录制 + WebGL 合成注意纹理尺寸上限和显存
+5. **权限**：macOS 需屏幕录制权限 + 辅助功能权限（全局输入钩子），要在引导页处理
