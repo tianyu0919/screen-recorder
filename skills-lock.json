@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "smart-requirement-workflow": {
+      "source": "tianyu0919/skills",
+      "sourceType": "github",
+      "skillPath": "smart-requirement-workflow/SKILL.md",
+      "computedHash": "c3ec8e8e2c47456f885e5a62b41d4db576525bbe977a39e5ec643be184619010"
+    }
+  }
+}

@@ -8,5 +8,3 @@ native/wasapi-audio/bin/
 native/wasapi-audio/target/
 .DS_Store
 *.log
-.agents/
-skills-lock.json
