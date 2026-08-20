@@ -2,7 +2,7 @@
 id: "kr-02-motion-playback"
 kind: kr
 parent: "screen-recorder"
-status: draft
+status: completed
 impact_radius:
   - "src/timeline/"
   - "src/render/"

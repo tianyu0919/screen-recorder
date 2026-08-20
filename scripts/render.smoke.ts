@@ -1,0 +1,151 @@
+/**
+ * src/render 冒烟验证（无测试框架，直接跑）：
+ *   TSX_TSCONFIG_PATH=tsconfig.web.json npx -y tsx scripts/render.smoke.ts
+ * 覆盖 Task 2.1–2.4 的纯数学部分（布局/仿射变换/波纹求值/降采样计算）。
+ * 注意：shader/GL 绘制路径无法无头验证，需在 Phase 3 预览接入后人工目视确认。
+ */
+import { clampCameraToCanvas } from '../src/timeline/coords'
+import type { CanvasSize } from '../src/timeline/types'
+import {
+  activeRipplesAt,
+  cameraToOutputTransform,
+  computeBasePlacement,
+  fitTextureSize,
+  rippleStateAt,
+  transformPoint
+} from '../src/render/layout'
+import { DEFAULT_COMPOSITOR_OPTIONS, type RippleParams } from '../src/render/types'
+
+let failures = 0
+function check(name: string, cond: boolean, detail = '') {
+  if (cond) console.log(`ok   ${name}`)
+  else {
+    failures++
+    console.error(`FAIL ${name} ${detail}`)
+  }
+}
+
+const output = { width: 1920, height: 1080 }
+const padRatio = DEFAULT_COMPOSITOR_OPTIONS.videoStyle.paddingRatio
+const near = (a: number, b: number, eps = 1e-6) => Math.abs(a - b) < eps
+
+// ── Task 2.1: 基准摆放（等比缩放居中 + padding） ───────────────
+const canvas: CanvasSize = { width: 2560, height: 1440 }
+const pl = computeBasePlacement(canvas, output, padRatio)
+const pad = Math.min(output.width, output.height) * padRatio // 64.8
+// padding 按短边统一取值后内区为 1790.4×950.4（比例 1.884 > 16:9），高度侧先吃满
+check(
+  '2.1 基准摆放等比缩放并留出 padding',
+  near(pl.height, output.height - pad * 2) &&
+    near(pl.width, (pl.height * canvas.width) / canvas.height) &&
+    pl.x >= pad,
+  JSON.stringify(pl)
+)
+check(
+  '2.1 基准摆放居中',
+  near(pl.x, (output.width - pl.width) / 2) && near(pl.y, (output.height - pl.height) / 2)
+)
+// 竖屏源：高度吃满，横向 letterbox
+const tall = computeBasePlacement({ width: 1080, height: 1920 }, output, 0)
+check(
+  '2.1 非 16:9 源按短边适配（letterbox）',
+  near(tall.height, output.height) && tall.width < output.width && near(tall.y, 0),
+  JSON.stringify(tall)
+)
+
+// ── Task 2.1: 相机仿射变换 ─────────────────────────────────────
+const fullCam = { x: canvas.width / 2, y: canvas.height / 2, zoom: 1 }
+const t1 = cameraToOutputTransform(fullCam, canvas, pl, output)
+// zoom=1 全景：画布四角映射到基准摆放矩形四角
+const c00 = transformPoint(t1, 0, 0)
+const c11 = transformPoint(t1, canvas.width, canvas.height)
+check(
+  '2.1 zoom=1 全景 = 基准摆放',
+  near(c00.x, pl.x) && near(c00.y, pl.y) && near(c11.x, pl.x + pl.width) && near(c11.y, pl.y + pl.height),
+  `c00=${JSON.stringify(c00)} c11=${JSON.stringify(c11)}`
+)
+
+// zoom=2 对准点击点：该画布点映射到输出中心
+const clickCam = clampCameraToCanvas({ x: 640, y: 360, zoom: 2 }, canvas)
+const t2 = cameraToOutputTransform(clickCam, canvas, pl, output)
+const center2 = transformPoint(t2, clickCam.x, clickCam.y)
+check(
+  '2.1 zoom=2 相机对准点落在输出中心',
+  near(center2.x, output.width / 2) && near(center2.y, output.height / 2),
+  JSON.stringify(center2)
+)
+check('2.1 zoom=2 变换 scale = baseScale × 2', near(t2.scale, t1.scale * 2))
+
+// 钳制保护：边缘点击 + zoom 后，视频边缘露出的背景渐变带 ≤ zoom=1 的摆放边距
+// （数学上恰等于摆放边距，与 zoom 无关；spec 明示背景渐变区域不算穿帮）
+const edgeCam = clampCameraToCanvas({ x: 0, y: 0, zoom: 2 }, canvas)
+const te = cameraToOutputTransform(edgeCam, canvas, pl, output)
+const v00 = transformPoint(te, 0, 0) // 视频左上角在输出中的位置
+check(
+  '2.1 边缘点击钳制后渐变露出 ≤ 摆放边距',
+  near(v00.x, pl.x) && near(v00.y, pl.y),
+  JSON.stringify(v00)
+)
+
+// ── Task 2.2: 参数化配置对象 ───────────────────────────────────
+check(
+  '2.2 背景/圆角/阴影参数为可配置对象且有默认值',
+  DEFAULT_COMPOSITOR_OPTIONS.background.from.length === 4 &&
+    DEFAULT_COMPOSITOR_OPTIONS.videoStyle.cornerRadius > 0 &&
+    DEFAULT_COMPOSITOR_OPTIONS.videoStyle.shadow.blur > 0
+)
+
+// ── Task 2.3: 波纹时间求值 ─────────────────────────────────────
+const rp: RippleParams = DEFAULT_COMPOSITOR_OPTIONS.ripple
+check('2.3 触发前无波纹', rippleStateAt(-1, rp) === null)
+check('2.3 超时后无波纹', rippleStateAt(rp.durationMs + 1, rp) === null)
+const s0 = rippleStateAt(0, rp)!
+const sMid = rippleStateAt(rp.durationMs / 2, rp)!
+const sEnd = rippleStateAt(rp.durationMs, rp)!
+check(
+  '2.3 半径单调扩散 0 → maxRadius',
+  s0.radius === 0 && sMid.radius > s0.radius && near(sEnd.radius, rp.maxRadius),
+  `mid=${sMid.radius}`
+)
+check(
+  '2.3 alpha 线性淡出至 0',
+  near(s0.alpha, rp.color[3]) && sMid.alpha < s0.alpha && sEnd.alpha === 0
+)
+
+// 活动波纹过滤：时间窗外（过早/未来）的点击被剔除，坐标映射到输出空间
+const clicks = [
+  { t: 1000, x: 1280, y: 720 }, // 画布中心
+  { t: 100, x: 0, y: 0 }, // 已超出时间窗
+  { t: 1300, x: 640, y: 360 }
+]
+const act = activeRipplesAt(clicks, 1400, rp, t1, 8)
+check(
+  '2.3 时间窗过滤（仅 2 个活动波纹）',
+  act.length === 2 && near(act[0].x, output.width / 2) && near(act[0].y, output.height / 2),
+  JSON.stringify(act)
+)
+// 数量上限：保留最新的
+const many = Array.from({ length: 20 }, (_, i) => ({ t: 1000 + i * 10, x: 0, y: 0 }))
+const capped = activeRipplesAt(many, 1150, { ...rp, durationMs: 500 }, t1, 8)
+check(
+  '2.3 超上限保留最新 8 个',
+  capped.length === 8,
+  `got ${capped.length}`
+)
+
+// ── Task 2.4: 超纹理上限降采样计算 ─────────────────────────────
+const noDs = fitTextureSize(1920, 1080, 16384)
+check('2.4 上限内不降采样', noDs.scale === 1 && noDs.width === 1920 && noDs.height === 1080)
+// 8K 源 → 上限 4096：等比缩小，最长边 = 上限
+const ds = fitTextureSize(7680, 4320, 4096)
+check(
+  '2.4 超限等比降采样（最长边=上限）',
+  ds.width === 4096 && ds.height === 2304 && near(ds.scale, 4096 / 7680),
+  JSON.stringify(ds)
+)
+// 极端宽源：按最长边缩，另一维不低于 1
+const wide = fitTextureSize(20000, 10, 8192)
+check('2.4 极端宽高比降采样不塌缩', wide.width === 8192 && wide.height >= 1, JSON.stringify(wide))
+
+console.log(failures === 0 ? '\n全部通过' : `\n${failures} 项失败`)
+process.exit(failures === 0 ? 0 : 1)

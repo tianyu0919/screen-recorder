@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '@/store/appStore'
+import { usePreviewStore } from '@/store/previewStore'
 import { Button } from '@/components/ui/button'
 
 function formatElapsed(sec: number): string {
@@ -98,9 +99,21 @@ export function RecordingPanel(): React.JSX.Element {
       )}
 
       {status === 'idle' && lastSession && (
-        <p className="text-xs text-zinc-500">
-          上次录制已保存：<span className="font-mono">{lastSession.dir}</span>
-        </p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-zinc-500">
+            上次录制已保存：<span className="font-mono">{lastSession.dir}</span>
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              useAppStore.getState().setView('preview')
+              void usePreviewStore.getState().openSession(lastSession.sessionId)
+            }}
+          >
+            进入预览 →
+          </Button>
+        </div>
       )}
     </div>
   )

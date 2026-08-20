@@ -4,6 +4,8 @@ import type {
   CaptureSource,
   PermissionStatus,
   RecordingError,
+  RecordingSession,
+  SessionLoadResult,
   StartRecordingPayload,
   StartRecordingResult
 } from '../../shared/types'
@@ -19,6 +21,12 @@ export interface RecorderApi {
   writeMic(wav: ArrayBuffer): Promise<void>
   stopRecording(): Promise<{ dir: string; sessionId: string } | null>
   abortRecording(): Promise<void>
+  /** 枚举已落盘的录制会话（kr-02 预览） */
+  listSessions(): Promise<RecordingSession[]>
+  /** 加载会话：events.json 原文 + media:// 视频流式 URL */
+  loadSession(sessionId: string): Promise<SessionLoadResult>
+  /** 在系统文件管理器（macOS Finder）中显示会话文件位置 */
+  revealSession(sessionId: string): Promise<void>
   onRecordingError(cb: (err: RecordingError) => void): () => void
   onRecordingStopped(cb: (result: { dir: string; sessionId: string }) => void): () => void
 }
@@ -33,6 +41,9 @@ const api: RecorderApi = {
   writeMic: (wav) => ipcRenderer.invoke(IPC.RecordingWriteMic, wav),
   stopRecording: () => ipcRenderer.invoke(IPC.RecordingStop),
   abortRecording: () => ipcRenderer.invoke('recording:abort'),
+  listSessions: () => ipcRenderer.invoke(IPC.SessionList),
+  loadSession: (sessionId) => ipcRenderer.invoke(IPC.SessionLoad, sessionId),
+  revealSession: (sessionId) => ipcRenderer.invoke(IPC.SessionReveal, sessionId),
   onRecordingError: (cb) => {
     const listener = (_e: Electron.IpcRendererEvent, err: RecordingError): void => cb(err)
     ipcRenderer.on(IPC.RecordingError, listener)

@@ -81,6 +81,15 @@ export interface RecordingSession {
   startedAt: number
 }
 
+/** SessionLoad IPC 返回（kr-02 预览加载会话） */
+export interface SessionLoadResult {
+  session: RecordingSession
+  /** events.json 原文：解析与 schema 校验在 Renderer（parseEventsJson）完成，损坏时友好提示 */
+  eventsJson: string
+  /** 自定义 media:// 协议流式 URL，直接喂 <video src>（支持 Range，不整文件读内存） */
+  videoUrl: string
+}
+
 /** 权限状态（macOS 引导页用；Windows 上全部视为 granted） */
 export interface PermissionStatus {
   screen: 'granted' | 'denied' | 'unknown'

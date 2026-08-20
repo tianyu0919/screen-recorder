@@ -9,7 +9,11 @@ import { ScreenRecorder } from '@/recorder/screenRecorder'
 
 type RecordStatus = 'idle' | 'recording' | 'stopping'
 
+/** 顶层视图：录制 / 预览（kr-02 Phase 3） */
+export type AppView = 'record' | 'preview'
+
 interface AppState {
+  view: AppView
   sources: CaptureSource[]
   sourcesLoaded: boolean
   selectedSourceId: string | null
@@ -27,6 +31,7 @@ interface AppState {
   refreshPermissions(): Promise<void>
   selectSource(id: string): Promise<void>
   setWithMic(v: boolean): void
+  setView(v: AppView): void
   clearError(): void
   startRecording(): Promise<void>
   stopRecording(): Promise<void>
@@ -43,6 +48,7 @@ interface AppStateActions {
 }
 
 export const useAppStore = create<AppState & AppStateActions>((set, get) => ({
+  view: 'record',
   sources: [],
   sourcesLoaded: false,
   selectedSourceId: null,
@@ -87,6 +93,10 @@ export const useAppStore = create<AppState & AppStateActions>((set, get) => ({
 
   setWithMic(v) {
     set({ withMic: v })
+  },
+
+  setView(v) {
+    set({ view: v })
   },
 
   clearError() {

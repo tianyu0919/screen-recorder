@@ -10,6 +10,7 @@ import { listCaptureSources, setPendingCaptureSource } from './capture/sources'
 import { CursorPoller } from './input/cursorPoller'
 import { InputHook } from './input/uiohook'
 import { SessionStore } from './store/sessionStore'
+import { listSessions, loadSession, revealSession } from './store/sessionReader'
 import { getPermissionStatus, openSystemSettings, requestMicrophoneAccess } from './permissions'
 
 /** 鼠标轨迹轮询频率（spec: 60–120Hz，取 90Hz） */
@@ -37,6 +38,11 @@ export function registerIpc(getWindow: () => BrowserWindow | null): {
   let displayInfo: RecordingEvents['display'] | null = null
 
   ipcMain.handle(IPC.GetSources, () => listCaptureSources())
+
+  // 录制会话读取（kr-02 预览）：枚举 / 加载 events.json + 视频流式 URL
+  ipcMain.handle(IPC.SessionList, () => listSessions())
+  ipcMain.handle(IPC.SessionLoad, (_e, sessionId: string) => loadSession(sessionId))
+  ipcMain.handle(IPC.SessionReveal, (_e, sessionId: string) => revealSession(sessionId))
 
   // Renderer 在调 getDisplayMedia 前告知选中的源（SCK handler 据此 approve）
   ipcMain.handle(IPC.PrepareCaptureSource, (_e, sourceId: string) => {

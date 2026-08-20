@@ -3,9 +3,9 @@
 > 本文件只包含 Epic 级协调任务；各 KR 的原子任务见 `krs/<kr-id>/tasks.md`。
 
 ## Phase 1: KR 排期与契约冻结
-- [ ] Task 1.1: 冻结录制会话格式契约（`events.json` 类型定义，见 design.md §2），作为 kr-01 输出、kr-02/kr-03 输入的跨 KR 接口
-- [ ] Task 1.2: 冻结采集器抽象 `CaptureOptions.captureCursor` 接口，作为 kr-01 与 kr-04 之间的扩展点
-- [ ] Task 1.3: 确认 KR 执行顺序：kr-01 → kr-02 → kr-03 为主线；kr-04（原生 helper PoC）可在 kr-01 完成后与主线并行；kr-05 最后启动
+- [x] Task 1.1: 冻结录制会话格式契约（`events.json` 类型定义，见 design.md §2），作为 kr-01 输出、kr-02/kr-03 输入的跨 KR 接口
+- [x] Task 1.2: 冻结采集器抽象 `CaptureOptions.captureCursor` 接口，作为 kr-01 与 kr-04 之间的扩展点
+- [x] Task 1.3: 确认 KR 执行顺序：kr-01 → kr-02 → kr-03 为主线；kr-04（原生 helper PoC）可在 kr-01 完成后与主线并行；kr-05 最后启动
 
 ## Phase 2: 跨 KR 集成
 - [ ] Task 2.1: 集成验证 kr-01 产出的真实录制会话可被 kr-02 预览管线完整加载（会话格式契约回归）
