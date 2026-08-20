@@ -9,10 +9,13 @@ export const IPC = {
   RecordingStop: 'recording:stop',
   RecordingWriteChunk: 'recording:write-chunk',
   RecordingWriteMic: 'recording:write-mic',
+  RecordingWriteSystemAudio: 'recording:write-system-audio',
   // 录制会话读取（kr-02 预览）
   SessionList: 'session:list',
   SessionLoad: 'session:load',
   SessionReveal: 'session:reveal',
+  // 导出产物保存（kr-03）
+  ExportSave: 'export:save',
   // Main → Renderer（事件推送）
   RecordingError: 'recording:error',
   RecordingStopped: 'recording:stopped',

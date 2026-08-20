@@ -2,7 +2,7 @@
 id: "kr-03-mp4-export"
 kind: kr
 parent: "screen-recorder"
-status: draft
+status: in_progress
 impact_radius:
   - "src/export/"
   - "src/render/"

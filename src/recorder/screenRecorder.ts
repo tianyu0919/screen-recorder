@@ -25,6 +25,8 @@ export class ScreenRecorder {
   private micStream: MediaStream | null = null
   private micRecorder: MediaRecorder | null = null
   private micChunks: Blob[] = []
+  private systemRecorder: MediaRecorder | null = null
+  private systemChunks: Blob[] = []
   private stopping = false
 
   constructor(private cb: RecorderCallbacks) {}
@@ -36,7 +38,9 @@ export class ScreenRecorder {
     // ScreenCaptureKit 路径：先告知 Main 选中的源，再由 getDisplayMedia 触发 handler approve
     await window.api.prepareCaptureSource(sourceId)
     const stream = await navigator.mediaDevices.getDisplayMedia({
-      audio: false,
+      // 系统音频回采（kr-01 system-audio）：支持的平台自动带 "System audio" 轨，
+      // 不支持则静默无音轨；必须关闭语音处理（系统声不是人声，降噪/增益会毁掉它）
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
       video: { frameRate: { ideal: 60 } }
     })
     // 源被关闭（窗口源被关）→ 通知终止录制（Task 4.2）
@@ -62,9 +66,9 @@ export class ScreenRecorder {
       }
     })
 
-    // 画面录制
+    // 画面录制：只用 video track 建新流——系统音频不能混进 screen.webm（保持纯视频轨）
     const mimeType = MediaRecorder.isTypeSupported(VIDEO_MIME) ? VIDEO_MIME : 'video/webm'
-    this.recorder = new MediaRecorder(this.stream, {
+    this.recorder = new MediaRecorder(new MediaStream(this.stream.getVideoTracks()), {
       mimeType,
       videoBitsPerSecond: VIDEO_BITS_PER_SECOND
     })
@@ -76,6 +80,29 @@ export class ScreenRecorder {
       this.cb.onFatalError({ code: 'RECORDER_FAILED', message: '画面编码器异常，录制已停止' })
     }
     this.recorder.start(TIMESLICE_MS)
+
+    // 系统音频 loopback（可选轨，仅 Windows 路径）：macOS 上 loopback 轨出生即 ended
+    // （electron#52738），系统音频由 Main 侧原生 helper 采集（electron/capture/systemAudio/），
+    // 这里直接跳过，避免白跑 MediaRecorder 失败路径
+    const systemTracks =
+      window.api.platform === 'darwin'
+        ? []
+        : this.stream.getAudioTracks().filter((t) => t.readyState === 'live')
+    if (systemTracks.length > 0) {
+      try {
+        const audioMime = MediaRecorder.isTypeSupported(AUDIO_MIME) ? AUDIO_MIME : 'audio/webm'
+        this.systemRecorder = new MediaRecorder(new MediaStream(systemTracks), {
+          mimeType: audioMime
+        })
+        this.systemChunks = []
+        this.systemRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) this.systemChunks.push(e.data)
+        }
+        this.systemRecorder.start(TIMESLICE_MS)
+      } catch {
+        this.systemRecorder = null
+      }
+    }
 
     // 麦克风（可选轨；采集失败不阻断录制）
     if (withMic) {
@@ -122,6 +149,15 @@ export class ScreenRecorder {
     this.micStream?.getTracks().forEach((t) => t.stop())
     this.micStream = null
 
+    if (this.systemRecorder) {
+      await this.stopRecorder(this.systemRecorder)
+      this.systemRecorder = null
+      const wav = await micBlobToWav(new Blob(this.systemChunks, { type: 'audio/webm' }))
+      if (wav) await window.api.writeSystemAudio(wav)
+      this.systemChunks = []
+    }
+    // 系统音轨属于采集流，由 releaseStream 统一停
+
     const result = await window.api.stopRecording()
     this.releaseStream()
     return result
@@ -139,6 +175,11 @@ export class ScreenRecorder {
     }
     this.micStream?.getTracks().forEach((t) => t.stop())
     this.micStream = null
+    if (this.systemRecorder) {
+      await this.stopRecorder(this.systemRecorder)
+      this.systemRecorder = null
+      this.systemChunks = []
+    }
     await window.api.abortRecording()
     this.releaseStream()
   }

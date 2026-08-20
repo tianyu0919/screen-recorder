@@ -1,12 +1,17 @@
-import { ipcMain, screen, desktopCapturer, type BrowserWindow } from 'electron'
+import { ipcMain, screen, desktopCapturer, dialog, type BrowserWindow } from 'electron'
+import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { IPC } from '../shared/ipc'
 import type {
+  ExportFormat,
+  ExportSaveResult,
   RecordingEvents,
   RecordingError,
   StartRecordingPayload,
   StartRecordingResult
 } from '../shared/types'
 import { listCaptureSources, setPendingCaptureSource } from './capture/sources'
+import { startSystemAudioCapture, type StopSystemAudio } from './capture/systemAudio'
 import { CursorPoller } from './input/cursorPoller'
 import { InputHook } from './input/uiohook'
 import { SessionStore } from './store/sessionStore'
@@ -36,6 +41,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): {
   let t0 = 0
   let videoMeta: StartRecordingPayload['video'] | null = null
   let displayInfo: RecordingEvents['display'] | null = null
+  let stopSystemAudio: StopSystemAudio | null = null
 
   ipcMain.handle(IPC.GetSources, () => listCaptureSources())
 
@@ -43,6 +49,31 @@ export function registerIpc(getWindow: () => BrowserWindow | null): {
   ipcMain.handle(IPC.SessionList, () => listSessions())
   ipcMain.handle(IPC.SessionLoad, (_e, sessionId: string) => loadSession(sessionId))
   ipcMain.handle(IPC.SessionReveal, (_e, sessionId: string) => revealSession(sessionId))
+
+  // 导出产物保存（kr-03）：内存中的 mp4/webm 经保存对话框落盘，用户取消返回 null
+  ipcMain.handle(
+    IPC.ExportSave,
+    async (
+      _e,
+      sessionId: string,
+      data: ArrayBuffer,
+      format: ExportFormat
+    ): Promise<ExportSaveResult | null> => {
+      const win = getWindow()
+      if (!win) return null
+      const result = await dialog.showSaveDialog(win, {
+        defaultPath: `${sessionId}.${format}`,
+        filters: [
+          format === 'mp4'
+            ? { name: 'MP4 视频', extensions: ['mp4'] }
+            : { name: 'WebM 视频', extensions: ['webm'] }
+        ]
+      })
+      if (result.canceled || !result.filePath) return null
+      await writeFile(result.filePath, Buffer.from(data))
+      return { path: result.filePath }
+    }
+  )
 
   // Renderer 在调 getDisplayMedia 前告知选中的源（SCK handler 据此 approve）
   ipcMain.handle(IPC.PrepareCaptureSource, (_e, sourceId: string) => {
@@ -62,6 +93,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null): {
     const session = store.startSession()
     t0 = Date.now()
     videoMeta = payload.video
+    // macOS 原生系统音频（ScreenCaptureKit helper）；不可用（Windows/无 helper）返回 null 静默降级
+    stopSystemAudio = startSystemAudioCapture(join(session.dir, 'system.wav'))
 
     // 记录"被录制源所在"的显示器信息，供多屏/scaleFactor 换算：
     // screen 源按 desktopCapturer 的 display_id 精确匹配；
@@ -117,9 +150,16 @@ export function registerIpc(getWindow: () => BrowserWindow | null): {
     }
   )
 
+  ipcMain.handle(IPC.RecordingWriteSystemAudio, (_e, wav: ArrayBuffer) => {
+    store.writeSystemAudio(Buffer.from(wav))
+  })
+
   ipcMain.handle(IPC.RecordingStop, async () => {
     poller.stop()
     inputHook.stopRecording()
+    // 先停系统音频 helper（stdin EOF 后 patch WAV header），再判断会话有效性，避免残留
+    await stopSystemAudio?.()
+    stopSystemAudio = null
     if (!store.hasActiveSession() || !videoMeta || !displayInfo) {
       return null
     }
@@ -141,6 +181,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null): {
   ipcMain.handle('recording:abort', async () => {
     poller.stop()
     inputHook.stopRecording()
+    await stopSystemAudio?.()
+    stopSystemAudio = null
     await store.abort()
   })
 

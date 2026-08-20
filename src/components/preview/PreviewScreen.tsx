@@ -3,6 +3,7 @@ import { usePreviewStore } from '@/store/previewStore'
 import { Button } from '@/components/ui/button'
 import { PreviewPlayer } from './PreviewPlayer'
 import { MotionParamsPanel } from './MotionParamsPanel'
+import { ExportControls } from './ExportControls'
 
 function formatSessionTime(startedAt: number): string {
   return new Date(startedAt).toLocaleString()
@@ -38,6 +39,7 @@ export function PreviewScreen(): React.JSX.Element {
             预览 <span className="font-mono text-zinc-400">{current.session.sessionId}</span>
           </h2>
           <div className="flex items-center gap-2">
+            <ExportControls />
             <Button
               variant="outline"
               size="sm"
@@ -53,6 +55,8 @@ export function PreviewScreen(): React.JSX.Element {
         <PreviewPlayer
           timeline={current.timeline}
           videoUrl={current.videoUrl}
+          audioUrl={current.audioUrl}
+          systemAudioUrl={current.systemAudioUrl}
           keyframes={keyframes}
           ripples={ripples}
         />

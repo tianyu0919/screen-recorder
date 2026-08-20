@@ -38,7 +38,9 @@ export function registerDisplayMediaHandler(): void {
         .then((sources) => {
           const picked = sources.find((s) => s.id === pendingSourceId)
           if (picked) {
-            callback({ video: picked })
+            // audio: 'loopback' 请求系统音频回采（macOS 13+ SCK / Windows 回环），
+            // 不支持的平台静默无音轨，由 Renderer 检测 getAudioTracks()
+            callback({ video: picked, audio: 'loopback' })
           } else {
             // 源已失效（窗口已关闭等）：拒绝本次请求，Renderer 侧按采集失败处理
             callback({})

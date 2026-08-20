@@ -19,6 +19,10 @@ interface PreviewSession {
   session: RecordingSession
   timeline: Timeline
   videoUrl: string
+  /** mic.wav 流式 URL（无麦克风轨的会话为 null） */
+  audioUrl: string | null
+  /** system.wav 流式 URL（无系统音频轨的会话为 null） */
+  systemAudioUrl: string | null
 }
 
 interface PreviewState {
@@ -76,7 +80,9 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
       const current: PreviewSession = {
         session: result.session,
         timeline,
-        videoUrl: result.videoUrl
+        videoUrl: result.videoUrl,
+        audioUrl: result.audioUrl,
+        systemAudioUrl: result.systemAudioUrl
       }
       set({ loading: false, current, ...derive(timeline, get().motionParams) })
     } catch (err) {

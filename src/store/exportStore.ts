@@ -1,0 +1,127 @@
+import { create } from 'zustand'
+import type { ExportFormat } from '@shared/types'
+import type { ExportWorkerMessage } from '@/export/messages'
+import { usePreviewStore } from './previewStore'
+
+/**
+ * 导出状态（kr-03 Task 3.1 / 3.2）：
+ * startExport 取预览当前的 keyframes/ripples（参数面板调好后的效果）启动 Worker；
+ * 取消 = worker.terminate() 硬终止（输出在内存，无半成品文件）；
+ * 完成后经 saveExport IPC 弹保存对话框落盘。
+ */
+
+type ExportStatus = 'idle' | 'exporting' | 'done' | 'error'
+
+interface ExportState {
+  status: ExportStatus
+  /** 0..1，按已渲染帧数成比例 */
+  progress: number
+  /** 完成后的保存路径（用户在保存对话框取消则为 null） */
+  resultPath: string | null
+  outputFormat: ExportFormat | null
+  hasAudio: boolean
+  errorMessage: string | null
+
+  startExport(): Promise<void>
+  cancelExport(): void
+  reset(): void
+}
+
+/** 当前导出 Worker 句柄（不进 state，避免不必要的订阅触发） */
+let activeWorker: Worker | null = null
+
+function terminateWorker(): void {
+  activeWorker?.terminate()
+  activeWorker = null
+}
+
+export const useExportStore = create<ExportState>((set, get) => ({
+  status: 'idle',
+  progress: 0,
+  resultPath: null,
+  outputFormat: null,
+  hasAudio: false,
+  errorMessage: null,
+
+  async startExport() {
+    if (get().status === 'exporting') return
+    const { current, keyframes, ripples } = usePreviewStore.getState()
+    if (!current) return
+    const sessionId = current.session.sessionId
+
+    terminateWorker()
+    const worker = new Worker(new URL('../export/worker.ts', import.meta.url), {
+      type: 'module'
+    })
+    activeWorker = worker
+    set({
+      status: 'exporting',
+      progress: 0,
+      resultPath: null,
+      outputFormat: null,
+      hasAudio: false,
+      errorMessage: null
+    })
+
+    worker.onmessage = (event: MessageEvent<ExportWorkerMessage>) => {
+      const msg = event.data
+      if (msg.type === 'progress') {
+        set({ progress: msg.total > 0 ? msg.done / msg.total : 0 })
+      } else if (msg.type === 'error') {
+        terminateWorker()
+        set({ status: 'error', errorMessage: msg.message })
+      } else {
+        // done：Worker 侧 buffer 已 transfer 过来，弹保存对话框落盘
+        terminateWorker()
+        void window.api
+          .saveExport(sessionId, msg.buffer, msg.format)
+          .then((saved) => {
+            set({
+              status: 'done',
+              progress: 1,
+              outputFormat: msg.format,
+              hasAudio: msg.audio,
+              resultPath: saved?.path ?? null
+            })
+          })
+          .catch((err: unknown) => {
+            set({
+              status: 'error',
+              errorMessage: `保存失败: ${err instanceof Error ? err.message : String(err)}`
+            })
+          })
+      }
+    }
+    worker.onerror = () => {
+      terminateWorker()
+      set({ status: 'error', errorMessage: '导出失败: 导出线程异常终止' })
+    }
+
+    worker.postMessage({
+      type: 'start',
+      sessionId,
+      keyframes,
+      ripples,
+      canvas: current.timeline.canvas,
+      fallbackDurationMs: current.timeline.durationMs
+    })
+  },
+
+  cancelExport() {
+    if (get().status !== 'exporting') return
+    terminateWorker()
+    set({ status: 'idle', progress: 0 })
+  },
+
+  reset() {
+    terminateWorker()
+    set({
+      status: 'idle',
+      progress: 0,
+      resultPath: null,
+      outputFormat: null,
+      hasAudio: false,
+      errorMessage: null
+    })
+  }
+}))

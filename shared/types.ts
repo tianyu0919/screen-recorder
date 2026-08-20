@@ -88,10 +88,21 @@ export interface SessionLoadResult {
   eventsJson: string
   /** 自定义 media:// 协议流式 URL，直接喂 <video src>（支持 Range，不整文件读内存） */
   videoUrl: string
+  /** mic.wav 流式 URL（麦克风可选轨，不存在时为 null）；预览与画面同步播放 */
+  audioUrl: string | null
+  /** system.wav 流式 URL（系统音频可选轨，不存在时为 null） */
+  systemAudioUrl: string | null
 }
 
-/** 权限状态（macOS 引导页用；Windows 上全部视为 granted） */
-export interface PermissionStatus {
+/** 导出产物容器格式（kr-03）：mp4 = H.264 主路径，webm = VP9 fallback */
+export type ExportFormat = 'mp4' | 'webm'
+
+/** ExportSave IPC 返回（kr-03）：用户取消保存对话框时为 null */
+export interface ExportSaveResult {
+  path: string
+}
+
+/** 权限状态（macOS 引导页用；Windows 上全部视为 granted） */export interface PermissionStatus {
   screen: 'granted' | 'denied' | 'unknown'
   accessibility: 'granted' | 'denied' | 'unknown'
   microphone: 'granted' | 'denied' | 'unknown'

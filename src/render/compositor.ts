@@ -183,6 +183,15 @@ export class Compositor {
     return this.info
   }
 
+  /**
+   * 提交当前 GL 命令队列（kr-03 导出防御）：
+   * Worker 里 drawFrame 后立即 new VideoFrame(canvas) 捕获画布时，
+   * 先 flush 确保绘制命令已提交到 GPU 进程，快照不依赖隐式同步时机。
+   */
+  flush(): void {
+    this.gl.flush()
+  }
+
   private drawRipples(ripples: ReturnType<typeof activeRipplesAt>): void {
     const gl = this.gl
     const { ripple } = this.options

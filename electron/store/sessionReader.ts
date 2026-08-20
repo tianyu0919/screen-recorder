@@ -1,5 +1,6 @@
 import { app, protocol, shell } from 'electron'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { open, readFile } from 'node:fs/promises'
 import { join, normalize, sep } from 'node:path'
 import type { RecordingSession, SessionLoadResult } from '../../shared/types'
 
@@ -63,10 +64,19 @@ export function loadSession(sessionId: string): SessionLoadResult {
     /* 同上 */
   }
   if (!existsSync(join(dir, videoFile))) throw new Error('会话视频文件缺失')
+  // 麦克风/系统音频可选轨：存在才给预览/导出用
+  const audioUrl = existsSync(join(dir, 'mic.wav'))
+    ? `media://rec/${sessionId}/mic.wav`
+    : null
+  const systemAudioUrl = existsSync(join(dir, 'system.wav'))
+    ? `media://rec/${sessionId}/system.wav`
+    : null
   return {
     session: { sessionId, dir, startedAt: readStartedAt(eventsPath) },
     eventsJson,
-    videoUrl: `media://rec/${sessionId}/${encodeURIComponent(videoFile)}`
+    videoUrl: `media://rec/${sessionId}/${encodeURIComponent(videoFile)}`,
+    audioUrl,
+    systemAudioUrl
   }
 }
 
@@ -83,24 +93,74 @@ export function revealSession(sessionId: string): void {
  * media:// 协议：URL 形如 media://rec/<sessionId>/<file>，仅放行 recordings 根目录内文件。
  * 需要在 app ready 前配套 registerSchemesAsPrivileged（stream: true）。
  *
- * 实现方式：用 registerFileProtocol 直接映射本地文件，Electron 会自动处理
- * Content-Type、Range、Content-Length 等视频流式播放所需的响应头。
+ * 实现方式：protocol.handle + 手写 Range 响应，body 用内存 Buffer（不走流）。
+ * 实测 Electron 39 的坑：registerFileProtocol 与 net.fetch(file://) 都不产出 206；
+ * 改用手写 206 + ReadableStream body 后，Chrome demuxer 对某些文件在收到响应头后
+ * 零数据直接取消请求（Format error，时序敏感）；Buffer body 响应最普通，兼容性最好。
+ * Range 切片一般很小；整文件请求一次读入内存（预览/导出会话文件均为几十 MB 量级）。
  */
 export function registerMediaProtocol(): void {
-  protocol.registerFileProtocol('media', (request, callback) => {
+  protocol.handle('media', async (request) => {
     const url = new URL(request.url)
     // URL 形如 media://rec/<sessionId>/<file>：host=rec，pathname=/<sessionId>/<file>
     const rel = decodeURIComponent(url.pathname).replace(/^\/+/, '')
     const root = recordingsRoot()
     const abs = normalize(join(root, rel))
     if (abs !== root && !abs.startsWith(root + sep)) {
-      callback({ error: -13 }) // ACCESS_DENIED
-      return
+      return new Response('forbidden', { status: 403 })
     }
     if (!existsSync(abs)) {
-      callback({ error: -6 }) // FILE_NOT_FOUND
-      return
+      return new Response('not found', { status: 404 })
     }
-    callback({ path: abs })
+
+    const size = statSync(abs).size
+    const contentType = abs.endsWith('.webm')
+      ? 'video/webm'
+      : abs.endsWith('.wav')
+        ? 'audio/wav'
+        : 'application/octet-stream'
+
+    const range = request.headers.get('range')
+    const m = range ? /bytes=(\d*)-(\d*)/.exec(range) : null
+    if (m) {
+      // 支持 "bytes=start-" / "bytes=start-end" / "bytes=-suffix"
+      let start = m[1] ? parseInt(m[1], 10) : 0
+      let end = m[2] ? parseInt(m[2], 10) : size - 1
+      if (!m[1] && m[2]) {
+        start = Math.max(0, size - parseInt(m[2], 10))
+        end = size - 1
+      }
+      if (start >= size || start > end) {
+        return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } })
+      }
+      end = Math.min(end, size - 1)
+      const len = end - start + 1
+      const buf = Buffer.alloc(len)
+      const fh = await open(abs, 'r')
+      try {
+        await fh.read(buf, 0, len, start)
+      } finally {
+        await fh.close()
+      }
+      return new Response(buf, {
+        status: 206,
+        headers: {
+          'Content-Type': contentType,
+          'Content-Length': String(len),
+          'Content-Range': `bytes ${start}-${end}/${size}`,
+          'Accept-Ranges': 'bytes'
+        }
+      })
+    }
+
+    const buf = await readFile(abs)
+    return new Response(buf, {
+      status: 200,
+      headers: {
+        'Content-Type': contentType,
+        'Content-Length': String(size),
+        'Accept-Ranges': 'bytes'
+      }
+    })
   })
 }

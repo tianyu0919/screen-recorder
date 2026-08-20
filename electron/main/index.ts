@@ -6,7 +6,10 @@ import { registerMediaProtocol } from '../store/sessionReader'
 
 // media:// 流式播放录制视频（kr-02 预览）；须在 app ready 前注册特权
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'media', privileges: { stream: true, supportFetchAPI: true } }
+  {
+    scheme: 'media',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true }
+  }
 ])
 
 let win: BrowserWindow | null = null

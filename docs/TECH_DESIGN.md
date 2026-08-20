@@ -81,14 +81,17 @@ Screen Studio 能"放大/替换/平滑光标"的前提是：**光标没有被烧
 ### 3.4 音频
 
 - 麦克风：`getUserMedia({ audio: true })`，单独一条轨
-- 系统声音：Windows 上 `getDisplayMedia` 可带 loopback；**macOS 上 Electron 拿不到系统声音**（原生 ScreenCaptureKit 可以）—— 又是方案 B 的动机。MVP 阶段 macOS 只录麦克风。
+- 系统声音（kr-01 system-audio 已落地）按平台分两条路径，产物都是 `system.wav`（48kHz/2ch/int16，与 mic.wav 同规格），预览/导出期与 mic.wav 混合：
+  - **Windows / 其他**：Renderer 侧 loopback —— `setDisplayMediaRequestHandler` 回调带 `audio: 'loopback'` + `getDisplayMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })` 拿回采轨，**必须关闭语音处理**；画面 MediaRecorder 只用 video track 建新流，系统音频不混入 screen.webm；单独 MediaRecorder 落盘 system.wav。不支持的平台静默无音轨。
+  - **macOS**：loopback 轨在 macOS 上出生即 ended、电平恒 0（electron#52738），不可用。改走原生 helper：Main 在录制开始时 spawn `native/sck-audio`（Swift + ScreenCaptureKit，`capturesAudio` + `excludesCurrentProcessAudio`，全系统音频回采），流式写 `system.wav`，录制停止时 Main 关闭 helper stdin（EOF）通知其 patch WAV header 后退出，2s 超时 SIGKILL 兜底（实测 DispatchSourceSignal 在挂了 SCStream 的进程里不触发，SIGTERM 仅作兜底）。helper 缺失/启动失败静默降级为无系统音轨；helper 提前非零退出会清掉 header-only 残留，避免被当成有效音轨。helper 构建：`npm run build:native`。首次运行会触发 macOS「屏幕与系统音频录制」TCC 授权。
 
 ### 3.5 录制会话数据格式（落盘）
 
 ```
 recordings/<session-id>/
-├── screen.webm          # 原始屏幕画面
+├── screen.webm          # 原始屏幕画面（纯视频轨）
 ├── mic.wav              # 麦克风（可选）
+├── system.wav           # 系统音频（可选，kr-01 system-audio）
 ├── webcam.webm          # 摄像头（可选）
 └── events.json          # 元数据 + 事件流
 ```
@@ -150,7 +153,9 @@ events.json + 相机关键帧
 
 要点：
 - **导出不走实时**：帧时间戳由时间轴驱动，渲染慢没关系，保证输出帧率恒定
-- `mp4-muxer` 纯 JS 封装 H.264，无需 ffmpeg；需要 AAC 音频时引入 `ffmpeg.wasm` 或 `mediabunny`
+- `mp4-muxer` 纯 JS 封装 H.264，无需 ffmpeg；AAC 音频用 WebCodecs `AudioEncoder`（mic.wav 缺失/编码不支持则无音轨继续）
+- H.264 全部探测失败时 fallback VP9+webm（mediabunny `Output`/`WebMOutputFormat` 封装；webm 容器不支持 AAC，音轨走 opus）
+- 输出全程在内存（`ArrayBufferTarget`/`BufferTarget`），完成后经 Renderer 弹保存对话框落盘；取消 = `worker.terminate()`，无半成品文件
 
 ---
 
@@ -205,7 +210,7 @@ screen-recorder/
 ## 8. 已知风险
 
 1. **光标烧录**：见 §3.2，决定产品上限，尽早做原生 helper 的 PoC
-2. **macOS 系统声音**：Electron 拿不到，需原生 helper（ScreenCaptureKit 支持音频）
+2. ~~macOS 系统声音~~（已解决，见 §3.4：原生 helper `native/sck-audio` 走 ScreenCaptureKit 回采；loopback 在 macOS 上不可用，electron#52738）
 3. **WebCodecs H.264**：不同 Electron 版本/平台支持不一，需探测 + fallback
 4. **高分辨率性能**：5K 屏幕录制 + WebGL 合成注意纹理尺寸上限和显存
 5. **权限**：macOS 需屏幕录制权限 + 辅助功能权限（全局输入钩子），要在引导页处理

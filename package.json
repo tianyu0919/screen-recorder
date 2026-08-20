@@ -8,11 +8,14 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "build:native": "bash native/sck-audio/build.sh",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "mediabunny": "^1.55.1",
+    "mp4-muxer": "^5.2.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tailwind-merge": "^2.5.2",

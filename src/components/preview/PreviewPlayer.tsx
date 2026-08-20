@@ -4,6 +4,7 @@ import type { Timeline } from '@/timeline/types'
 import type { RipplePoint } from '@/render/types'
 import { Button } from '@/components/ui/button'
 import { usePlayback } from './usePlayback'
+import { useSyncedAudio } from './useSyncedAudio'
 
 function formatTime(ms: number): string {
   const total = Math.floor(ms / 1000)
@@ -17,6 +18,10 @@ function formatTime(ms: number): string {
 interface PreviewPlayerProps {
   timeline: Timeline
   videoUrl: string
+  /** mic.wav 流式 URL（无麦克风轨为 null），预览时与画面同步播放 */
+  audioUrl: string | null
+  /** system.wav 流式 URL（无系统音频轨为 null），预览时与画面同步播放 */
+  systemAudioUrl: string | null
   keyframes: CameraKeyframe[]
   ripples: RipplePoint[]
 }
@@ -24,10 +29,13 @@ interface PreviewPlayerProps {
 /**
  * 预览播放器（Task 3.1/3.2）：WebGL 合成画布 + 隐藏 <video> 帧源 + 播放/暂停/进度条。
  * 降采样与"无运镜数据"提示在此呈现（数据来自 RenderInfo 与会话 clicks）。
+ * screen.webm 无音轨（麦克风/系统音频单独落盘 wav），预览用 <audio> 跟随 video 同步播放。
  */
 export function PreviewPlayer({
   timeline,
   videoUrl,
+  audioUrl,
+  systemAudioUrl,
   keyframes,
   ripples
 }: PreviewPlayerProps): React.JSX.Element {
@@ -45,13 +53,20 @@ export function PreviewPlayer({
     }
   )
   const noMotion = timeline.events.clicks.length === 0
+  // 麦克风/系统音频双轨：各自跟随 video 同步（逻辑见 useSyncedAudio）
+  const micAudioRef = useSyncedAudio(videoRef, audioUrl)
+  const systemAudioRef = useSyncedAudio(videoRef, systemAudioUrl)
 
-  // React 有时不会把 media:// 自定义协议的 src 写到 <video> 属性上，直接赋值更可靠
+  // React 有时不会把 media:// 自定义协议的 src 写到 <video> 属性上，直接赋值更可靠。
+  // load() 必须只在 src 变化时调用：StrictMode/重渲染下重复 load() 会中断进行中的
+  // 同名 URL 请求，触发 Chromium demuxer 的 data source error（code=4 Format error）
   useEffect(() => {
     const video = videoRef.current
     if (!video || !videoUrl) return
-    if (video.src !== videoUrl) video.src = videoUrl
-    video.load()
+    if (video.src !== videoUrl) {
+      video.src = videoUrl
+      video.load()
+    }
   }, [videoUrl])
 
   return (
@@ -59,6 +74,9 @@ export function PreviewPlayer({
       <canvas ref={canvasRef} className="aspect-video w-full rounded-lg border border-zinc-800" />
       {/* 帧源：隐藏 video，由合成器逐帧取样绘制到 canvas */}
       <video ref={videoRef} preload="auto" muted className="hidden" />
+      {/* 麦克风/系统音频轨：跟随 video 同步播放（screen.webm 本身无音轨） */}
+      {audioUrl && <audio ref={micAudioRef} preload="auto" className="hidden" />}
+      {systemAudioUrl && <audio ref={systemAudioRef} preload="auto" className="hidden" />}
 
       <div className="flex items-center gap-3">
         <Button variant="outline" size="sm" onClick={togglePlay} disabled={durationMs === 0}>

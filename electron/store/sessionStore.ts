@@ -55,9 +55,18 @@ export class SessionStore {
 
   /** 麦克风 WAV（停止时一次性写入，可选） */
   writeMic(wav: Buffer): void {
+    this.writeWav('mic.wav', wav)
+  }
+
+  /** 系统音频 WAV（kr-01 system-audio，停止时一次性写入，可选） */
+  writeSystemAudio(wav: Buffer): void {
+    this.writeWav('system.wav', wav)
+  }
+
+  private writeWav(name: 'mic.wav' | 'system.wav', wav: Buffer): void {
     if (!this.session || this.failed) return
     try {
-      writeFileSync(join(this.session.dir, 'mic.wav'), wav)
+      writeFileSync(join(this.session.dir, name), wav)
     } catch (err) {
       this.failed = true
       const e = this.toFsError(err)
