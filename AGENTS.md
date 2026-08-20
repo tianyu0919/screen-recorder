@@ -8,6 +8,7 @@
 ```bash
 npm run dev         # 开发（electron-vite dev）
 npm run build       # 构建
+npm run build:native # 构建 macOS 系统音频原生 helper（native/sck-audio，需 macOS + Swift 工具链）
 npm run typecheck   # 类型检查（node + web 两套 tsconfig，改动后必跑）
 ```
 
@@ -71,6 +72,16 @@ npm run typecheck   # 类型检查（node + web 两套 tsconfig，改动后必�
 
 - 只改任务涉及的文件；不做顺手重构、改名、格式化等无关 churn。
 - 新代码风格跟随所在文件的既有约定（命名、注释密度、结构），不引入新依赖前先确认 `package.json` 里没有现成方案。
+
+### 5. 跨平台（macOS / Windows）拆分
+
+项目目标是 macOS + Windows 双平台可用，平台差异代码必须显式拆分，禁止在一个文件里堆 `if (platform)` 大杂烩：
+
+- **Main 进程**：平台相关实现拆成独立文件，按 `xxx/darwin.ts`、`xxx/win32.ts` 命名，外加一个 `xxx/index.ts` 做平台分发（只放分发逻辑，不写实现）。参考 `electron/capture/systemAudio/`。
+- **Renderer 进程**：平台判断统一走 `window.api.platform`（preload 白名单暴露），禁止解析 `navigator.userAgent`；差异逻辑同样拆成平台文件或就近的小守卫，超过 ~10 行的平台分支必须抽文件。
+- **平台无关的可复用逻辑**（格式转换、时间轴计算、协议解析等）必须抽离到共享模块（`src/lib/`、`shared/` 或功能目录下的平台无关文件），平台文件里只做平台 API 的调用与适配。
+- 某平台暂未实现时：分发层返回 `null` / 降级，**静默不阻断主流程**，并在注释里标明各平台的实现位置。
+- 新增平台相关功能时，`docs/TECH_DESIGN.md` 里要写明各平台的路径差异。
 
 ## 测试与验证
 
