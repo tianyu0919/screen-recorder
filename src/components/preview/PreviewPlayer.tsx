@@ -22,6 +22,8 @@ interface PreviewPlayerProps {
   audioUrl: string | null
   /** system.wav 流式 URL（无系统音频轨为 null），预览时与画面同步播放 */
   systemAudioUrl: string | null
+  /** system 轨回声对齐偏移（秒），仅作用于 system 轨 */
+  systemAudioOffsetSec: number
   keyframes: CameraKeyframe[]
   ripples: RipplePoint[]
 }
@@ -36,6 +38,7 @@ export function PreviewPlayer({
   videoUrl,
   audioUrl,
   systemAudioUrl,
+  systemAudioOffsetSec,
   keyframes,
   ripples
 }: PreviewPlayerProps): React.JSX.Element {
@@ -53,9 +56,10 @@ export function PreviewPlayer({
     }
   )
   const noMotion = timeline.events.clicks.length === 0
-  // 麦克风/系统音频双轨：各自跟随 video 同步（逻辑见 useSyncedAudio）
+  // 麦克风/系统音频双轨：各自跟随 video 同步（逻辑见 useSyncedAudio）；
+  // system 轨带回声对齐偏移（音箱外放时 mic 会录入系统音，见 lib/audioAlign.ts）
   const micAudioRef = useSyncedAudio(videoRef, audioUrl)
-  const systemAudioRef = useSyncedAudio(videoRef, systemAudioUrl)
+  const systemAudioRef = useSyncedAudio(videoRef, systemAudioUrl, systemAudioOffsetSec)
 
   // React 有时不会把 media:// 自定义协议的 src 写到 <video> 属性上，直接赋值更可靠。
   // load() 必须只在 src 变化时调用：StrictMode/重渲染下重复 load() 会中断进行中的

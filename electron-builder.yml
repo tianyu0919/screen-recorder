@@ -1,0 +1,34 @@
+# electron-builder 打包配置（npm run dist / CI release 流水线共用）
+# 产物未签名：macOS 需用户右键打开绕过 Gatekeeper；Windows 可能触发 SmartScreen 提示。
+appId: com.screenrecorder.app
+productName: screen-recorder
+directories:
+  output: release
+
+files:
+  - package.json
+  - dist-electron/**
+
+# uiohook-napi 是 N-API 预编译原生模块，必须从 asar 解出才能被 require
+asarUnpack:
+  - node_modules/uiohook-napi/**
+
+mac:
+  category: public.app-category.productivity
+  target: dmg
+  extraResources:
+    # macOS 系统音频原生 helper（electron/capture/systemAudio/darwin.ts 按 resourcesPath/sck-audio 引用）
+    - from: native/sck-audio/bin/sck-audio
+      to: sck-audio
+
+win:
+  target: nsis
+  extraResources:
+    # Windows 系统音频原生 helper（electron/capture/systemAudio/win32.ts 按 resourcesPath/wasapi-audio.exe 引用）
+    - from: native/wasapi-audio/bin/wasapi-audio.exe
+      to: wasapi-audio.exe
+
+nsis:
+  oneClick: false
+  perMachine: false
+  shortcutName: screen-recorder

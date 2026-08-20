@@ -83,12 +83,14 @@ export async function fetchSessionWav(
 
 /**
  * 双轨 PCM 混合（kr-01 system-audio，纯函数）：
+ * - bOffsetSec：system 轨对齐偏移（estimateSystemOffsetSec 估计，正=system 内容偏晚需提前）；
+ *   音箱外放时 mic 会录入系统音形成回声，靠此对齐消除
  * - 单轨直通；两轨都在时按输出采样率逐帧对齐相加，int16 clamp 防削波；
  * - 采样率不同以较高者为准，低采样率轨做线性插值重采样；
  * - 声道不同以较多者为准，单声道轨复制到所有输出声道；
  * - 长度取两轨较长者，短轨结束后按静音处理。
  */
-export function mixPcm(a: WavData | null, b: WavData | null): WavData | null {
+export function mixPcm(a: WavData | null, b: WavData | null, bOffsetSec = 0): WavData | null {
   if (!a) return b
   if (!b) return a
   const sampleRate = Math.max(a.sampleRate, b.sampleRate)
@@ -98,11 +100,12 @@ export function mixPcm(a: WavData | null, b: WavData | null): WavData | null {
     Math.ceil((framesOf(a) / a.sampleRate) * sampleRate),
     Math.ceil((framesOf(b) / b.sampleRate) * sampleRate)
   )
-  /** 读 wav 在输出帧 outFrame 处、声道 ch 的采样值（线性插值；结尾后返回 0） */
-  const readAt = (wav: WavData, outFrame: number, ch: number): number => {
+  /** 读 wav 在输出帧 outFrame 处、声道 ch 的采样值（线性插值；结尾后返回 0）
+   *  offsetSec 为该轨的对齐偏移（正=内容偏晚，读取位置相应前移） */
+  const readAt = (wav: WavData, outFrame: number, ch: number, offsetSec: number): number => {
     const srcFrames = framesOf(wav)
-    const srcPos = (outFrame / sampleRate) * wav.sampleRate
-    if (srcPos >= srcFrames) return 0
+    const srcPos = (outFrame / sampleRate + offsetSec) * wav.sampleRate
+    if (srcPos < 0 || srcPos >= srcFrames) return 0
     const i0 = Math.floor(srcPos)
     const i1 = Math.min(i0 + 1, srcFrames - 1)
     const frac = srcPos - i0
@@ -114,7 +117,7 @@ export function mixPcm(a: WavData | null, b: WavData | null): WavData | null {
   const out = new Int16Array(frames * channels)
   for (let i = 0; i < frames; i++) {
     for (let c = 0; c < channels; c++) {
-      const mixed = readAt(a, i, c) + readAt(b, i, c)
+      const mixed = readAt(a, i, c, 0) + readAt(b, i, c, bOffsetSec)
       out[i * channels + c] = Math.max(-32768, Math.min(32767, Math.round(mixed)))
     }
   }

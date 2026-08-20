@@ -81,11 +81,12 @@ export class ScreenRecorder {
     }
     this.recorder.start(TIMESLICE_MS)
 
-    // 系统音频 loopback（可选轨，仅 Windows 路径）：macOS 上 loopback 轨出生即 ended
-    // （electron#52738），系统音频由 Main 侧原生 helper 采集（electron/capture/systemAudio/），
-    // 这里直接跳过，避免白跑 MediaRecorder 失败路径
+    // 系统音频 loopback（可选轨，仅其他平台兜底）：macOS 上 loopback 轨出生即 ended
+    // （electron#52738），Windows 上 loopback + MediaRecorder 低码率 Opus 有杂音；
+    // 两个平台均由 Main 侧原生 helper 采集（electron/capture/systemAudio/），这里跳过，
+    // 避免白跑 MediaRecorder 失败路径 / 与 helper 双写 system.wav
     const systemTracks =
-      window.api.platform === 'darwin'
+      window.api.platform === 'darwin' || window.api.platform === 'win32'
         ? []
         : this.stream.getAudioTracks().filter((t) => t.readyState === 'live')
     if (systemTracks.length > 0) {

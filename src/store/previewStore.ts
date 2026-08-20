@@ -8,6 +8,8 @@ import {
 } from '@/timeline/keyframes'
 import { displayToCanvas } from '@/timeline/coords'
 import type { RipplePoint } from '@/render/types'
+import { fetchSessionWav } from '@/export/audio'
+import { estimateSystemOffsetSec } from '@/lib/audioAlign'
 
 /**
  * 预览状态（kr-02 Phase 3, Task 3.3）：
@@ -23,6 +25,8 @@ interface PreviewSession {
   audioUrl: string | null
   /** system.wav 流式 URL（无系统音频轨的会话为 null） */
   systemAudioUrl: string | null
+  /** system 轨回声对齐偏移（秒，正=内容偏晚；无 mic 轨或相关度不足为 0） */
+  systemAudioOffsetSec: number
 }
 
 interface PreviewState {
@@ -77,12 +81,23 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     try {
       const result = await window.api.loadSession(sessionId)
       const timeline = parseEventsJson(result.eventsJson)
+      // 回声对齐：mic + system 双轨都在时估计固定偏移（见 lib/audioAlign.ts；
+      // 失败/无共同内容 → 0 不对齐）。导出管线 mixPcm 用同一算法，预览/导出一致。
+      let systemAudioOffsetSec = 0
+      if (result.audioUrl && result.systemAudioUrl) {
+        const [micWav, systemWav] = await Promise.all([
+          fetchSessionWav(sessionId, 'mic.wav'),
+          fetchSessionWav(sessionId, 'system.wav')
+        ])
+        if (micWav && systemWav) systemAudioOffsetSec = estimateSystemOffsetSec(micWav, systemWav)
+      }
       const current: PreviewSession = {
         session: result.session,
         timeline,
         videoUrl: result.videoUrl,
         audioUrl: result.audioUrl,
-        systemAudioUrl: result.systemAudioUrl
+        systemAudioUrl: result.systemAudioUrl,
+        systemAudioOffsetSec
       }
       set({ loading: false, current, ...derive(timeline, get().motionParams) })
     } catch (err) {

@@ -60,5 +60,7 @@ getDisplayMedia loopback 在 `useSystemPicker: false`（自研选源 UI）下 ma
   capturesAudio）录制开始时被 spawn，直接把系统音频写成会话目录的 system.wav，停止时
   SIGTERM 收尾 WAV header。TCC 权限归属宿主 app；打包随 app 签名/公证
 - **Windows 路径：getDisplayMedia loopback**（Chromium 原生支持，已保留）
+  ⚠️ 2026-08-21 起被取代：该路径实测有杂音且 VB 虚拟设备用户采到全零，
+  见 [../win32-native-audio/spec.md](../win32-native-audio/spec.md)（Windows 改走原生 WASAPI helper）
 - macOS 上 getDisplayMedia 返回的死轨必须跳过（readyState !== 'live' 不建 MediaRecorder）
 

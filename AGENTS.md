@@ -8,9 +8,12 @@
 ```bash
 npm run dev         # 开发（electron-vite dev）
 npm run build       # 构建
-npm run build:native # 构建 macOS 系统音频原生 helper（native/sck-audio，需 macOS + Swift 工具链）
+npm run build:native # 构建系统音频原生 helper（darwin→native/sck-audio Swift；win32→native/wasapi-audio Rust，按当前平台分发）
+npm run dist         # 本地打包（electron-builder，配置在 electron-builder.yml，产物在 release/）
 npm run typecheck   # 类型检查（node + web 两套 tsconfig，改动后必跑）
 ```
+
+Release 流水线：`.github/workflows/release.yml`，打 tag `v*` 触发，macOS（dmg）+ Windows（NSIS）双平台构建并自动发布 GitHub Release；打包后原生 helper 经 electron-builder `extraResources` 放到 `resourcesPath` 根（与 `electron/capture/systemAudio/{darwin,win32}.ts` 的查找路径一一对应，改路径时三处需同步）。
 
 ## 架构分层与模块边界
 
@@ -26,7 +29,7 @@ npm run typecheck   # 类型检查（node + web 两套 tsconfig，改动后必�
 
 | 目录 | 职责 | 规则 |
 |---|---|---|
-| `capture/` | 屏幕/音频采集（desktopCapturer 源枚举、ScreenCaptureKit 路径） | 采集语义变更必须同步更新 `docs/TECH_DESIGN.md` §3.1 |
+| `capture/` | 屏幕/音频采集（desktopCapturer 源枚举、ScreenCaptureKit / WASAPI 原生 helper 路径） | 采集语义变更必须同步更新 `docs/TECH_DESIGN.md` §3.1 |
 | `input/` | 鼠标轨迹轮询（cursorPoller）、uiohook 全局事件 | 事件时间戳一律相对录制开始（ms），与视频帧对齐 |
 | `store/` | 录制会话落盘 | `events.json` 格式是跨模块契约，改动需评估对 kr-02+ 的影响 |
 | `preload/` | 桥接层 | 只暴露白名单 API，禁止透传 `ipcRenderer` 本体 |

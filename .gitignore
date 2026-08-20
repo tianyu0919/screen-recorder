@@ -1,7 +1,12 @@
 node_modules/
 dist/
 dist-electron/
+release/
 out/
 native/sck-audio/bin/
+native/wasapi-audio/bin/
+native/wasapi-audio/target/
 .DS_Store
 *.log
+.agents/
+skills-lock.json

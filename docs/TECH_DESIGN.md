@@ -81,9 +81,13 @@ Screen Studio 能"放大/替换/平滑光标"的前提是：**光标没有被烧
 ### 3.4 音频
 
 - 麦克风：`getUserMedia({ audio: true })`，单独一条轨
-- 系统声音（kr-01 system-audio 已落地）按平台分两条路径，产物都是 `system.wav`（48kHz/2ch/int16，与 mic.wav 同规格），预览/导出期与 mic.wav 混合：
-  - **Windows / 其他**：Renderer 侧 loopback —— `setDisplayMediaRequestHandler` 回调带 `audio: 'loopback'` + `getDisplayMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })` 拿回采轨，**必须关闭语音处理**；画面 MediaRecorder 只用 video track 建新流，系统音频不混入 screen.webm；单独 MediaRecorder 落盘 system.wav。不支持的平台静默无音轨。
-  - **macOS**：loopback 轨在 macOS 上出生即 ended、电平恒 0（electron#52738），不可用。改走原生 helper：Main 在录制开始时 spawn `native/sck-audio`（Swift + ScreenCaptureKit，`capturesAudio` + `excludesCurrentProcessAudio`，全系统音频回采），流式写 `system.wav`，录制停止时 Main 关闭 helper stdin（EOF）通知其 patch WAV header 后退出，2s 超时 SIGKILL 兜底（实测 DispatchSourceSignal 在挂了 SCStream 的进程里不触发，SIGTERM 仅作兜底）。helper 缺失/启动失败静默降级为无系统音轨；helper 提前非零退出会清掉 header-only 残留，避免被当成有效音轨。helper 构建：`npm run build:native`。首次运行会触发 macOS「屏幕与系统音频录制」TCC 授权。
+- 系统声音（kr-01 system-audio 已落地）按平台分路径，产物都是 `system.wav`（48kHz/2ch/int16，与 mic.wav 同规格），预览/导出期与 mic.wav 混合：
+  - **双轨回声对齐**：音箱外放时 mic 轨会 acoustically 录入系统音，与 system.wav 混合形成回声；两条采集链有固定延迟差（声卡/Voicemeeter 引擎缓冲，逐机不同，实测 ~183ms）。预览（useSyncedAudio 偏移播放）与导出（mixPcm 偏移混合）统一用 `src/lib/audioAlign.ts` 的降采样互相关估计 system 相对 mic 的恒定偏移并对齐；归一化相关度不足（耳机用户 mic 无系统音）→ 偏移 0 不对齐。
+  - **macOS**：loopback 轨在 macOS 上出生即 ended、电平恒 0（electron#52738），不可用。走原生 helper：Main 在录制开始时 spawn `native/sck-audio`（Swift + ScreenCaptureKit，`capturesAudio` + `excludesCurrentProcessAudio`，全系统音频回采），流式写 `system.wav`。首次运行会触发 macOS「屏幕与系统音频录制」TCC 授权。
+  - **Windows**：Renderer loopback + MediaRecorder 路径有杂音（Chromium 回环采样率不匹配爆音 + 默认低码率 Opus 失真），已弃用。走原生 helper：Main spawn `native/wasapi-audio`（Rust + WASAPI shared-mode loopback，采默认渲染设备混音，float32 → int16，非 48k 设备用 rubato sinc 重采样；>2ch 设备取 ch0/ch1 主立体声），流式写 `system.wav`。
+    - **VB-Audio 虚拟设备绕行（Voicemeeter/VB-Cable 用户）**：VB 虚拟渲染设备（"Voicemeeter Input" 等）的 loopback tap 返回全零（驱动怪异行为，Chromium 同样中招）。helper 检测到默认渲染设备是 VB 虚拟设备时，自动改采对应的总线镜像采集端点（"Voicemeeter Input" → "Voicemeeter Out B1"、AUX → B2、VAIO3 → B3、"CABLE Input" → "CABLE Output"），并通过 Voicemeeter Remote API 临时打开虚拟输入条带的 Bx 路由（仅作用于引擎运行时不写用户配置，录制结束恢复原值；Remote 指令需保持登录 ~800ms 才下发）。绕行产生的启动延迟会补等长静音，保持 system.wav 与画面 t=0 对齐。
+  - **其他平台**：Main 分发返回 null，由 Renderer 侧 loopback 兜底——`setDisplayMediaRequestHandler` 回调带 `audio: 'loopback'` + `getDisplayMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })` 拿回采轨，**必须关闭语音处理**；画面 MediaRecorder 只用 video track 建新流，系统音频不混入 screen.webm；单独 MediaRecorder 落盘 system.wav。不支持的平台静默无音轨。
+  - helper 统一协议：录制停止时 Main 关闭 helper stdin（EOF）通知其 patch WAV header 后退出，2s 超时强杀兜底（macOS 实测 DispatchSourceSignal 在挂了 SCStream 的进程里不触发，SIGTERM 仅作兜底）。helper 缺失/启动失败静默降级为无系统音轨；helper 提前非零退出会清掉 header-only 残留，避免被当成有效音轨。helper 构建：`npm run build:native`（按平台分发：darwin 跑 swiftc，win32 跑 cargo）。
 
 ### 3.5 录制会话数据格式（落盘）
 
@@ -214,3 +218,15 @@ screen-recorder/
 3. **WebCodecs H.264**：不同 Electron 版本/平台支持不一，需探测 + fallback
 4. **高分辨率性能**：5K 屏幕录制 + WebGL 合成注意纹理尺寸上限和显存
 5. **权限**：macOS 需屏幕录制权限 + 辅助功能权限（全局输入钩子），要在引导页处理
+
+## 9. 分发与打包
+
+- 打包工具：electron-builder（配置 `electron-builder.yml`），本地 `npm run dist`，产物输出 `release/`。
+- CI 流水线：`.github/workflows/release.yml`，打 tag `v*`（或手动 workflow_dispatch）触发，matrix 双平台：
+  - **macOS**（macos-latest）：Swift 工具链 runner 自带 → `npm run build:native` 编 `sck-audio` → dmg。
+  - **Windows**（windows-latest）：`dtolnay/rust-toolchain@stable` 装 cargo → `npm run build:native` 编 `wasapi-audio.exe` → NSIS 安装包。
+  - tag 触发时由 `softprops/action-gh-release` 自动发布 GitHub Release 并附双平台产物。
+- **原生 helper 随包分发**：electron-builder `extraResources` 把 helper 放到 `resourcesPath` 根（mac: `sck-audio`，win: `wasapi-audio.exe`），与 `electron/capture/systemAudio/{darwin,win32}.ts` 的 `app.isPackaged` 查找路径一一对应；改路径需三处同步。
+- `uiohook-napi`（N-API 预编译）经 `asarUnpack` 从 asar 解出，否则无法加载。
+- 产物**未签名**：macOS 需右键打开绕过 Gatekeeper；Windows 可能触发 SmartScreen。后续如有证书可在 CI 注入 `CSC_LINK` / `CSC_KEY_PASSWORD` 开启签名。
+- 本机直连 GitHub 受限时（electron-builder 下载 NSIS/winCodeSign 超时），设 `ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/` 再跑 `npm run dist`；CI runner 无需此设置。

@@ -22,7 +22,8 @@
 
 | ID | 名称 | 路径 | 状态 | 归属 | 简述 |
 |---|---|---|---|---|---|
-| kr-01-system-audio | 系统音频采集 | [kr-01-capture-foundation/changes/system-audio/](./specs/screen-recorder/krs/kr-01-capture-foundation/changes/system-audio/spec.md) | completed | kr-01 | Windows 走 getDisplayMedia loopback；macOS 走原生 helper（native/sck-audio，ScreenCaptureKit）。预览双轨同步、导出双轨混音。macOS 人工冒烟通过（2026-08-20）。 |
+| kr-01-system-audio | 系统音频采集 | [kr-01-capture-foundation/changes/system-audio/](./specs/screen-recorder/krs/kr-01-capture-foundation/changes/system-audio/spec.md) | completed | kr-01 | Windows 走 getDisplayMedia loopback；macOS 走原生 helper（native/sck-audio，ScreenCaptureKit）。预览双轨同步、导出双轨混音。macOS 人工冒烟通过（2026-08-20）。Windows 路径已被 win32-native-audio 取代。 |
+| kr-01-win32-native-audio | Windows 系统音频原生化 | [kr-01-capture-foundation/changes/win32-native-audio/](./specs/screen-recorder/krs/kr-01-capture-foundation/changes/win32-native-audio/spec.md) | completed | kr-01 | Windows 改走原生 helper（native/wasapi-audio，Rust + WASAPI loopback）修杂音；VB-Audio 虚拟设备（Voicemeeter/VB-Cable）自动绕行总线采集端点 + Remote API 路由管理；mic/system 双轨回声互相关对齐。Windows 实机（Voicemeeter 环境）验证通过（2026-08-21）。 |
 
 ## 依赖关系总览
 

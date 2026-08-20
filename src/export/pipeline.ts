@@ -1,4 +1,5 @@
 import { Compositor } from '../render/compositor'
+import { estimateSystemOffsetSec } from '../lib/audioAlign'
 import { sampleCameraAt } from '../timeline/spring'
 import { encodeAudio, fetchSessionWav, mixPcm, probeAudioEncoder } from './audio'
 import { ExportError, WebmFrameDecoder } from './decoder'
@@ -39,11 +40,13 @@ export async function runExport(
     const choice = await probeVideoEncoder()
 
     // 音频：mic.wav + system.wav 两轨混合（缺失/解析失败/编码不支持 → 无音轨继续，结果里标注）
+    // 两轨都在时先做回声对齐（音箱外放时 mic 轨含系统音，采集链延迟差见 lib/audioAlign.ts）
     const [micWav, systemWav] = await Promise.all([
       fetchSessionWav(params.sessionId, 'mic.wav'),
       fetchSessionWav(params.sessionId, 'system.wav')
     ])
-    const wav = mixPcm(micWav, systemWav)
+    const sysOffset = micWav && systemWav ? estimateSystemOffsetSec(micWav, systemWav) : 0
+    const wav = mixPcm(micWav, systemWav, sysOffset)
     const audioChoice = wav ? await probeAudioEncoder(choice.format, wav) : null
     const muxer = createMuxer(
       choice,

@@ -57,6 +57,7 @@ export function PreviewScreen(): React.JSX.Element {
           videoUrl={current.videoUrl}
           audioUrl={current.audioUrl}
           systemAudioUrl={current.systemAudioUrl}
+          systemAudioOffsetSec={current.systemAudioOffsetSec}
           keyframes={keyframes}
           ripples={ripples}
         />
