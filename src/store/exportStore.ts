@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { ExportFormat } from '@shared/types'
 import type { ExportWorkerMessage } from '@/export/messages'
 import { usePreviewStore } from './previewStore'
+import { getClipAsset } from '@/export/clipCache'
 
 /**
  * 导出状态（kr-03 Task 3.1 / 3.2）：
@@ -45,7 +46,11 @@ export const useExportStore = create<ExportState>((set, get) => ({
 
   async startExport() {
     if (get().status === 'exporting') return
-    const { current, keyframes, ripples, cuts } = usePreviewStore.getState()
+    const {
+      current, keyframes, ripples, keyPrompts, keyboardOverlay,
+      cuts, audioGain, customClips
+    } =
+      usePreviewStore.getState()
     if (!current) return
     const sessionId = current.session.sessionId
 
@@ -102,7 +107,27 @@ export const useExportStore = create<ExportState>((set, get) => ({
       sessionId,
       keyframes,
       ripples,
+      keyPrompts,
+      keyboardOverlay,
       cuts,
+      audioGain,
+      // 自定义音轨 PCM：缓存缺失的轨跳过（不阻断导出）；samples 结构化克隆（缓存保留复导出）
+      customAudio: customClips.flatMap((c) => {
+        const asset = getClipAsset(c.id)
+        return asset
+          ? [
+              {
+                offsetMs: c.offsetMs,
+                trimStartMs: c.trimStartMs,
+                trimEndMs: c.trimEndMs,
+                gain: c.gain,
+                sampleRate: asset.wav.sampleRate,
+                channels: asset.wav.channels,
+                samples: asset.wav.samples.buffer as ArrayBuffer
+              }
+            ]
+          : []
+      }),
       canvas: current.timeline.canvas,
       fallbackDurationMs: current.timeline.durationMs
     })

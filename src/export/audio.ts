@@ -82,27 +82,47 @@ export async function fetchSessionWav(
   }
 }
 
+/** 整轨增益缩放（0–1，kr-05-audio-volume）；gain=1 原样返回（零开销、逐样本一致） */
+export function scalePcm(wav: WavData | null, gain: number): WavData | null {
+  if (!wav || gain === 1) return wav
+  const out = new Int16Array(wav.samples.length)
+  for (let i = 0; i < wav.samples.length; i++) {
+    out[i] = Math.max(-32768, Math.min(32767, Math.round(wav.samples[i] * gain)))
+  }
+  return { ...wav, samples: out }
+}
+
+export interface MixTrack {
+  wav: WavData | null
+  /** 输出时刻 t 读取该轨 t + offsetSec 处采样（clip 起始 offsetMs → -offsetMs/1000） */
+  offsetSec?: number
+  /** 音量增益（0–1，默认 1） */
+  gain?: number
+}
+
 /**
- * 双轨 PCM 混合（kr-01 system-audio，纯函数）：
- * - bOffsetSec：system 轨对齐偏移（estimateSystemOffsetSec 估计，正=system 内容偏晚需提前）；
- *   音箱外放时 mic 会录入系统音形成回声，靠此对齐消除
- * - 单轨直通；两轨都在时按输出采样率逐帧对齐相加，int16 clamp 防削波；
- * - 采样率不同以较高者为准，低采样率轨做线性插值重采样；
- * - 声道不同以较多者为准，单声道轨复制到所有输出声道；
- * - 长度取两轨较长者，短轨结束后按静音处理。
+ * N 轨 PCM 混合（kr-05 custom-audio-track 泛化，纯函数）：
+ * - 单轨且 gain=1 无偏移 → 原样直通（零开销、逐样本一致）；
+ * - 输出长度取各轨（偏移后）最长结束点；
+ * - 采样率不同以较高者为准（线性插值重采样）；声道以较多者为准（单声道复制）；
+ * - 逐帧相加后 int16 clamp 防削波。
  */
-export function mixPcm(a: WavData | null, b: WavData | null, bOffsetSec = 0): WavData | null {
-  if (!a) return b
-  if (!b) return a
-  const sampleRate = Math.max(a.sampleRate, b.sampleRate)
-  const channels = Math.max(a.channels, b.channels)
+export function mixTracks(tracks: MixTrack[]): WavData | null {
+  const valid = tracks.filter((t): t is MixTrack & { wav: WavData } => t.wav !== null)
+  if (valid.length === 0) return null
+  if (valid.length === 1) {
+    const t = valid[0]
+    if (!t.offsetSec) return scalePcm(t.wav, t.gain ?? 1)
+  }
+  const sampleRate = Math.max(...valid.map((t) => t.wav.sampleRate))
+  const channels = Math.max(...valid.map((t) => t.wav.channels))
   const framesOf = (w: WavData): number => Math.floor(w.samples.length / w.channels)
-  const frames = Math.max(
-    Math.ceil((framesOf(a) / a.sampleRate) * sampleRate),
-    Math.ceil((framesOf(b) / b.sampleRate) * sampleRate)
-  )
-  /** 读 wav 在输出帧 outFrame 处、声道 ch 的采样值（线性插值；结尾后返回 0）
-   *  offsetSec 为该轨的对齐偏移（正=内容偏晚，读取位置相应前移） */
+  // 该轨在输出时间轴上的结束帧（起点可能 >0：offsetSec<0 表示内容从 |offsetSec| 秒处才开始）
+  const endFrameOf = (t: MixTrack & { wav: WavData }): number =>
+    Math.ceil((framesOf(t.wav) / t.wav.sampleRate - (t.offsetSec ?? 0)) * sampleRate)
+  const frames = Math.max(0, ...valid.map(endFrameOf))
+  if (frames === 0) return null
+  /** 读 wav 在输出帧 outFrame 处、声道 ch 的采样值（线性插值；范围外返回 0） */
   const readAt = (wav: WavData, outFrame: number, ch: number, offsetSec: number): number => {
     const srcFrames = framesOf(wav)
     const srcPos = (outFrame / sampleRate + offsetSec) * wav.sampleRate
@@ -118,11 +138,45 @@ export function mixPcm(a: WavData | null, b: WavData | null, bOffsetSec = 0): Wa
   const out = new Int16Array(frames * channels)
   for (let i = 0; i < frames; i++) {
     for (let c = 0; c < channels; c++) {
-      const mixed = readAt(a, i, c, 0) + readAt(b, i, c, bOffsetSec)
+      let mixed = 0
+      for (const t of valid) mixed += readAt(t.wav, i, c, t.offsetSec ?? 0) * (t.gain ?? 1)
       out[i * channels + c] = Math.max(-32768, Math.min(32767, Math.round(mixed)))
     }
   }
   return { sampleRate, channels, samples: out }
+}
+
+/**
+ * 双轨 PCM 混合（kr-01 system-audio；现为 mixTracks 的包装，保持既有调用与 smoke 脚本不动）：
+ * - bOffsetSec：system 轨对齐偏移（estimateSystemOffsetSec 估计，正=system 内容偏晚需提前）；
+ *   音箱外放时 mic 会录入系统音形成回声，靠此对齐消除
+ * - gainA/gainB：分轨音量增益（0–1，检查器音频滑杆；默认 1 与既有行为逐样本一致）
+ */
+export function mixPcm(
+  a: WavData | null,
+  b: WavData | null,
+  bOffsetSec = 0,
+  gainA = 1,
+  gainB = 1
+): WavData | null {
+  return mixTracks([
+    { wav: a, gain: gainA },
+    { wav: b, offsetSec: bOffsetSec, gain: gainB }
+  ])
+}
+
+/** 非破坏性截取 PCM 的时间区间；返回独立 samples，便于后续混音/结构化克隆。 */
+export function slicePcm(wav: WavData, startMs: number, endMs: number): WavData {
+  const frames = Math.floor(wav.samples.length / wav.channels)
+  const frameAt = (ms: number): number =>
+    Math.min(frames, Math.max(0, Math.round((ms / 1000) * wav.sampleRate)))
+  const startFrame = frameAt(startMs)
+  const endFrame = Math.max(startFrame, frameAt(endMs))
+  return {
+    sampleRate: wav.sampleRate,
+    channels: wav.channels,
+    samples: wav.samples.slice(startFrame * wav.channels, endFrame * wav.channels)
+  }
 }
 
 /** 按裁剪区间拼接保留段 PCM（与视频帧的 outputToSourceMs 映射一致，音画同步不漂移） */

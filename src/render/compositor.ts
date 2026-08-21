@@ -13,10 +13,12 @@ import {
   createProgram
 } from './shaders'
 import { VideoTexture } from './texture'
+import { KeyOverlayPass } from './keyOverlayPass'
 import {
   DEFAULT_COMPOSITOR_OPTIONS,
   type CompositorOptions,
   type FrameSource,
+  type KeyOverlayFrame,
   type RenderInfo,
   type RipplePoint,
   type Rgba
@@ -43,6 +45,10 @@ export type CompositorConfig = Partial<
   background?: Partial<CompositorOptions['background']>
   videoStyle?: Partial<CompositorOptions['videoStyle']>
   ripple?: Partial<CompositorOptions['ripple']>
+  /** 预览可主动限制上传纹理尺寸；导出省略时使用 GPU MAX_TEXTURE_SIZE。 */
+  textureLimit?: number
+  /** 主动预览降档不作为硬件限制警告展示。 */
+  reportTextureDownsample?: boolean
 }
 
 interface ProgramSlots {
@@ -58,8 +64,10 @@ export class Compositor {
   private bg: ProgramSlots
   private video: ProgramSlots
   private ripple: ProgramSlots
+  private keyOverlay: KeyOverlayPass
   private quad: WebGLBuffer
   private info: RenderInfo | null = null
+  private reportTextureDownsample: boolean
 
   constructor(canvas: HTMLCanvasElement | OffscreenCanvas, config: CompositorConfig = {}) {
     this.options = mergeOptions(config)
@@ -95,7 +103,9 @@ export class Compositor {
       'u_color',
       'u_ringWidth'
     ])
-    this.texture = new VideoTexture(gl)
+    this.texture = new VideoTexture(gl, config.textureLimit)
+    this.keyOverlay = new KeyOverlayPass(gl)
+    this.reportTextureDownsample = config.reportTextureDownsample ?? true
   }
 
   /** 视频源分辨率（画布坐标系基准），会话加载后调用一次 */
@@ -115,7 +125,8 @@ export class Compositor {
     source: FrameSource,
     camera: CameraState,
     tMs: number,
-    clicks: readonly RipplePoint[] = []
+    clicks: readonly RipplePoint[] = [],
+    keyOverlay: KeyOverlayFrame | null = null
   ): RenderInfo {
     if (!this.canvasSize) throw new CompositorError('未设置画布尺寸：先调用 setCanvasSize')
     const gl = this.gl
@@ -163,6 +174,7 @@ export class Compositor {
       Math.min(this.options.maxRipples, MAX_RIPPLES)
     )
     if (ripples.length > 0) this.drawRipples(ripples)
+    if (keyOverlay) this.keyOverlay.draw(keyOverlay, output, () => this.bindQuad())
 
     this.info = {
       outputWidth: output.width,
@@ -173,7 +185,7 @@ export class Compositor {
       textureHeight: tex.textureHeight,
       downsample: tex.downsample,
       textureLimit: this.texture.limit,
-      downsampled: tex.downsampled
+      downsampled: tex.downsampled && this.reportTextureDownsample
     }
     return this.info
   }
@@ -232,6 +244,7 @@ export class Compositor {
   dispose(): void {
     const gl = this.gl
     this.texture.dispose()
+    this.keyOverlay.dispose()
     gl.deleteProgram(this.bg.program)
     gl.deleteProgram(this.video.program)
     gl.deleteProgram(this.ripple.program)

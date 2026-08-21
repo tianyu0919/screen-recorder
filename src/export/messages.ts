@@ -2,6 +2,7 @@ import type { CameraKeyframe, ExportFormat } from '@shared/types'
 import type { RipplePoint } from '../render/types'
 import type { CutRange } from '../timeline/cuts'
 import type { CanvasSize } from '../timeline/types'
+import type { DisplayKeyPrompt } from '../timeline/keyPrompts'
 
 /**
  * Renderer ↔ 导出 Worker 消息协议（Task 1.1）。
@@ -17,8 +18,23 @@ export interface ExportStartMessage {
   sessionId: string
   keyframes: CameraKeyframe[]
   ripples: RipplePoint[]
+  keyPrompts: DisplayKeyPrompt[]
+  keyboardOverlay: { x: number; y: number }
   /** 裁剪区间（源时间轴 ms）：导出按"源时间轴 - 裁剪区间"的输出时间轴渲染 */
   cuts: CutRange[]
+  /** 分轨音量增益（0–1，检查器音频滑杆），混音时应用到 mic/system 轨 */
+  audioGain: { mic: number; system: number }
+  /** 自定义音轨（kr-05 custom-audio-track）：Renderer 已解码 PCM，锚定源时间轴 */
+  customAudio: Array<{
+    offsetMs: number
+    trimStartMs: number
+    trimEndMs: number
+    gain: number
+    sampleRate: number
+    channels: number
+    /** Int16 交错采样的底层 buffer（结构化克隆传递；不用 transfer，缓存要留复导出） */
+    samples: ArrayBuffer
+  }>
   /** 源视频分辨率（画布坐标系基准），供合成器 setCanvasSize */
   canvas: CanvasSize
   /** events.json 估计的时间轴长度（ms）；源视频 computeDuration 失败时的回退 */

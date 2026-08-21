@@ -92,6 +92,16 @@ export interface RipplePoint {
 /** 单帧可上传的帧源：预览用 HTMLVideoElement，kr-03 导出用 VideoFrame 直接喂纹理 */
 export type FrameSource = TexImageSource
 
+/** 已栅格化的按键提示层；rect 使用输出画布像素坐标。 */
+export interface KeyOverlayFrame {
+  source: FrameSource
+  x: number
+  y: number
+  width: number
+  height: number
+  alpha: number
+}
+
 /**
  * 每帧渲染后返回/暴露给 UI 的信息（Task 2.4）。
  * UI 据此明示"输出分辨率变化 / 输入已降采样"，UI 接入属 Phase 3。

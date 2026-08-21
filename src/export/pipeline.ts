@@ -1,11 +1,19 @@
 import { Compositor } from '../render/compositor'
 import { estimateSystemOffsetSec } from '../lib/audioAlign'
 import { sampleCameraAt } from '../timeline/spring'
-import { cutPcm, encodeAudio, fetchSessionWav, mixPcm, probeAudioEncoder } from './audio'
+import {
+  cutPcm,
+  encodeAudio,
+  fetchSessionWav,
+  mixTracks,
+  probeAudioEncoder,
+  slicePcm
+} from './audio'
 import { ExportError, WebmFrameDecoder } from './decoder'
 import { OUTPUT_FPS, OUTPUT_HEIGHT, OUTPUT_WIDTH, createMuxer, probeVideoEncoder } from './encoder'
 import { effectiveDurationMs, normalizeCuts, outputToSourceMs } from '../timeline/cuts'
 import type { ExportDoneMessage, ExportStartMessage } from './messages'
+import { keyOverlayFrameAt } from '../render/keyOverlay'
 
 /**
  * 时间轴驱动主循环（Task 2.1 / 2.2）：
@@ -50,8 +58,28 @@ export async function runExport(
       fetchSessionWav(params.sessionId, 'system.wav')
     ])
     const sysOffset = micWav && systemWav ? estimateSystemOffsetSec(micWav, systemWav) : 0
-    const mixed = mixPcm(micWav, systemWav, sysOffset)
-    const wav = mixed && cuts.length > 0 ? cutPcm(mixed, cuts) : mixed
+    // 源时间轴 N 轨混音：mic / system（带回声对齐偏移）/ 自定义 clips（offsetMs → 负 offsetSec）；
+    // 分轨增益（检查器音频滑杆）随混音应用，预览/导出听感一致；裁剪统一走下方 cutPcm
+    const mixed = mixTracks([
+      { wav: micWav, gain: params.audioGain.mic },
+      { wav: systemWav, offsetSec: sysOffset, gain: params.audioGain.system },
+      ...params.customAudio.map((c) => ({
+        wav: slicePcm(
+          {
+            sampleRate: c.sampleRate,
+            channels: c.channels,
+            samples: new Int16Array(c.samples)
+          },
+          c.trimStartMs,
+          c.trimEndMs
+        ),
+        offsetSec: -c.offsetMs / 1000,
+        gain: c.gain
+      }))
+    ])
+    // 所有音轨先限制到真实视频片尾，再应用视频裁剪区间，避免长 BGM 拉长容器时长。
+    const sourceBounded = mixed ? slicePcm(mixed, 0, durationMs) : null
+    const wav = sourceBounded && cuts.length > 0 ? cutPcm(sourceBounded, cuts) : sourceBounded
     const audioChoice = wav ? await probeAudioEncoder(choice.format, wav) : null
     const muxer = createMuxer(
       choice,
@@ -81,7 +109,13 @@ export async function runExport(
       const source = await decoder.frameAt(sourceMs / 1000)
       if (!source) throw new ExportError('源视频无法解码: 没有可用帧')
       const camera = sampleCameraAt(params.keyframes, params.canvas, sourceMs)
-      compositor.drawFrame(source, camera, sourceMs, params.ripples)
+      const keyOverlay = keyOverlayFrameAt(
+        params.keyPrompts,
+        sourceMs,
+        params.keyboardOverlay,
+        { width: OUTPUT_WIDTH, height: OUTPUT_HEIGHT }
+      )
+      compositor.drawFrame(source, camera, sourceMs, params.ripples, keyOverlay)
       // 捕获前 flush：确保 WebGL 绘制命令已提交，VideoFrame 快照拿到本帧内容
       compositor.flush()
       const outFrame = new VideoFrame(canvas, {
