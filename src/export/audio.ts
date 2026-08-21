@@ -1,6 +1,7 @@
 import type { ExportFormat } from './messages'
 import { ExportError } from './decoder'
 import type { ExportMuxer } from './encoder'
+import type { CutRange } from '../timeline/cuts'
 
 /**
  * 音频混入（kr-03 Task 2.4 / kr-01 system-audio）：
@@ -122,6 +123,32 @@ export function mixPcm(a: WavData | null, b: WavData | null, bOffsetSec = 0): Wa
     }
   }
   return { sampleRate, channels, samples: out }
+}
+
+/** 按裁剪区间拼接保留段 PCM（与视频帧的 outputToSourceMs 映射一致，音画同步不漂移） */
+export function cutPcm(wav: WavData, cuts: CutRange[]): WavData {
+  if (cuts.length === 0) return wav
+  const frames = Math.floor(wav.samples.length / wav.channels)
+  const frameOf = (ms: number): number =>
+    Math.min(frames, Math.max(0, Math.round((ms / 1000) * wav.sampleRate)))
+  // 保留区间 = [0, c0.start) ∪ [c0.end, c1.start) ∪ … ∪ [cn.end, frames)
+  const kept: Array<[number, number]> = []
+  let prev = 0
+  for (const c of cuts) {
+    kept.push([prev, frameOf(c.startMs)])
+    prev = frameOf(c.endMs)
+  }
+  kept.push([prev, frames])
+  const totalFrames = kept.reduce((acc, [s, e]) => acc + Math.max(0, e - s), 0)
+  const out = new Int16Array(totalFrames * wav.channels)
+  let offset = 0
+  for (const [s, e] of kept) {
+    const len = Math.max(0, e - s)
+    if (len === 0) continue
+    out.set(wav.samples.subarray(s * wav.channels, e * wav.channels), offset)
+    offset += len * wav.channels
+  }
+  return { sampleRate: wav.sampleRate, channels: wav.channels, samples: out }
 }
 
 export interface AudioEncoderChoice {

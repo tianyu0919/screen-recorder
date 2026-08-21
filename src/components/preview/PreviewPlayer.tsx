@@ -2,18 +2,10 @@ import { useEffect, useRef } from 'react'
 import type { CameraKeyframe } from '@shared/types'
 import type { Timeline } from '@/timeline/types'
 import type { RipplePoint } from '@/render/types'
-import { Button } from '@/components/ui/button'
 import { usePlayback } from './usePlayback'
 import { useSyncedAudio } from './useSyncedAudio'
-
-function formatTime(ms: number): string {
-  const total = Math.floor(ms / 1000)
-  const m = Math.floor(total / 60)
-    .toString()
-    .padStart(2, '0')
-  const s = (total % 60).toString().padStart(2, '0')
-  return `${m}:${s}`
-}
+import { PlayerTimeline } from './PlayerTimeline'
+import { usePreviewStore } from '@/store/previewStore'
 
 interface PreviewPlayerProps {
   timeline: Timeline
@@ -29,7 +21,7 @@ interface PreviewPlayerProps {
 }
 
 /**
- * 预览播放器（Task 3.1/3.2）：WebGL 合成画布 + 隐藏 <video> 帧源 + 播放/暂停/进度条。
+ * 预览播放器（Task 3.1/3.2）：WebGL 合成画布舞台 + 隐藏 <video> 帧源 + 底部时间轴。
  * 降采样与"无运镜数据"提示在此呈现（数据来自 RenderInfo 与会话 clicks）。
  * screen.webm 无音轨（麦克风/系统音频单独落盘 wav），预览用 <audio> 跟随 video 同步播放。
  */
@@ -44,6 +36,7 @@ export function PreviewPlayer({
 }: PreviewPlayerProps): React.JSX.Element {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const cuts = usePreviewStore((s) => s.cuts)
   const { playing, currentMs, durationMs, renderInfo, playbackError, togglePlay, seekTo } = usePlayback(
     videoRef,
     canvasRef,
@@ -51,6 +44,7 @@ export function PreviewPlayer({
       canvasSize: timeline.canvas,
       keyframes,
       ripples,
+      cuts,
       // webm 无 Duration 元数据时 video.duration=Infinity，回退到事件时间轴估计时长
       fallbackDurationMs: timeline.durationMs
     }
@@ -74,48 +68,57 @@ export function PreviewPlayer({
   }, [videoUrl])
 
   return (
-    <div className="flex flex-col gap-3">
-      <canvas ref={canvasRef} className="aspect-video w-full rounded-lg border border-zinc-800" />
-      {/* 帧源：隐藏 video，由合成器逐帧取样绘制到 canvas */}
-      <video ref={videoRef} preload="auto" muted className="hidden" />
-      {/* 麦克风/系统音频轨：跟随 video 同步播放（screen.webm 本身无音轨） */}
-      {audioUrl && <audio ref={micAudioRef} preload="auto" className="hidden" />}
-      {systemAudioUrl && <audio ref={systemAudioRef} preload="auto" className="hidden" />}
-
-      <div className="flex items-center gap-3">
-        <Button variant="outline" size="sm" onClick={togglePlay} disabled={durationMs === 0}>
-          {playing ? '⏸ 暂停' : '▶ 播放'}
-        </Button>
-        <input
-          type="range"
-          min={0}
-          max={Math.max(1, Math.round(durationMs))}
-          value={Math.min(Math.round(currentMs), Math.max(1, Math.round(durationMs)))}
-          onChange={(e) => seekTo(Number(e.target.value))}
-          disabled={durationMs === 0}
-          className="h-1 flex-1 cursor-pointer accent-zinc-300"
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      {/* 舞台：合成画布居中，四周留出暗色背景（即导出时的"边距背景"区域） */}
+      <div
+        className="grid min-h-0 flex-1 place-items-center overflow-hidden p-5"
+        style={{
+          background:
+            'radial-gradient(900px 500px at 30% 20%, rgba(255,92,56,0.05), transparent 60%), linear-gradient(160deg, #17171b 0%, #0c0c0f 80%)'
+        }}
+      >
+        <canvas
+          ref={canvasRef}
+          className="max-h-full max-w-full rounded-xl border border-line-strong shadow-[0_30px_80px_rgba(0,0,0,0.6),0_4px_16px_rgba(0,0,0,0.4)]"
         />
-        <span className="font-mono text-xs text-zinc-400">
-          {formatTime(currentMs)} / {formatTime(durationMs)}
-        </span>
+        {/* 帧源：隐藏 video，由合成器逐帧取样绘制到 canvas */}
+        <video ref={videoRef} preload="auto" muted className="hidden" />
+        {/* 麦克风/系统音频轨：跟随 video 同步播放（screen.webm 本身无音轨） */}
+        {audioUrl && <audio ref={micAudioRef} preload="auto" className="hidden" />}
+        {systemAudioUrl && <audio ref={systemAudioRef} preload="auto" className="hidden" />}
       </div>
 
-      {noMotion && (
-        <p className="rounded bg-amber-950/50 px-3 py-2 text-xs text-amber-300">
-          无运镜数据：本会话未采集到点击事件，相机全程保持 1.0x 全景。
-        </p>
-      )}
-      {renderInfo?.downsampled && (
-        <p className="rounded bg-amber-950/50 px-3 py-2 text-xs text-amber-300">
-          源视频 {renderInfo.sourceWidth}×{renderInfo.sourceHeight} 超出纹理上限（
-          {renderInfo.textureLimit}px），已降采样至 {renderInfo.textureWidth}×
-          {renderInfo.textureHeight}，输出仍为 {renderInfo.outputWidth}×{renderInfo.outputHeight}。
-        </p>
+      {(noMotion || renderInfo?.downsampled || playbackError) && (
+        <div className="flex flex-none flex-col gap-1.5 px-4 pb-2">
+          {noMotion && (
+            <p className="rounded-lg bg-amber-950/50 px-3 py-2 text-xs text-amber-300">
+              无运镜数据：本会话未采集到点击事件，相机全程保持 1.0x 全景。
+            </p>
+          )}
+          {renderInfo?.downsampled && (
+            <p className="rounded-lg bg-amber-950/50 px-3 py-2 text-xs text-amber-300">
+              源视频 {renderInfo.sourceWidth}×{renderInfo.sourceHeight} 超出纹理上限（
+              {renderInfo.textureLimit}px），已降采样至 {renderInfo.textureWidth}×
+              {renderInfo.textureHeight}，输出仍为 {renderInfo.outputWidth}×{renderInfo.outputHeight}。
+            </p>
+          )}
+          {playbackError && (
+            <p className="rounded-lg bg-red-950/50 px-3 py-2 text-sm text-red-300">
+              {playbackError}
+            </p>
+          )}
+        </div>
       )}
 
-      {playbackError && (
-        <p className="rounded bg-red-950/50 px-3 py-2 text-sm text-red-300">{playbackError}</p>
-      )}
+      <PlayerTimeline
+        playing={playing}
+        currentMs={currentMs}
+        durationMs={durationMs}
+        keyframes={keyframes}
+        events={timeline.events}
+        onTogglePlay={togglePlay}
+        onSeek={seekTo}
+      />
     </div>
   )
 }

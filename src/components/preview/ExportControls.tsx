@@ -1,5 +1,6 @@
 import { useExportStore } from '@/store/exportStore'
 import { Button } from '@/components/ui/button'
+import { DownloadIcon } from '@/components/icons'
 
 /**
  * 导出控件（kr-03 Task 3.1 / 3.2）：
@@ -24,10 +25,10 @@ export function ExportControls(): React.JSX.Element {
     const percent = Math.round(progress * 100)
     return (
       <div className="flex items-center gap-2">
-        <div className="h-1.5 w-32 overflow-hidden rounded bg-zinc-800">
-          <div className="h-full bg-emerald-500" style={{ width: `${percent}%` }} />
+        <div className="h-1.5 w-32 overflow-hidden rounded bg-surface-3">
+          <div className="h-full bg-accent" style={{ width: `${percent}%` }} />
         </div>
-        <span className="text-xs text-zinc-400">{percent}%</span>
+        <span className="font-mono text-xs text-ink-2">{percent}%</span>
         <Button variant="ghost" size="sm" onClick={cancelExport}>
           取消
         </Button>
@@ -38,7 +39,7 @@ export function ExportControls(): React.JSX.Element {
   if (status === 'done') {
     return (
       <div className="flex items-center gap-2">
-        <span className="text-xs text-zinc-400">
+        <span className="max-w-[320px] truncate text-xs text-ink-2" title={resultPath ?? ''}>
           {resultPath
             ? `已导出 ${outputFormat?.toUpperCase()}${hasAudio ? '' : '（无音轨）'}：${resultPath}`
             : '已取消保存'}
@@ -62,7 +63,8 @@ export function ExportControls(): React.JSX.Element {
   }
 
   return (
-    <Button variant="outline" size="sm" onClick={() => void startExport()}>
+    <Button onClick={() => void startExport()}>
+      <DownloadIcon size={14} />
       导出 MP4
     </Button>
   )

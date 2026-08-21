@@ -1,5 +1,6 @@
 import type { CameraKeyframe, ExportFormat } from '@shared/types'
 import type { RipplePoint } from '../render/types'
+import type { CutRange } from '../timeline/cuts'
 import type { CanvasSize } from '../timeline/types'
 
 /**
@@ -16,6 +17,8 @@ export interface ExportStartMessage {
   sessionId: string
   keyframes: CameraKeyframe[]
   ripples: RipplePoint[]
+  /** 裁剪区间（源时间轴 ms）：导出按"源时间轴 - 裁剪区间"的输出时间轴渲染 */
+  cuts: CutRange[]
   /** 源视频分辨率（画布坐标系基准），供合成器 setCanvasSize */
   canvas: CanvasSize
   /** events.json 估计的时间轴长度（ms）；源视频 computeDuration 失败时的回退 */

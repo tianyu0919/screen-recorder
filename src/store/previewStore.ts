@@ -6,7 +6,9 @@ import {
   generateCameraKeyframes,
   type MotionParams
 } from '@/timeline/keyframes'
+import { buildZoomSegments } from '@/timeline/segments'
 import { displayToCanvas } from '@/timeline/coords'
+import { normalizeCuts, type CutRange } from '@/timeline/cuts'
 import type { RipplePoint } from '@/render/types'
 import { fetchSessionWav } from '@/export/audio'
 import { estimateSystemOffsetSec } from '@/lib/audioAlign'
@@ -40,20 +42,52 @@ interface PreviewState {
   keyframes: CameraKeyframe[]
   /** 点击波纹触发点（画布坐标，合成器 drawFrame 的 clicks 入参） */
   ripples: RipplePoint[]
+  /** 单个运镜片段的倍率覆盖：key = 片段起始关键帧时间(ms)，改全局参数后仍按锚点对齐生效 */
+  zoomOverrides: Record<number, number>
+  /** 时间轴上当前选中的运镜片段（起始关键帧时间 ms），null = 未选中 */
+  selectedSegmentT: number | null
+  /** 裁剪区间（源时间轴 ms，已归一化）：预览跳过、导出按裁剪后时长渲染；不改原始数据 */
+  cuts: CutRange[]
 
   loadSessions(): Promise<void>
   openSession(sessionId: string): Promise<void>
   closeSession(): void
   setMotionParams(patch: Partial<MotionParams>): void
+  setSegmentZoom(tMs: number, zoom: number): void
+  resetSegmentZoom(tMs: number): void
+  selectSegment(tMs: number | null): void
+  addCut(range: CutRange): void
+  removeCut(index: number): void
+  clearCuts(): void
 }
 
-/** timeline + 参数 → 关键帧与波纹点（纯派生，参数调整时重算） */
+/**
+ * timeline + 参数 → 关键帧与波纹点（纯派生，参数调整时重算）。
+ * 片段倍率覆盖按"合并片段"整体生效：密集点击合并出的片段含多个 zoom-in 关键帧，
+ * 只改首帧会让相机推进到后续帧时回到原倍率（预览/导出不生效），故整段统一改写。
+ */
 function derive(
   timeline: Timeline,
-  params: MotionParams
+  params: MotionParams,
+  overrides: Record<number, number>
 ): { keyframes: CameraKeyframe[]; ripples: RipplePoint[] } {
+  let keyframes = generateCameraKeyframes(timeline.events, timeline.canvas, params)
+  if (Object.keys(overrides).length > 0) {
+    const segments = buildZoomSegments(keyframes, Infinity)
+    const zoomOf = new Map<number, number>()
+    for (const seg of segments) {
+      const z = overrides[seg.startMs]
+      if (z !== undefined) zoomOf.set(seg.startMs, z)
+    }
+    keyframes = keyframes.map((kf) => {
+      if (kf.target.zoom <= 1.05) return kf
+      const seg = segments.find((s) => kf.t >= s.startMs && kf.t < s.endMs)
+      const z = seg ? zoomOf.get(seg.startMs) : undefined
+      return z !== undefined ? { ...kf, target: { ...kf.target, zoom: z } } : kf
+    })
+  }
   return {
-    keyframes: generateCameraKeyframes(timeline.events, timeline.canvas, params),
+    keyframes,
     ripples: timeline.events.clicks.map((c) => ({
       t: c.t,
       ...displayToCanvas(timeline.events.display, c.x, c.y)
@@ -70,6 +104,9 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
   motionParams: DEFAULT_MOTION_PARAMS,
   keyframes: [],
   ripples: [],
+  zoomOverrides: {},
+  selectedSegmentT: null,
+  cuts: [],
 
   async loadSessions() {
     const sessions = await window.api.listSessions()
@@ -99,7 +136,15 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
         systemAudioUrl: result.systemAudioUrl,
         systemAudioOffsetSec
       }
-      set({ loading: false, current, ...derive(timeline, get().motionParams) })
+      // 新会话锚点不同，旧的片段覆盖与选中态不再适用
+      set({
+        loading: false,
+        current,
+        zoomOverrides: {},
+        selectedSegmentT: null,
+        cuts: [],
+        ...derive(timeline, get().motionParams, {})
+      })
     } catch (err) {
       // 损坏/版本不兼容：友好提示且不进入预览（current 保持 null）
       set({
@@ -114,13 +159,62 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
   },
 
   closeSession() {
-    set({ current: null, keyframes: [], ripples: [], loadError: null })
+    set({
+      current: null,
+      keyframes: [],
+      ripples: [],
+      loadError: null,
+      zoomOverrides: {},
+      selectedSegmentT: null,
+      cuts: []
+    })
   },
 
   setMotionParams(patch) {
     const motionParams = { ...get().motionParams, ...patch }
-    const { current } = get()
+    const { current, zoomOverrides } = get()
     // 改参数即时重新生成关键帧；播放器经 keyframes 引用变化重置 animator 并重绘
-    set(current ? { motionParams, ...derive(current.timeline, motionParams) } : { motionParams })
+    set(
+      current
+        ? { motionParams, ...derive(current.timeline, motionParams, zoomOverrides) }
+        : { motionParams }
+    )
+  },
+
+  setSegmentZoom(tMs, zoom) {
+    const { current, motionParams, zoomOverrides } = get()
+    const next = { ...zoomOverrides, [tMs]: zoom }
+    set(
+      current
+        ? { zoomOverrides: next, ...derive(current.timeline, motionParams, next) }
+        : { zoomOverrides: next }
+    )
+  },
+
+  resetSegmentZoom(tMs) {
+    const { current, motionParams, zoomOverrides } = get()
+    const next = { ...zoomOverrides }
+    delete next[tMs]
+    set(
+      current
+        ? { zoomOverrides: next, ...derive(current.timeline, motionParams, next) }
+        : { zoomOverrides: next }
+    )
+  },
+
+  selectSegment(tMs) {
+    set({ selectedSegmentT: tMs })
+  },
+
+  addCut(range) {
+    set({ cuts: normalizeCuts([...get().cuts, range]) })
+  },
+
+  removeCut(index) {
+    set({ cuts: get().cuts.filter((_, i) => i !== index) })
+  },
+
+  clearCuts() {
+    set({ cuts: [] })
   }
 }))

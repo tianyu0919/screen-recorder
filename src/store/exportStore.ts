@@ -45,7 +45,7 @@ export const useExportStore = create<ExportState>((set, get) => ({
 
   async startExport() {
     if (get().status === 'exporting') return
-    const { current, keyframes, ripples } = usePreviewStore.getState()
+    const { current, keyframes, ripples, cuts } = usePreviewStore.getState()
     if (!current) return
     const sessionId = current.session.sessionId
 
@@ -102,6 +102,7 @@ export const useExportStore = create<ExportState>((set, get) => ({
       sessionId,
       keyframes,
       ripples,
+      cuts,
       canvas: current.timeline.canvas,
       fallbackDurationMs: current.timeline.durationMs
     })

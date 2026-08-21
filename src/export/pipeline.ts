@@ -1,9 +1,10 @@
 import { Compositor } from '../render/compositor'
 import { estimateSystemOffsetSec } from '../lib/audioAlign'
 import { sampleCameraAt } from '../timeline/spring'
-import { encodeAudio, fetchSessionWav, mixPcm, probeAudioEncoder } from './audio'
+import { cutPcm, encodeAudio, fetchSessionWav, mixPcm, probeAudioEncoder } from './audio'
 import { ExportError, WebmFrameDecoder } from './decoder'
 import { OUTPUT_FPS, OUTPUT_HEIGHT, OUTPUT_WIDTH, createMuxer, probeVideoEncoder } from './encoder'
+import { effectiveDurationMs, normalizeCuts, outputToSourceMs } from '../timeline/cuts'
 import type { ExportDoneMessage, ExportStartMessage } from './messages'
 
 /**
@@ -36,6 +37,9 @@ export async function runExport(
         ? durationSec * 1000
         : params.fallbackDurationMs
     if (durationMs <= 0) throw new ExportError('源视频时长为空，无法导出')
+    // 裁剪：输出时间轴 = 源时间轴 - 裁剪区间（视频逐帧映射 + 音频 PCM 拼接，同一份换算）
+    const cuts = normalizeCuts(params.cuts, durationMs)
+    const outDurationMs = effectiveDurationMs(durationMs, cuts)
 
     const choice = await probeVideoEncoder()
 
@@ -46,7 +50,8 @@ export async function runExport(
       fetchSessionWav(params.sessionId, 'system.wav')
     ])
     const sysOffset = micWav && systemWav ? estimateSystemOffsetSec(micWav, systemWav) : 0
-    const wav = mixPcm(micWav, systemWav, sysOffset)
+    const mixed = mixPcm(micWav, systemWav, sysOffset)
+    const wav = mixed && cuts.length > 0 ? cutPcm(mixed, cuts) : mixed
     const audioChoice = wav ? await probeAudioEncoder(choice.format, wav) : null
     const muxer = createMuxer(
       choice,
@@ -68,15 +73,15 @@ export async function runExport(
     })
     encoder.configure(choice.config)
 
-    const totalFrames = Math.max(1, Math.ceil((durationMs / 1000) * OUTPUT_FPS))
+    const totalFrames = Math.max(1, Math.ceil((outDurationMs / 1000) * OUTPUT_FPS))
     const frameDurationUs = 1e6 / OUTPUT_FPS
     for (let i = 0; i < totalFrames; i++) {
       if (encodeError) throw new ExportError(`视频编码失败: ${errMsg(encodeError)}`)
-      const tMs = (i / OUTPUT_FPS) * 1000
-      const source = await decoder.frameAt(tMs / 1000)
+      const sourceMs = outputToSourceMs((i / OUTPUT_FPS) * 1000, cuts)
+      const source = await decoder.frameAt(sourceMs / 1000)
       if (!source) throw new ExportError('源视频无法解码: 没有可用帧')
-      const camera = sampleCameraAt(params.keyframes, params.canvas, tMs)
-      compositor.drawFrame(source, camera, tMs, params.ripples)
+      const camera = sampleCameraAt(params.keyframes, params.canvas, sourceMs)
+      compositor.drawFrame(source, camera, sourceMs, params.ripples)
       // 捕获前 flush：确保 WebGL 绘制命令已提交，VideoFrame 快照拿到本帧内容
       compositor.flush()
       const outFrame = new VideoFrame(canvas, {
@@ -113,7 +118,7 @@ export async function runExport(
       format: choice.format,
       audio: hasAudio,
       frames: totalFrames,
-      durationMs
+      durationMs: outDurationMs
     }
   } finally {
     if (encoder && encoder.state !== 'closed') encoder.close()
