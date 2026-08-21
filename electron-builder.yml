@@ -1,7 +1,7 @@
 # electron-builder 打包配置（npm run dist / CI release 流水线共用）
 # 产物未签名：macOS 需用户右键打开绕过 Gatekeeper；Windows 可能触发 SmartScreen 提示。
 appId: com.screenrecorder.app
-productName: screen-recorder
+productName: Lenza
 directories:
   output: release
 
@@ -31,4 +31,4 @@ win:
 nsis:
   oneClick: false
   perMachine: false
-  shortcutName: screen-recorder
+  shortcutName: Lenza

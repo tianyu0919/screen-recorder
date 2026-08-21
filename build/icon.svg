@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#28282e"/>
+      <stop offset="1" stop-color="#0d0d10"/>
+    </linearGradient>
+    <linearGradient id="og" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff7a52"/>
+      <stop offset="1" stop-color="#e83e1a"/>
+    </linearGradient>
+    <!-- 零宽/零高 path 的 bbox 会让 objectBoundingBox 渐变失效，支架必须用 userSpaceOnUse -->
+    <linearGradient id="ogu" gradientUnits="userSpaceOnUse" x1="252" y1="296" x2="772" y2="732">
+      <stop offset="0" stop-color="#ff7a52"/>
+      <stop offset="1" stop-color="#e83e1a"/>
+    </linearGradient>
+    <radialGradient id="lens" cx="0.35" cy="0.3" r="0.95">
+      <stop offset="0" stop-color="#ff8f6d"/>
+      <stop offset="1" stop-color="#e83e1a"/>
+    </radialGradient>
+  </defs>
+
+  <!-- macOS 风格 squircle 底板 -->
+  <rect x="32" y="32" width="960" height="960" rx="216" fill="url(#bg)"/>
+  <rect x="34" y="34" width="956" height="956" rx="214" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="3"/>
+  <ellipse cx="512" cy="160" rx="440" ry="240" fill="#ffffff" opacity="0.05"/>
+
+  <!-- 屏幕外框 -->
+  <rect x="252" y="296" width="520" height="360" rx="84" fill="none" stroke="url(#og)" stroke-width="52"/>
+
+  <!-- 镜头 / 录制点 -->
+  <circle cx="512" cy="476" r="86" fill="url(#lens)"/>
+  <circle cx="482" cy="444" r="20" fill="#ffffff" opacity="0.55"/>
+
+  <!-- 支架 -->
+  <path d="M512 656v52" stroke="url(#ogu)" stroke-width="44" stroke-linecap="round"/>
+  <path d="M414 732h196" stroke="url(#ogu)" stroke-width="44" stroke-linecap="round"/>
+</svg>

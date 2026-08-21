@@ -6,6 +6,7 @@
   "description": "Screen Studio-like screen recorder: record data, apply auto camera motion at export time",
   "main": "dist-electron/main/index.js",
   "scripts": {
+    "postinstall": "node scripts/patch-electron-name.mjs",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "build:native": "node native/build.mjs",
