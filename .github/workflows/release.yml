@@ -61,10 +61,21 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 需要完整历史与 tag 以计算上一版本与提交清单
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # 按模板 .github/RELEASE_TEMPLATE.md 生成发版说明（分类约定见 scripts/release-notes.mjs）
+      - run: node scripts/release-notes.mjs
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
       - uses: softprops/action-gh-release@v2
         with:
           files: artifacts/**/*
-          generate_release_notes: true
+          body_path: RELEASE_NOTES.md
+          generate_release_notes: true # 模板之后追加 GitHub 自动变更清单
