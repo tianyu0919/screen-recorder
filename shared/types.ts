@@ -79,6 +79,8 @@ export interface RecordingSession {
   sessionId: string
   dir: string
   startedAt: number
+  /** edit.json 最近一次成功保存时间；从未编辑时不存在。 */
+  editedAt?: number
 }
 
 /** SessionLoad IPC 返回（kr-02 预览加载会话） */
@@ -86,6 +88,8 @@ export interface SessionLoadResult {
   session: RecordingSession
   /** events.json 原文：解析与 schema 校验在 Renderer（parseEventsJson）完成，损坏时友好提示 */
   eventsJson: string
+  /** 会话级非破坏编辑文档；历史会话不存在时为 null。 */
+  editJson: string | null
   /** 自定义 media:// 协议流式 URL，直接喂 <video src>（支持 Range，不整文件读内存） */
   videoUrl: string
   /** mic.wav 流式 URL（麦克风可选轨，不存在时为 null）；预览与画面同步播放 */

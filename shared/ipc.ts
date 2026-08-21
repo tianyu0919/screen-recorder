@@ -14,12 +14,23 @@ export const IPC = {
   SessionList: 'session:list',
   SessionLoad: 'session:load',
   SessionReveal: 'session:reveal',
+  SessionSaveEdit: 'session:save-edit',
+  SessionSaveAudioAsset: 'session:save-audio-asset',
+  SessionLoadAudioAsset: 'session:load-audio-asset',
+  SessionDeleteAudioAsset: 'session:delete-audio-asset',
   // 导出产物保存（kr-03）
   ExportSave: 'export:save',
+  // 自定义音轨文件选择（kr-05 custom-audio-track）
+  PickAudioFile: 'audio:pick-file',
+  // 窗口控制（Windows 自绘标题栏按钮）
+  WindowMinimize: 'window:minimize',
+  WindowToggleMaximize: 'window:toggle-maximize',
+  WindowClose: 'window:close',
   // Main → Renderer（事件推送）
   RecordingError: 'recording:error',
   RecordingStopped: 'recording:stopped',
-  InputHookStatus: 'input:hook-status'
+  InputHookStatus: 'input:hook-status',
+  WindowMaximizeChanged: 'window:maximize-changed'
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../../shared/ipc'
+import type { SessionEditSaveResult } from '../../shared/edit'
 import type {
   CaptureSource,
   ExportFormat,
@@ -33,12 +34,29 @@ export interface RecorderApi {
   loadSession(sessionId: string): Promise<SessionLoadResult>
   /** 在系统文件管理器（macOS Finder）中显示会话文件位置 */
   revealSession(sessionId: string): Promise<void>
+  saveSessionEdit(sessionId: string, json: string): Promise<SessionEditSaveResult>
+  saveSessionAudioAsset(
+    sessionId: string,
+    assetId: string,
+    name: string,
+    data: ArrayBuffer
+  ): Promise<string>
+  loadSessionAudioAsset(sessionId: string, assetFile: string): Promise<ArrayBuffer>
+  deleteSessionAudioAsset(sessionId: string, assetFile: string): Promise<void>
   /** 保存导出产物（kr-03）：弹保存对话框并写盘；用户取消返回 null */
   saveExport(
     sessionId: string,
     data: ArrayBuffer,
     format: ExportFormat
   ): Promise<ExportSaveResult | null>
+  /** 选择自定义音轨文件（kr-05 custom-audio-track）：对话框 + 读 bytes；取消返回 null */
+  pickAudioFile(): Promise<{ name: string; path: string; data: ArrayBuffer } | null>
+  /** 窗口控制（Windows 自绘标题栏按钮） */
+  windowMinimize(): Promise<void>
+  windowToggleMaximize(): Promise<void>
+  windowClose(): Promise<void>
+  /** 最大化状态变化（切换 最大化/还原 图标） */
+  onMaximizedChange(cb: (maximized: boolean) => void): () => void
   onRecordingError(cb: (err: RecordingError) => void): () => void
   onRecordingStopped(cb: (result: { dir: string; sessionId: string }) => void): () => void
 }
@@ -58,8 +76,25 @@ const api: RecorderApi = {
   listSessions: () => ipcRenderer.invoke(IPC.SessionList),
   loadSession: (sessionId) => ipcRenderer.invoke(IPC.SessionLoad, sessionId),
   revealSession: (sessionId) => ipcRenderer.invoke(IPC.SessionReveal, sessionId),
+  saveSessionEdit: (sessionId, json) =>
+    ipcRenderer.invoke(IPC.SessionSaveEdit, sessionId, json),
+  saveSessionAudioAsset: (sessionId, assetId, name, data) =>
+    ipcRenderer.invoke(IPC.SessionSaveAudioAsset, sessionId, assetId, name, data),
+  loadSessionAudioAsset: (sessionId, assetFile) =>
+    ipcRenderer.invoke(IPC.SessionLoadAudioAsset, sessionId, assetFile),
+  deleteSessionAudioAsset: (sessionId, assetFile) =>
+    ipcRenderer.invoke(IPC.SessionDeleteAudioAsset, sessionId, assetFile),
   saveExport: (sessionId, data, format) =>
     ipcRenderer.invoke(IPC.ExportSave, sessionId, data, format),
+  pickAudioFile: () => ipcRenderer.invoke(IPC.PickAudioFile),
+  windowMinimize: () => ipcRenderer.invoke(IPC.WindowMinimize),
+  windowToggleMaximize: () => ipcRenderer.invoke(IPC.WindowToggleMaximize),
+  windowClose: () => ipcRenderer.invoke(IPC.WindowClose),
+  onMaximizedChange: (cb) => {
+    const listener = (_e: Electron.IpcRendererEvent, maximized: boolean): void => cb(maximized)
+    ipcRenderer.on(IPC.WindowMaximizeChanged, listener)
+    return () => ipcRenderer.removeListener(IPC.WindowMaximizeChanged, listener)
+  },
   onRecordingError: (cb) => {
     const listener = (_e: Electron.IpcRendererEvent, err: RecordingError): void => cb(err)
     ipcRenderer.on(IPC.RecordingError, listener)

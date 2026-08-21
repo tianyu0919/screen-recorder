@@ -1,7 +1,8 @@
-import { app, BrowserWindow, nativeImage, protocol } from 'electron'
+import { app, BrowserWindow, Menu, nativeImage, nativeTheme, protocol } from 'electron'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { registerIpc } from '../ipc'
+import { IPC } from '../../shared/ipc'
 import { registerDisplayMediaHandler } from '../capture/sources'
 import { registerMediaProtocol } from '../store/sessionReader'
 
@@ -29,15 +30,17 @@ let win: BrowserWindow | null = null
 function createWindow(): void {
   win = new BrowserWindow({
     width: 1280,
-    height: 820,
-    // 下限按编辑器布局估算：检查器 280 + 舞台最小宽度；时间轴 168 + 双工具栏 + 舞台最小高度
-    minWidth: 1080,
-    minHeight: 700,
-    backgroundColor: '#0a0a0c',
+    height: 956,
+    // 下限按编辑器布局估算：检查器 280 + 舞台卡片最小宽度；时间轴 168 + 工具栏 + 舞台可用高度
+    // （小于此尺寸舞台会被压扁，以 1280x956 为可用下限）
+    minWidth: 1280,
+    minHeight: 956,
+    // 启动背景跟 OS 深浅色（Renderer 主题就绪前的闪白/闪黑抑制；实际主题以 themeStore 为准）
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#0a0a0c' : '#e9e9ed',
     // Windows/Linux 任务栏与窗口图标（macOS 走 Dock，由下方 app.dock.setIcon 覆盖）
     ...(appIcon ? { icon: appIcon } : {}),
-    // macOS 红绿灯内嵌（拖拽区由 Renderer 的 .app-drag 提供）；Windows 保留原生标题栏
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    // macOS 红绿灯内嵌；Windows 隐藏原生标题栏，控制按钮由 Renderer 自绘（.app-drag 提供拖拽）
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.mjs'),
       contextIsolation: true,
@@ -58,9 +61,15 @@ function createWindow(): void {
   win.on('closed', () => {
     win = null
   })
+
+  // 最大化状态推送 Renderer（自绘窗口按钮切换 最大化/还原 图标）
+  win.on('maximize', () => win?.webContents.send(IPC.WindowMaximizeChanged, true))
+  win.on('unmaximize', () => win?.webContents.send(IPC.WindowMaximizeChanged, false))
 }
 
 app.whenReady().then(() => {
+  // Windows/Linux 去掉默认应用菜单（File/Edit/View...），macOS 保留以维持系统级快捷键与 Dock 菜单
+  if (process.platform !== 'darwin') Menu.setApplicationMenu(null)
   // 仅开发期覆盖 Dock 图标；打包后 .app 自带 icns，无需也不应覆盖
   if (process.platform === 'darwin' && appIcon && !app.isPackaged) {
     app.dock?.setIcon(appIcon)

@@ -1,7 +1,8 @@
 import { ipcMain, screen, desktopCapturer, dialog, type BrowserWindow } from 'electron'
-import { writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { readFile, writeFile } from 'node:fs/promises'
+import { join, basename } from 'node:path'
 import { IPC } from '../shared/ipc'
+import type { SessionEditSaveResult } from '../shared/edit'
 import type {
   ExportFormat,
   ExportSaveResult,
@@ -16,6 +17,12 @@ import { CursorPoller } from './input/cursorPoller'
 import { InputHook } from './input/uiohook'
 import { SessionStore } from './store/sessionStore'
 import { listSessions, loadSession, revealSession } from './store/sessionReader'
+import {
+  deleteAudioAsset,
+  loadAudioAsset,
+  saveAudioAsset,
+  saveEditJson
+} from './store/editStore'
 import { getPermissionStatus, openSystemSettings, requestMicrophoneAccess } from './permissions'
 
 /** 鼠标轨迹轮询频率（spec: 60–120Hz，取 90Hz） */
@@ -45,10 +52,38 @@ export function registerIpc(getWindow: () => BrowserWindow | null): {
 
   ipcMain.handle(IPC.GetSources, () => listCaptureSources())
 
+  // 窗口控制（Windows 自绘标题栏按钮；macOS 用系统红绿灯，不会触发）
+  ipcMain.handle(IPC.WindowMinimize, () => getWindow()?.minimize())
+  ipcMain.handle(IPC.WindowToggleMaximize, () => {
+    const w = getWindow()
+    if (!w) return
+    if (w.isMaximized()) w.unmaximize()
+    else w.maximize()
+  })
+  ipcMain.handle(IPC.WindowClose, () => getWindow()?.close())
+
   // 录制会话读取（kr-02 预览）：枚举 / 加载 events.json + 视频流式 URL
   ipcMain.handle(IPC.SessionList, () => listSessions())
   ipcMain.handle(IPC.SessionLoad, (_e, sessionId: string) => loadSession(sessionId))
   ipcMain.handle(IPC.SessionReveal, (_e, sessionId: string) => revealSession(sessionId))
+  ipcMain.handle(
+    IPC.SessionSaveEdit,
+    (_e, sessionId: string, json: string): Promise<SessionEditSaveResult> =>
+      saveEditJson(sessionId, json)
+  )
+  ipcMain.handle(
+    IPC.SessionSaveAudioAsset,
+    (_e, sessionId: string, assetId: string, name: string, data: ArrayBuffer) =>
+      saveAudioAsset(sessionId, assetId, name, data)
+  )
+  ipcMain.handle(
+    IPC.SessionLoadAudioAsset,
+    (_e, sessionId: string, assetFile: string) => loadAudioAsset(sessionId, assetFile)
+  )
+  ipcMain.handle(
+    IPC.SessionDeleteAudioAsset,
+    (_e, sessionId: string, assetFile: string) => deleteAudioAsset(sessionId, assetFile)
+  )
 
   // 导出产物保存（kr-03）：内存中的 mp4/webm 经保存对话框落盘，用户取消返回 null
   ipcMain.handle(
@@ -72,6 +107,29 @@ export function registerIpc(getWindow: () => BrowserWindow | null): {
       if (result.canceled || !result.filePath) return null
       await writeFile(result.filePath, Buffer.from(data))
       return { path: result.filePath }
+    }
+  )
+
+  // 自定义音轨文件选择（kr-05 custom-audio-track）：对话框选音频 → 读 bytes 回 Renderer 解码
+  // （预览用 blobUrl、导出用 PCM；不走 media:// 协议——它只放行 recordings 目录）
+  ipcMain.handle(
+    IPC.PickAudioFile,
+    async (): Promise<{ name: string; path: string; data: ArrayBuffer } | null> => {
+      const win = getWindow()
+      if (!win) return null
+      const result = await dialog.showOpenDialog(win, {
+        properties: ['openFile'],
+        filters: [
+          { name: '音频文件', extensions: ['wav', 'mp3', 'm4a', 'aac', 'ogg', 'flac'] }
+        ]
+      })
+      const filePath = result.filePaths[0]
+      if (result.canceled || !filePath) return null
+      const buf = await readFile(filePath)
+      if (buf.byteLength > 200 * 1024 * 1024) throw new Error('音频文件过大（上限 200MB）')
+      // 复制为独立 ArrayBuffer（Buffer 的底层 slab 可能带偏移，结构化克隆需精确边界）
+      const data = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
+      return { name: basename(filePath), path: filePath, data }
     }
   )
 

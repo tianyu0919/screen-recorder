@@ -1,4 +1,10 @@
 import type { ClickEvent, KeyEvent } from '../../shared/types'
+import {
+  isFunctionKey,
+  isModifierKey,
+  MODIFIER_ORDER,
+  normalizeKeyName
+} from '../../shared/keyEvents'
 
 /**
  * 全局输入钩子（Task 3.2）：基于 uiohook-napi 采集 mousedown 与 keydown。
@@ -34,9 +40,22 @@ export class InputHook {
   private recording = false
   private clicks: ClickEvent[] = []
   private keys: KeyEvent[] = []
+  private modifiers = new Map<string, { t: number; used: boolean }>()
+  private lastKey: { label: string; t: number } | null = null
+
+  private pushKey(t: number, parts: string[]): void {
+    const label = parts.join('+')
+    if (this.lastKey?.label === label && t - this.lastKey.t < 250) return
+    this.keys.push({ t, key: label })
+    this.lastKey = { label, t }
+  }
 
   /** 加载原生模块并注册监听；失败则降级，不抛错 */
   async init(): Promise<void> {
+    if (this.mod) {
+      this.available = true
+      return
+    }
     try {
       const mod = (await import('uiohook-napi')) as UiohookModule
       this.mod = mod
@@ -52,10 +71,34 @@ export class InputHook {
       })
       mod.uIOhook.on('keydown', (e) => {
         if (!this.recording) return
-        this.keys.push({
-          t: Date.now() - this.t0,
-          key: this.keyNames.get(e.keycode) ?? `Key${e.keycode}`
-        })
+        const t = Date.now() - this.t0
+        const key = normalizeKeyName(this.keyNames.get(e.keycode) ?? `Key${e.keycode}`)
+        if (isModifierKey(key)) {
+          if (!this.modifiers.has(key)) this.modifiers.set(key, { t, used: false })
+          return
+        }
+        const eventModifiers = new Set<string>()
+        if (e.ctrlKey) eventModifiers.add('CTRL')
+        if (e.altKey) eventModifiers.add('ALT')
+        if (e.shiftKey) eventModifiers.add('SHIFT')
+        if (e.metaKey) eventModifiers.add('META')
+        const active = MODIFIER_ORDER.filter(
+          (modifier) => this.modifiers.has(modifier) || eventModifiers.has(modifier)
+        )
+        if (active.length === 0 && !isFunctionKey(key)) return
+        for (const modifier of active) {
+          const state = this.modifiers.get(modifier)
+          if (state) state.used = true
+        }
+        this.pushKey(t, [...active, key])
+      })
+      mod.uIOhook.on('keyup', (e) => {
+        if (!this.recording) return
+        const key = normalizeKeyName(this.keyNames.get(e.keycode) ?? `Key${e.keycode}`)
+        if (!isModifierKey(key)) return
+        const state = this.modifiers.get(key)
+        if (state && !state.used) this.pushKey(state.t, [key])
+        this.modifiers.delete(key)
       })
       mod.uIOhook.start()
       this.available = true
@@ -69,11 +112,17 @@ export class InputHook {
   startRecording(t0: number): void {
     this.clicks = []
     this.keys = []
+    this.modifiers.clear()
+    this.lastKey = null
     this.t0 = t0
     this.recording = this.available
   }
 
   stopRecording(): void {
+    for (const [key, state] of this.modifiers) {
+      if (!state.used) this.pushKey(state.t, [key])
+    }
+    this.modifiers.clear()
     this.recording = false
   }
 
@@ -87,6 +136,7 @@ export class InputHook {
 
   dispose(): void {
     this.recording = false
+    this.modifiers.clear()
     try {
       this.mod?.uIOhook.stop()
     } catch {

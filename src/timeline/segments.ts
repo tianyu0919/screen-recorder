@@ -17,15 +17,18 @@ export function buildZoomSegments(keyframes: CameraKeyframe[], endMs: number): Z
   let open: ZoomSegment | null = null
   for (const kf of keyframes) {
     if (kf.target.zoom > 1.05) {
-      if (!open) open = { startMs: kf.t, endMs, zoom: kf.target.zoom }
-      else open.zoom = kf.target.zoom
+      if (!open) {
+        if (kf.t < endMs) open = { startMs: kf.t, endMs, zoom: kf.target.zoom }
+      } else {
+        open.zoom = kf.target.zoom
+      }
     } else if (open) {
       // 回归帧可能排在视频结束之后（末次点击 + dwell），钳到时间轴长度内
       open.endMs = Math.min(kf.t, endMs)
-      segments.push(open)
+      if (open.endMs > open.startMs) segments.push(open)
       open = null
     }
   }
-  if (open) segments.push(open)
+  if (open && open.endMs > open.startMs) segments.push(open)
   return segments
 }

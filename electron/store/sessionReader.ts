@@ -29,6 +29,20 @@ function readStartedAt(eventsPath: string): number {
   return statSync(eventsPath).mtimeMs
 }
 
+function readEditedAt(editPath: string): number | undefined {
+  if (!existsSync(editPath)) return undefined
+  try {
+    const parsed = JSON.parse(readFileSync(editPath, 'utf8')) as { updatedAt?: unknown }
+    if (typeof parsed.updatedAt === 'string') {
+      const value = Date.parse(parsed.updatedAt)
+      if (Number.isFinite(value)) return value
+    }
+  } catch {
+    /* 损坏由加载路径处理；列表仍可展示。 */
+  }
+  return statSync(editPath).mtimeMs
+}
+
 /** 枚举已落盘会话（按开始时间倒序）；events.json 损坏的会话也列出，选中后走友好错误路径 */
 export function listSessions(): RecordingSession[] {
   const root = recordingsRoot()
@@ -40,12 +54,13 @@ export function listSessions(): RecordingSession[] {
       if (!statSync(dir).isDirectory()) continue
       const eventsPath = join(dir, 'events.json')
       if (!existsSync(eventsPath)) continue
-      out.push({ sessionId, dir, startedAt: readStartedAt(eventsPath) })
+      const editedAt = readEditedAt(join(dir, 'edit.json'))
+      out.push({ sessionId, dir, startedAt: readStartedAt(eventsPath), editedAt })
     } catch {
       /* 单个会话读取失败不阻塞列表 */
     }
   }
-  return out.sort((a, b) => b.startedAt - a.startedAt)
+  return out.sort((a, b) => (b.editedAt ?? b.startedAt) - (a.editedAt ?? a.startedAt))
 }
 
 /** 加载会话：返回 events.json 原文 + 视频流式 URL；文件缺失抛错（IPC 包装为友好提示） */
@@ -55,6 +70,8 @@ export function loadSession(sessionId: string): SessionLoadResult {
   const eventsPath = join(dir, 'events.json')
   if (!existsSync(eventsPath)) throw new Error('会话不存在或缺少 events.json')
   const eventsJson = readFileSync(eventsPath, 'utf8')
+  const editPath = join(dir, 'edit.json')
+  const editJson = existsSync(editPath) ? readFileSync(editPath, 'utf8') : null
   // 视频文件名取 events.json 的 video.file；损坏时按约定回退 screen.webm（解析错误由 Renderer 提示）
   let videoFile = 'screen.webm'
   try {
@@ -72,8 +89,14 @@ export function loadSession(sessionId: string): SessionLoadResult {
     ? `media://rec/${sessionId}/system.wav`
     : null
   return {
-    session: { sessionId, dir, startedAt: readStartedAt(eventsPath) },
+    session: {
+      sessionId,
+      dir,
+      startedAt: readStartedAt(eventsPath),
+      editedAt: readEditedAt(editPath)
+    },
     eventsJson,
+    editJson,
     videoUrl: `media://rec/${sessionId}/${encodeURIComponent(videoFile)}`,
     audioUrl,
     systemAudioUrl
