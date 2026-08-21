@@ -16,7 +16,7 @@
 | kr-02-motion-playback | M2 运镜回放 | [krs/kr-02-motion-playback/](./specs/screen-recorder/krs/kr-02-motion-playback/spec.md) | completed | kr-01（会话格式契约） | 虚拟相机 {x,y,zoom}、点击自动生成关键帧、spring 阻尼插值、WebGL 合成器、实时预览播放器。macOS 真实会话集成自测通过（2026-08-20），预览已人工确认正常。 |
 | kr-03-mp4-export | M3 mp4 导出 | [krs/kr-03-mp4-export/](./specs/screen-recorder/krs/kr-03-mp4-export/spec.md) | in_progress | kr-01（会话格式）、kr-02（渲染管线复用） | Worker 线程离线确定性逐帧渲染；WebCodecs Decoder/Encoder + mp4-muxer；H.264 探测与 VP9+webm / ffmpeg.wasm fallback。macOS 主路径已人工冒烟通过（2026-08-20），双平台/边界项见 checklist。 |
 | kr-04-cursor-beautify | M4 光标美化 | [krs/kr-04-cursor-beautify/](./specs/screen-recorder/krs/kr-04-cursor-beautify/spec.md) | draft | kr-01（`captureCursor` 采集抽象） | 原生采集 helper PoC（macOS ScreenCaptureKit / Windows WGC 无光标采集）；轨迹去抖 + catmull-rom 平滑；矢量光标重绘换肤。 |
-| kr-05-editor | M5 编辑器 | [krs/kr-05-editor/](./specs/screen-recorder/krs/kr-05-editor/spec.md) | draft | kr-02、kr-03（编辑结果作用于预览与导出） | 手动关键帧调整、片段删除、webcam 画中画、按键回显，完成 MVP 闭环。 |
+| kr-05-editor | M5 编辑器 | [krs/kr-05-editor/](./specs/screen-recorder/krs/kr-05-editor/spec.md) | in_progress | kr-02、kr-03（编辑结果作用于预览与导出） | 手动关键帧调整、片段删除、webcam 画中画、按键回显，完成 MVP 闭环。时间轴交互与裁剪已由 change: timeline-editing 交付（2026-08-21）。 |
 
 ## Changes
 
@@ -24,6 +24,8 @@
 |---|---|---|---|---|---|
 | kr-01-system-audio | 系统音频采集 | [kr-01-capture-foundation/changes/system-audio/](./specs/screen-recorder/krs/kr-01-capture-foundation/changes/system-audio/spec.md) | completed | kr-01 | Windows 走 getDisplayMedia loopback；macOS 走原生 helper（native/sck-audio，ScreenCaptureKit）。预览双轨同步、导出双轨混音。macOS 人工冒烟通过（2026-08-20）。Windows 路径已被 win32-native-audio 取代。 |
 | kr-01-win32-native-audio | Windows 系统音频原生化 | [kr-01-capture-foundation/changes/win32-native-audio/](./specs/screen-recorder/krs/kr-01-capture-foundation/changes/win32-native-audio/spec.md) | completed | kr-01 | Windows 改走原生 helper（native/wasapi-audio，Rust + WASAPI loopback）修杂音；VB-Audio 虚拟设备（Voicemeeter/VB-Cable）自动绕行总线采集端点 + Remote API 路由管理；mic/system 双轨回声互相关对齐。Windows 实机（Voicemeeter 环境）验证通过（2026-08-21）。 |
+| ui-redesign-brand | UI 重构与 Lenza 品牌 | [screen-recorder/changes/ui-redesign-brand/](./specs/screen-recorder/changes/ui-redesign-brand/spec.md) | completed | screen-recorder | 深色设计令牌 + 组件库；录制页（权限胶囊/分组选源/录制坞）与预览编辑器（工具栏/舞台/检查器/时间轴）重构；Lenza 命名与图标（icns/ico）、macOS 无边框窗口、dev 期 Dock/菜单栏名称修复。 |
+| kr-05-timeline-editing | 时间轴编辑（缩放/片段倍率/裁剪） | [kr-05-editor/changes/timeline-editing/](./specs/screen-recorder/krs/kr-05-editor/changes/timeline-editing/spec.md) | completed | kr-05 | 滚轮锚点缩放与平移、播放头缓动跟随；运镜片段级倍率覆盖（合并片段整段生效）；非破坏式裁剪（刻度尺框选、预览跳过、导出映射 + 音频拼接）；真实时长探针。macOS 验证通过（2026-08-21）。编辑状态持久化（edit.json）已定档为后续计划，见 spec「后续计划」。 |
 
 ## 依赖关系总览
 

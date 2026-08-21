@@ -13,7 +13,7 @@ npm run dist         # 本地打包（electron-builder，配置在 electron-buil
 npm run typecheck   # 类型检查（node + web 两套 tsconfig，改动后必跑）
 ```
 
-Release 流水线：`.github/workflows/release.yml`，打 tag `v*` 触发，macOS（dmg）+ Windows（NSIS）双平台构建并自动发布 GitHub Release；打包后原生 helper 经 electron-builder `extraResources` 放到 `resourcesPath` 根（与 `electron/capture/systemAudio/{darwin,win32}.ts` 的查找路径一一对应，改路径时三处需同步）。
+Release 流水线：`.github/workflows/release.yml`，打 tag `v*` 触发，macOS（dmg）+ Windows（NSIS）双平台构建并自动发布 GitHub Release；打包后原生 helper 经 electron-builder `extraResources` 放到 `resourcesPath` 根（与 `electron/capture/systemAudio/{darwin,win32}.ts` 的查找路径一一对应，改路径时三处需同步）。发版说明由 `scripts/release-notes.mjs` 按模板 `.github/RELEASE_TEMPLATE.md` 生成（从上一 tag 到当前 tag，按 commit 前缀分类：`feat`→新增、`fix/perf/revert`→修复、其余→其他），并在模板后追加 GitHub 自动变更清单。
 
 ## 架构分层与模块边界
 
@@ -85,6 +85,41 @@ Release 流水线：`.github/workflows/release.yml`，打 tag `v*` 触发，macO
 - **平台无关的可复用逻辑**（格式转换、时间轴计算、协议解析等）必须抽离到共享模块（`src/lib/`、`shared/` 或功能目录下的平台无关文件），平台文件里只做平台 API 的调用与适配。
 - 某平台暂未实现时：分发层返回 `null` / 降级，**静默不阻断主流程**，并在注释里标明各平台的实现位置。
 - 新增平台相关功能时，`docs/TECH_DESIGN.md` 里要写明各平台的路径差异。
+
+## 性能优化规则
+
+播放渲染与时间轴是本项目的热路径（60fps），以下规则均为已验证的实践，新代码必须遵守：
+
+### 1. 高频路径不走 React state
+
+- 逐帧变化的内部值（动画积分器、上一帧时间戳、滚动位置）一律放 `useRef`；每帧只允许必要的 `setState`（如 `currentMs`）。
+- 滚动位置（`scrollLeft`）等高频 DOM 状态直接读写 DOM，不要用 state 驱动滚动，避免每帧整树重渲染。
+
+### 2. 帧驱动用 requestVideoFrameCallback，不自开 rAF
+
+- 与视频播放相关的逐帧工作（合成绘制、播放头推进、视口跟随）挂 `video.requestVideoFrameCallback`，暂停/卸载时必须 `cancelVideoFrameCallback`，不允许留下空转的循环。
+- 派生的逐帧效果（如时间轴跟随滚动）通过帧回调更新的 state（`currentMs`）间接触发，不另开 `requestAnimationFrame`。
+- 一次性的 DOM 校正（缩放锚点保持）用 `useLayoutEffect`，不要写成持续动画循环。
+
+### 3. 派生数据纯函数化 + 引用驱动更新
+
+- 关键帧、运镜片段、裁剪换算等派生数据由纯函数（`src/timeline/`）计算，store 只持有引用；消费方靠"引用变化 → effect 重建"更新（见 usePlayback 的 animator 重建），禁止深比较或 JSON diff。
+- 事件时间戳/时间轴换算只做一次归一化（`normalizeCuts` 等），热路径里不重复排序合并。
+
+### 4. 渲染量按可见性降级
+
+- 大数组 DOM 渲染（时间轴事件点、键帽）按密度降级（如键帽 → 圆点），不全量硬渲染。
+- DOM 尺寸测量用 `ResizeObserver`；渲染路径里不读会触发强制同步布局的属性。
+
+### 5. 重负载离开主线程 + 背压
+
+- 导出/编码在 Worker 内逐帧驱动，`encodeQueueSize` 超上限必须挂起等待（背压），禁止一次性灌满编码器队列。
+- PCM/WAV 处理走纯函数 +  typed-array 切片（`subarray`/`set`），不逐样本复制；音画换算共用同一份映射函数，避免双份逻辑漂移。
+
+### 6. 手势与异步边界
+
+- 异步 seek/跳转（裁剪跳过、探针 seek）必须有"进行中"守卫，完成前不触发新 seek，防止连续 seek 卡死（参见 usePlayback `skippingRef`/`probingRef`）。
+- 手势区域注意 pointer capture 对 click 的吞噬：浮层按钮需要 `stopPropagation` 阻断父级手势。
 
 ## 测试与验证
 

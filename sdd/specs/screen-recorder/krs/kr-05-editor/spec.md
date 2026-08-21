@@ -2,7 +2,7 @@
 id: "kr-05-editor"
 kind: kr
 parent: "screen-recorder"
-status: draft
+status: in_progress
 impact_radius:
   - "src/components/"
   - "src/timeline/"
@@ -22,10 +22,10 @@ dependencies:
 ## 1. Scope
 - **In Scope**:
   - 时间线编辑器 UI：关键帧可视化、拖拽移动、手动新增/删除相机关键帧
-  - 片段删除：选区裁剪时间线，事件流与视频同步截断/拼接
+  - ~~片段删除：选区裁剪时间线，事件流与视频同步截断/拼接~~（已由 change: timeline-editing 以"非破坏式裁剪区间"交付：原始数据不动，预览/导出按裁剪映射生效；手动关键帧增删仍未做）
   - webcam 画中画：录制期第二路 webcam 采集（webcam.webm），合成时叠加（位置/尺寸可调）
   - 按键回显层：基于 keys 事件在对应时刻叠加按键徽章
-  - 编辑结果的持久化（会话级编辑数据）与预览/导出一致性
+  - 编辑结果的持久化（会话级编辑数据）与预览/导出一致性（方案已定档：会话目录 edit.json，见 changes/timeline-editing「后续计划」，未实施）
 - **Out of Scope**:
   - 多轨专业剪辑（转场、音频波形编辑、多段拼接）
   - 撤销/重做历史（可后续迭代）

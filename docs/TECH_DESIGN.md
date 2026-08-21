@@ -157,6 +157,7 @@ events.json + 相机关键帧
 
 要点：
 - **导出不走实时**：帧时间戳由时间轴驱动，渲染慢没关系，保证输出帧率恒定
+- **非破坏式裁剪**：`src/timeline/cuts.ts` 维护"丢弃区间"列表（源时间轴 ms，仅存内存，不改 events.json/视频）；预览播放 seek 跳过、导出按 输出帧→源帧 映射（`outputToSourceMs`）逐帧渲染，音频 PCM 按同一映射拼接（`cutPcm`），音画不漂移
 - `mp4-muxer` 纯 JS 封装 H.264，无需 ffmpeg；AAC 音频用 WebCodecs `AudioEncoder`（mic.wav 缺失/编码不支持则无音轨继续）
 - H.264 全部探测失败时 fallback VP9+webm（mediabunny `Output`/`WebMOutputFormat` 封装；webm 容器不支持 AAC，音轨走 opus）
 - 输出全程在内存（`ArrayBufferTarget`/`BufferTarget`），完成后经 Renderer 弹保存对话框落盘；取消 = `worker.terminate()`，无半成品文件
