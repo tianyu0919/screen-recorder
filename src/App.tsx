@@ -7,6 +7,8 @@ import { PreviewScreen } from '@/components/preview/PreviewScreen'
 import { AppLogo } from '@/components/AppLogo'
 import { Segmented } from '@/components/ui/segmented'
 import { Chip } from '@/components/ui/chip'
+import { WindowControls } from '@/components/WindowControls'
+import { ThemeSwitch } from '@/components/ThemeSwitch'
 
 const VIEW_OPTIONS: Array<{ value: AppView; label: string }> = [
   { value: 'record', label: '录制' },
@@ -28,13 +30,20 @@ export default function App(): React.JSX.Element {
 
   const screenGranted = permissions === null || permissions.screen === 'granted'
   const isMac = window.api.platform === 'darwin'
+  const isWin = window.api.platform === 'win32'
 
   return (
     <main className="flex h-screen flex-col overflow-hidden bg-base">
-      {/* macOS 红绿灯拖拽区（hiddenInset 标题栏）；Windows 为原生标题栏无需此区 */}
+      {/* macOS 红绿灯拖拽区（hiddenInset 标题栏）；Windows 拖拽由 header 提供 */}
       {isMac && <div className="app-drag h-10 flex-none" />}
 
-      <header className="app-drag flex flex-none items-center justify-between px-6 pb-1">
+      <header
+        className="app-drag flex flex-none items-center justify-between px-6 pb-1 pt-2"
+        onDoubleClick={(e) => {
+          // 双击 header 空白处切换最大化（Windows，模拟原生标题栏行为）
+          if (isWin && e.target === e.currentTarget) void window.api.windowToggleMaximize()
+        }}
+      >
         <div className="flex items-center gap-2.5">
           <AppLogo />
           <div>
@@ -42,27 +51,29 @@ export default function App(): React.JSX.Element {
             <p className="text-[11.5px] text-ink-3">录制时采集数据，导出时自动运镜</p>
           </div>
         </div>
-        <div className="app-nodrag">
-          <Segmented options={VIEW_OPTIONS} value={view} onChange={setView} />
+        <div className="app-nodrag flex items-center gap-1.5">
+          <ThemeSwitch />
+          <WindowControls />
         </div>
       </header>
 
+      {/* 内容区顶行：左侧权限状态标签（录制页），右侧视图切换 */}
+      <div className="flex flex-none items-center justify-between px-6 pb-2 pt-3">
+        <div className="flex gap-2">
+          {view === 'record' &&
+            permissions &&
+            PERMISSION_ITEMS.map((item) => (
+              <Chip key={item.key} dot={permissions[item.key] === 'granted' ? 'green' : 'amber'}>
+                {item.label}
+                {permissions[item.key] === 'granted' ? '已授权' : '未授权'}
+              </Chip>
+            ))}
+        </div>
+        <Segmented options={VIEW_OPTIONS} value={view} onChange={setView} />
+      </div>
+
       {view === 'record' ? (
         <div className="flex flex-1 flex-col overflow-hidden">
-          {permissions && (
-            <div className="flex flex-none gap-2 px-6 pb-4 pt-3">
-              {PERMISSION_ITEMS.map((item) => (
-                <Chip
-                  key={item.key}
-                  dot={permissions[item.key] === 'granted' ? 'green' : 'amber'}
-                >
-                  {item.label}
-                  {permissions[item.key] === 'granted' ? '已授权' : '未授权'}
-                </Chip>
-              ))}
-            </div>
-          )}
-
           <div className="flex-1 overflow-y-auto px-6">
             {permissions && !screenGranted && <PermissionGuide />}
             {permissions && screenGranted && permissions.accessibility !== 'granted' && (

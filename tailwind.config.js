@@ -4,15 +4,16 @@ export default {
   theme: {
     extend: {
       colors: {
-        base: '#0a0a0c',
-        surface: { 1: '#121215', 2: '#1a1a1f', 3: '#24242a' },
-        line: { DEFAULT: 'rgba(255,255,255,0.08)', strong: 'rgba(255,255,255,0.14)' },
-        ink: { 1: '#f5f5f6', 2: '#a3a3ab', 3: '#5d5d66' },
+        // 色板定义在 index.css 的 CSS 变量（:root / [data-theme]），此处只做映射以支持主题切换
+        base: 'var(--base)',
+        surface: { 1: 'var(--surface-1)', 2: 'var(--surface-2)', 3: 'var(--surface-3)' },
+        line: { DEFAULT: 'var(--line)', strong: 'var(--line-strong)' },
+        ink: { 1: 'var(--ink-1)', 2: 'var(--ink-2)', 3: 'var(--ink-3)' },
         accent: {
-          DEFAULT: '#ff5c38',
-          hover: '#ff6f4e',
-          soft: 'rgba(255,92,56,0.14)',
-          border: 'rgba(255,92,56,0.5)'
+          DEFAULT: 'var(--accent)',
+          hover: 'var(--accent-hover)',
+          soft: 'var(--accent-soft)',
+          border: 'var(--accent-border)'
         }
       }
     }

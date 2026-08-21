@@ -108,7 +108,7 @@ export function SourcePicker(): React.JSX.Element {
       {screens.length > 0 && (
         <section>
           <SectionHead title="屏幕" count={`${screens.length} 个显示器`} action={refreshButton} />
-          <div className="grid grid-cols-4 gap-3.5">
+          <div className="grid grid-cols-3 gap-3.5 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
             {screens.map((s) => (
               <SourceCard key={s.id} source={s} />
             ))}
@@ -122,7 +122,7 @@ export function SourcePicker(): React.JSX.Element {
             count={`${windows.length} 个应用窗口`}
             action={screens.length === 0 ? refreshButton : undefined}
           />
-          <div className="grid grid-cols-4 gap-3.5 pb-1">
+          <div className="grid grid-cols-3 gap-3.5 pb-1 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
             {windows.map((s) => (
               <SourceCard key={s.id} source={s} />
             ))}

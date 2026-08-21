@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
-import type { CameraKeyframe } from '@shared/types'
-import type { CanvasSize } from '@/timeline/types'
 import { createCameraAnimator } from '@/timeline/spring'
 import { Compositor } from '@/render/compositor'
 import type { RenderInfo, RipplePoint } from '@/render/types'
-import { cutAt, normalizeCuts, type CutRange } from '@/timeline/cuts'
+import { cutAt, normalizeCuts } from '@/timeline/cuts'
+import { previewCompositorConfig, sameRenderInfo } from './playbackRender'
+import type { Playback, PlaybackOptions } from './playbackTypes'
+import { attachPlaybackVideoEvents } from './playbackVideoEvents'
+import { keyOverlayFrameAt } from '@/render/keyOverlay'
 
 /**
  * 预览播放引擎 hook（Task 3.1/3.2）：
@@ -14,35 +16,19 @@ import { cutAt, normalizeCuts, type CutRange } from '@/timeline/cuts'
  * 卸载/换会话时完整释放：cancelVideoFrameCallback、animator 重建、compositor.dispose。
  */
 
-interface PlaybackOptions {
-  /** 视频分辨率（会话加载后非空） */
-  canvasSize: CanvasSize | null
-  keyframes: CameraKeyframe[]
-  ripples: RipplePoint[]
-  /** 裁剪区间（源时间轴 ms）：播放时直接跳过 */
-  cuts: CutRange[]
-  /**
-   * webm 缺 Duration 元数据（MediaRecorder 已知行为）导致 video.duration=Infinity 时
-   * 的回退时长（取 timeline 事件时间轴估计），否则进度条/播放被禁用。
-   */
-  fallbackDurationMs: number
-}
-
-export interface Playback {
-  playing: boolean
-  currentMs: number
-  durationMs: number
-  /** 最近一帧渲染信息（降采样 UI 明示数据） */
-  renderInfo: RenderInfo | null
-  playbackError: string | null
-  togglePlay(): void
-  seekTo(ms: number): void
-}
-
 export function usePlayback(
   videoRef: RefObject<HTMLVideoElement | null>,
   canvasRef: RefObject<HTMLCanvasElement | null>,
-  { canvasSize, keyframes, ripples, cuts, fallbackDurationMs }: PlaybackOptions
+  {
+    canvasSize,
+    renderOutputSize,
+    keyframes,
+    ripples,
+    keyPrompts,
+    keyboardOverlay,
+    cuts,
+    fallbackDurationMs
+  }: PlaybackOptions
 ): Playback {
   const compositorRef = useRef<Compositor | null>(null)
   const animatorRef = useRef<ReturnType<typeof createCameraAnimator> | null>(null)
@@ -50,17 +36,43 @@ export function usePlayback(
   const lastMsRef = useRef(0)
   const ripplesRef = useRef(ripples)
   ripplesRef.current = ripples
+  const keyPromptsRef = useRef(keyPrompts)
+  keyPromptsRef.current = keyPrompts
+  const keyboardOverlayRef = useRef(keyboardOverlay)
+  keyboardOverlayRef.current = keyboardOverlay
+  const renderOutputSizeRef = useRef(renderOutputSize)
+  renderOutputSizeRef.current = renderOutputSize
   const cutsRef = useRef(cuts)
   cutsRef.current = normalizeCuts(cuts)
   /** 裁剪跳转进行中：seek 是异步的，完成前不再触发新跳转，否则连续 seek 卡死画面 */
   const skippingRef = useRef(false)
   /** 时长探针进行中（webm 无 Duration：先 seek 到极大时间点逼浏览器解析真实时长） */
   const probingRef = useRef(false)
+  const renderInfoRef = useRef<RenderInfo | null>(null)
+  const progressListenersRef = useRef(new Set<(currentMs: number) => void>())
+  const lastUiProgressAtRef = useRef(-Infinity)
   const [playing, setPlaying] = useState(false)
   const [currentMs, setCurrentMs] = useState(0)
   const [durationMs, setDurationMs] = useState(0)
   const [renderInfo, setRenderInfo] = useState<RenderInfo | null>(null)
   const [playbackError, setPlaybackError] = useState<string | null>(null)
+
+  /** 逐帧位置直接发布给命令式消费者；React 文本 UI 降到最多 20fps。 */
+  const publishCurrentMs = useCallback((tMs: number, forceReact = false) => {
+    for (const listener of progressListenersRef.current) listener(tMs)
+    const now = performance.now()
+    if (forceReact || now - lastUiProgressAtRef.current >= 50) {
+      lastUiProgressAtRef.current = now
+      setCurrentMs(tMs)
+    }
+  }, [])
+
+  const subscribeCurrentMs = useCallback((listener: (currentMs: number) => void) => {
+    progressListenersRef.current.add(listener)
+    return () => {
+      progressListenersRef.current.delete(listener)
+    }
+  }, [])
 
   /** 用当前已解码帧 + 当前相机状态合成一帧（readyState < 2 时无帧可画，跳过） */
   const draw = useCallback(
@@ -69,7 +81,15 @@ export function usePlayback(
       const comp = compositorRef.current
       const anim = animatorRef.current
       if (!video || !comp || !anim || video.readyState < 2) return
-      setRenderInfo(comp.drawFrame(video, anim.sample(), tMs, ripplesRef.current))
+      const output = renderOutputSizeRef.current
+      const overlay = output
+        ? keyOverlayFrameAt(keyPromptsRef.current, tMs, keyboardOverlayRef.current, output)
+        : null
+      const next = comp.drawFrame(video, anim.sample(), tMs, ripplesRef.current, overlay)
+      if (!sameRenderInfo(renderInfoRef.current, next)) {
+        renderInfoRef.current = next
+        setRenderInfo(next)
+      }
     },
     [videoRef]
   )
@@ -77,15 +97,18 @@ export function usePlayback(
   /** 合成器生命周期：随画布与视频分辨率创建/销毁 */
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas || !canvasSize) return
+    if (!canvas || !canvasSize || !renderOutputSize) return
     try {
-      const comp = new Compositor(canvas)
+      const comp = new Compositor(canvas, previewCompositorConfig(renderOutputSize))
       comp.setCanvasSize(canvasSize)
       compositorRef.current = comp
+      renderInfoRef.current = null
       setPlaybackError(null)
+      draw(lastMsRef.current)
       return () => {
         comp.dispose()
         compositorRef.current = null
+        renderInfoRef.current = null
       }
     } catch (err) {
       setPlaybackError(
@@ -93,7 +116,7 @@ export function usePlayback(
       )
       return
     }
-  }, [canvasRef, canvasSize])
+  }, [canvasRef, canvasSize, draw, renderOutputSize])
 
   /** animator 生命周期：关键帧变化（参数调整）时重建并重放到当前时刻、立即重绘 */
   useEffect(() => {
@@ -137,7 +160,7 @@ export function usePlayback(
             video.currentTime = cut.startMs / 1000
             lastMsRef.current = cut.startMs
             animatorRef.current?.reset(cut.startMs)
-            setCurrentMs(cut.startMs)
+            publishCurrentMs(cut.startMs, true)
             return
           }
           skippingRef.current = true
@@ -148,88 +171,33 @@ export function usePlayback(
           lastMsRef.current = tMs
           animatorRef.current?.step(dt)
           draw(tMs)
-          setCurrentMs(tMs)
+          publishCurrentMs(tMs)
         }
       }
       rvfcRef.current = video.requestVideoFrameCallback(frame)
     },
-    [videoRef, draw]
+    [videoRef, draw, publishCurrentMs]
   )
 
   /** video 元素事件：元数据/时长/首帧/seek 完成/播放结束 */
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
-    // MediaRecorder 产出的 webm 无 Duration 元数据 → duration=Infinity，
-    // 回退到事件时间轴估计时长；Chrome 之后解析出真实时长时 durationchange 再修正
-    const syncDuration = () => {
-      const dur = video.duration * 1000
-      setDurationMs(Number.isFinite(dur) ? dur : fallbackDurationMs)
-    }
-    const onLoadedMetadata = () => {
-      syncDuration()
-      lastMsRef.current = 0
-      animatorRef.current?.reset(0)
-      setCurrentMs(0)
-      // MediaRecorder webm 缺 Duration 元数据：探针 seek 解析真实时长，
-      // 否则时间轴用事件估算长度，比真实视频长出一截死区（尾部 gap）
-      if (!Number.isFinite(video.duration)) {
-        probingRef.current = true
-        video.currentTime = 1e7
-      }
-    }
-    const onDurationChange = () => {
-      syncDuration()
-      // 探针拿到真实时长后回到起点（seeked 时再呈现首帧）
-      if (probingRef.current && Number.isFinite(video.duration)) {
-        probingRef.current = false
-        video.currentTime = 0
-      }
-    }
-    // 首帧可解码即呈现（loadedmetadata 时 readyState 可能仍 < 2）
-    const onLoadedData = () => draw(video.currentTime * 1000)
-    // seek 完成：用目标位置的新解码帧重绘（seekTo 已先用旧帧 + 新相机即时呈现）
-    const onSeeked = () => {
-      skippingRef.current = false
-      // 探针 seek 落点是视频末帧，不呈现（durationchange 会接着把进度拉回 0）
-      if (probingRef.current) return
-      const tMs = video.currentTime * 1000
-      lastMsRef.current = tMs
-      draw(tMs)
-    }
-    const onEnded = () => {
-      skippingRef.current = false
-      cancelLoop(video)
-      setPlaying(false)
-      // MediaRecorder webm 无 Duration 元数据：播完才知真实时长。
-      // 事件时间轴估计可能偏长（鼠标轨迹记到停止时刻），用真实片尾修正，
-      // 否则播放头停在 ~96%，运镜片段尾巴也会多出估算值那一截
-      const tMs = video.currentTime * 1000
-      if (tMs > 0) {
-        setDurationMs((prev) => (Math.abs(tMs - prev) > 200 ? tMs : prev))
-        setCurrentMs(tMs)
-      }
-    }
-    const onError = () => {
-      setPlaybackError(
-        `视频加载失败: code=${video.error?.code ?? '?'} ${video.error?.message ?? ''}`
-      )
-    }
-    video.addEventListener('loadedmetadata', onLoadedMetadata)
-    video.addEventListener('durationchange', onDurationChange)
-    video.addEventListener('loadeddata', onLoadedData)
-    video.addEventListener('seeked', onSeeked)
-    video.addEventListener('ended', onEnded)
-    video.addEventListener('error', onError)
-    return () => {
-      video.removeEventListener('loadedmetadata', onLoadedMetadata)
-      video.removeEventListener('durationchange', onDurationChange)
-      video.removeEventListener('loadeddata', onLoadedData)
-      video.removeEventListener('seeked', onSeeked)
-      video.removeEventListener('ended', onEnded)
-      video.removeEventListener('error', onError)
-    }
-  }, [videoRef, draw, cancelLoop, fallbackDurationMs])
+    return attachPlaybackVideoEvents({
+      video,
+      fallbackDurationMs,
+      animatorRef,
+      lastMsRef,
+      skippingRef,
+      probingRef,
+      draw,
+      cancelLoop,
+      publishCurrentMs,
+      setDurationMs,
+      setPlaying,
+      setPlaybackError
+    })
+  }, [videoRef, draw, cancelLoop, fallbackDurationMs, publishCurrentMs])
 
   /** 卸载兜底：停循环、停视频（compositor 由上方 effect 释放） */
   useEffect(
@@ -296,10 +264,10 @@ export function usePlayback(
       video.currentTime = target / 1000
       lastMsRef.current = target
       animatorRef.current?.reset(target)
-      setCurrentMs(target)
+      publishCurrentMs(target, true)
       draw(target)
     },
-    [videoRef, draw, fallbackDurationMs]
+    [videoRef, draw, fallbackDurationMs, publishCurrentMs]
   )
 
   /** 裁剪变化时（如新增的区间覆盖了当前位置）：暂停态也把播放头移出裁剪区 */
@@ -315,9 +283,18 @@ export function usePlayback(
     video.currentTime = target / 1000
     lastMsRef.current = target
     animatorRef.current?.reset(target)
-    setCurrentMs(target)
+    publishCurrentMs(target, true)
     draw(target)
-  }, [cuts, videoRef, draw, fallbackDurationMs])
+  }, [cuts, videoRef, draw, fallbackDurationMs, publishCurrentMs])
 
-  return { playing, currentMs, durationMs, renderInfo, playbackError, togglePlay, seekTo }
+  return {
+    playing,
+    currentMs,
+    durationMs,
+    renderInfo,
+    playbackError,
+    togglePlay,
+    seekTo,
+    subscribeCurrentMs
+  }
 }

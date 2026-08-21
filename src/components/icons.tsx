@@ -102,3 +102,45 @@ export const ArrowRightIcon = (p: IconProps): React.JSX.Element =>
 
 export const CloseIcon = (p: IconProps): React.JSX.Element =>
   base({ ...p, strokeWidth: 2, children: <path d="M18 6 6 18M6 6l12 12" /> })
+
+export const MinusIcon = (p: IconProps): React.JSX.Element =>
+  base({ ...p, strokeWidth: 2, children: <path d="M5 12h14" /> })
+
+export const SunIcon = (p: IconProps): React.JSX.Element =>
+  base({
+    ...p,
+    children: (
+      <>
+        <circle cx="12" cy="12" r="4.5" />
+        <path d="M12 2.5v2M12 19.5v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2.5 12h2M19.5 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+      </>
+    )
+  })
+
+export const MoonIcon = (p: IconProps): React.JSX.Element =>
+  base({ ...p, children: <path d="M20 13.5A8.5 8.5 0 0 1 10.5 4 7 7 0 1 0 20 13.5z" /> })
+
+export const MaximizeIcon = (p: IconProps): React.JSX.Element =>
+  base({ ...p, children: <rect x="5" y="5" width="14" height="14" rx="2" /> })
+
+export const RestoreIcon = (p: IconProps): React.JSX.Element =>
+  base({
+    ...p,
+    children: (
+      <>
+        <rect x="5" y="9" width="10" height="10" rx="2" />
+        <path d="M9 9V7a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2" />
+      </>
+    )
+  })
+
+export const PanelRightIcon = (p: IconProps): React.JSX.Element =>
+  base({
+    ...p,
+    children: (
+      <>
+        <rect x="3" y="4" width="18" height="16" rx="2.5" />
+        <path d="M15 4v16" />
+      </>
+    )
+  })

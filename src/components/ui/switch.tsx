@@ -25,7 +25,7 @@ export function Switch({ checked, onChange, disabled, label }: SwitchProps): Rea
       <span
         className={cn(
           'absolute top-[2px] h-[15px] w-[15px] rounded-full transition-all',
-          checked ? 'left-[17px] bg-white' : 'left-[2px] bg-[#8e8e96]'
+          checked ? 'left-[17px] bg-white' : 'left-[2px] bg-ink-3'
         )}
       />
     </button>

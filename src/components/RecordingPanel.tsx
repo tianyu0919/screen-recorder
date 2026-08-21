@@ -60,7 +60,7 @@ export function RecordingPanel(): React.JSX.Element {
         </div>
       )}
 
-      <div className="flex h-[92px] items-center gap-5 rounded-2xl border border-line bg-gradient-to-b from-[#17171b] to-[#101013] px-5 shadow-[0_12px_40px_rgba(0,0,0,0.45)]">
+      <div className="flex h-[92px] items-center gap-5 rounded-2xl border border-line bg-gradient-to-b from-surface-2 to-surface-1 px-5 shadow-[0_12px_40px_rgba(0,0,0,0.45)]">
         <div className="flex min-w-[176px] flex-col gap-2.5">
           <div className="flex items-center gap-2.5 text-[12.5px] text-ink-1">
             <Switch

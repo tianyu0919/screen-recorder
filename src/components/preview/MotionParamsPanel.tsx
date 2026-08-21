@@ -1,37 +1,7 @@
 import { usePreviewStore } from '@/store/previewStore'
 import type { MotionParams } from '@/timeline/keyframes'
-import { Slider } from '@/components/ui/slider'
+import { ParamRow } from './ParamRow'
 import { Button } from '@/components/ui/button'
-
-interface ParamRowProps {
-  label: string
-  value: number
-  min: number
-  max: number
-  step: number
-  format: (v: number) => string
-  onChange(v: number): void
-}
-
-function ParamRow({ label, value, min, max, step, format, onChange }: ParamRowProps) {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="w-16 flex-none text-[12.5px] text-ink-1">{label}</span>
-      <Slider
-        className="flex-1"
-        ariaLabel={label}
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={onChange}
-      />
-      <span className="w-12 flex-none text-right font-mono text-[11.5px] text-ink-2">
-        {format(value)}
-      </span>
-    </div>
-  )
-}
 
 /**
  * 检查器·运镜参数（Task 3.3）：全局 目标倍率 / 停留时长 / 回归阈值；
@@ -42,37 +12,35 @@ export function MotionParamsPanel(): React.JSX.Element {
   const {
     motionParams,
     setMotionParams,
-    keyframes,
-    selectedSegmentT,
-    zoomOverrides,
+    motionEffects,
+    selectedMotionId,
     setSegmentZoom,
     resetSegmentZoom
   } = usePreviewStore()
   const set = (patch: Partial<MotionParams>): void => setMotionParams(patch)
-  const segKf =
-    selectedSegmentT !== null ? keyframes.find((k) => k.t === selectedSegmentT) : undefined
-  const hasOverride = segKf !== undefined && zoomOverrides[segKf.t] !== undefined
+  const selected = motionEffects.find((effect) => effect.id === selectedMotionId)
+  const hasOverride = selected !== undefined && selected.zoom !== motionParams.targetZoom
 
   return (
     <>
-      {segKf && (
+      {selected && (
         <section className="flex flex-col gap-3 border-b border-line bg-accent-soft/40 px-4 py-3.5">
           <div className="flex items-center justify-between">
             <h3 className="text-[11px] font-semibold tracking-[0.4px] text-accent">选中片段</h3>
             {hasOverride && (
-              <Button variant="ghost" size="sm" onClick={() => resetSegmentZoom(segKf.t)}>
+              <Button variant="ghost" size="sm" onClick={() => resetSegmentZoom(selected.id)}>
                 恢复全局值
               </Button>
             )}
           </div>
           <ParamRow
             label="片段倍率"
-            value={segKf.target.zoom}
+            value={selected.zoom}
             min={1.2}
             max={4}
             step={0.1}
             format={(v) => `${v.toFixed(1)}x`}
-            onChange={(v) => setSegmentZoom(segKf.t, v)}
+            onChange={(v) => setSegmentZoom(selected.id, v)}
           />
         </section>
       )}

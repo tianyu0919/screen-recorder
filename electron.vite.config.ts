@@ -21,6 +21,11 @@ export default defineConfig({
   },
   renderer: {
     root: 'src',
+    // 导出 worker 首跑才 import mediabunny/mp4-muxer；不预打包会导致 dev 期发现新依赖 →
+    // 重新优化 → 整页刷新（表现为"第一次导出闪退回首页，第二次正常"）
+    optimizeDeps: {
+      include: ['mediabunny', 'mp4-muxer']
+    },
     build: {
       outDir: 'dist-electron/renderer',
       rollupOptions: {

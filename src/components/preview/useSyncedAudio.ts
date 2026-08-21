@@ -6,11 +6,13 @@ import { useEffect, useRef, type RefObject } from 'react'
  * mic.wav 与 system.wav 两轨各挂一个实例。
  * offsetSec：轨内容相对录制 t=0 的固定偏移（system 轨回声对齐用，正=内容偏晚），
  * 同步目标时间 = video.currentTime + offsetSec。
+ * volume：轨增益（0–1，检查器「音频」滑杆），实时写入 audio.volume。
  */
 export function useSyncedAudio(
   videoRef: RefObject<HTMLVideoElement | null>,
   audioUrl: string | null,
-  offsetSec = 0
+  offsetSec = 0,
+  volume = 1
 ): RefObject<HTMLAudioElement> {
   const audioRef = useRef<HTMLAudioElement>(null)
 
@@ -46,7 +48,15 @@ export function useSyncedAudio(
       audio.removeAttribute('src')
       audio.load()
     }
+  // 同步链路只在 源/偏移 变化时重建；volume 不能进依赖——
+  // 否则每次拖滑杆都触发 cleanup（pause + 移除 src 重载），播放中的音轨被打断且不再恢复
   }, [videoRef, audioUrl, offsetSec])
+
+  /** 音量独立 effect：只写 audio.volume，不动同步链路 */
+  useEffect(() => {
+    const audio = audioRef.current
+    if (audio) audio.volume = Math.max(0, Math.min(1, volume))
+  }, [volume, audioUrl])
 
   return audioRef
 }

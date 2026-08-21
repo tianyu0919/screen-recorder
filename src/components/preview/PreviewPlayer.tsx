@@ -1,11 +1,18 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import type { CameraKeyframe } from '@shared/types'
 import type { Timeline } from '@/timeline/types'
 import type { RipplePoint } from '@/render/types'
 import { usePlayback } from './usePlayback'
 import { useSyncedAudio } from './useSyncedAudio'
+import { useClipsAudio } from './useClipsAudio'
 import { PlayerTimeline } from './PlayerTimeline'
 import { usePreviewStore } from '@/store/previewStore'
+import { useStageFit } from './useStageFit'
+import { DEFAULT_COMPOSITOR_OPTIONS } from '@/render/types'
+import type { PreviewScaleMode } from '@/lib/stageFit'
+import { previewRenderSize } from '@/lib/stageFit'
+import { cn } from '@/lib/utils'
+import { KeyboardOverlayHandle } from './KeyboardOverlayHandle'
 
 interface PreviewPlayerProps {
   timeline: Timeline
@@ -18,6 +25,7 @@ interface PreviewPlayerProps {
   systemAudioOffsetSec: number
   keyframes: CameraKeyframe[]
   ripples: RipplePoint[]
+  scaleMode: PreviewScaleMode
 }
 
 /**
@@ -32,28 +40,61 @@ export function PreviewPlayer({
   systemAudioUrl,
   systemAudioOffsetSec,
   keyframes,
-  ripples
+  ripples,
+  scaleMode
 }: PreviewPlayerProps): React.JSX.Element {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const outputSize = DEFAULT_COMPOSITOR_OPTIONS.output
+  const { stageRef, canvasSize } = useStageFit(scaleMode, outputSize)
+  const renderOutputSize = useMemo(() => {
+    const size = previewRenderSize(canvasSize, outputSize)
+    return size.width > 0 && size.height > 0 ? size : null
+  }, [canvasSize.height, canvasSize.width, outputSize])
   const cuts = usePreviewStore((s) => s.cuts)
-  const { playing, currentMs, durationMs, renderInfo, playbackError, togglePlay, seekTo } = usePlayback(
-    videoRef,
-    canvasRef,
-    {
+  const keyPrompts = usePreviewStore((s) => s.keyPrompts)
+  const keyboardOverlay = usePreviewStore((s) => s.keyboardOverlay)
+  const setKeyboardOverlay = usePreviewStore((s) => s.setKeyboardOverlay)
+  const setSourceDurationMs = usePreviewStore((s) => s.setSourceDurationMs)
+  const {
+    playing,
+    currentMs,
+    durationMs,
+    renderInfo,
+    playbackError,
+    togglePlay,
+    seekTo,
+    subscribeCurrentMs
+  } = usePlayback(videoRef, canvasRef, {
       canvasSize: timeline.canvas,
+      renderOutputSize,
       keyframes,
       ripples,
+      keyPrompts,
+      keyboardOverlay,
       cuts,
       // webm 无 Duration 元数据时 video.duration=Infinity，回退到事件时间轴估计时长
       fallbackDurationMs: timeline.durationMs
-    }
-  )
-  const noMotion = timeline.events.clicks.length === 0
+    })
+  useEffect(() => {
+    if (durationMs > 0) setSourceDurationMs(durationMs)
+  }, [durationMs, setSourceDurationMs])
+
+  const noMotion = keyframes.every((keyframe) => keyframe.target.zoom <= 1.05)
   // 麦克风/系统音频双轨：各自跟随 video 同步（逻辑见 useSyncedAudio）；
-  // system 轨带回声对齐偏移（音箱外放时 mic 会录入系统音，见 lib/audioAlign.ts）
-  const micAudioRef = useSyncedAudio(videoRef, audioUrl)
-  const systemAudioRef = useSyncedAudio(videoRef, systemAudioUrl, systemAudioOffsetSec)
+  // system 轨带回声对齐偏移（音箱外放时 mic 会录入系统音，见 lib/audioAlign.ts）；
+  // 音量增益来自检查器「音频」滑杆，实时生效
+  const audioGain = usePreviewStore((s) => s.audioGain)
+  const micAudioRef = useSyncedAudio(videoRef, audioUrl, 0, audioGain.mic)
+  const systemAudioRef = useSyncedAudio(
+    videoRef,
+    systemAudioUrl,
+    systemAudioOffsetSec,
+    audioGain.system
+  )
+  // 自定义音轨（波形块拖拽定位）：区间播放，锚定源时间轴
+  const customClips = usePreviewStore((s) => s.customClips)
+  useClipsAudio(videoRef, customClips)
 
   // React 有时不会把 media:// 自定义协议的 src 写到 <video> 属性上，直接赋值更可靠。
   // load() 必须只在 src 变化时调用：StrictMode/重渲染下重复 load() 会中断进行中的
@@ -69,27 +110,53 @@ export function PreviewPlayer({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      {/* 舞台：合成画布居中，四周留出暗色背景（即导出时的"边距背景"区域） */}
+      {/* 舞台：合成画布居中；整体作为圆角浮层卡片，四周留边距（两主题下都成立） */}
       <div
-        className="grid min-h-0 flex-1 place-items-center overflow-hidden p-5"
+        className="mx-6 mb-6 mt-1 min-h-0 flex-1 overflow-hidden rounded-2xl border border-line p-5"
         style={{
           background:
             'radial-gradient(900px 500px at 30% 20%, rgba(255,92,56,0.05), transparent 60%), linear-gradient(160deg, #17171b 0%, #0c0c0f 80%)'
         }}
       >
-        <canvas
-          ref={canvasRef}
-          className="max-h-full max-w-full rounded-xl border border-line-strong shadow-[0_30px_80px_rgba(0,0,0,0.6),0_4px_16px_rgba(0,0,0,0.4)]"
-        />
-        {/* 帧源：隐藏 video，由合成器逐帧取样绘制到 canvas */}
-        <video ref={videoRef} preload="auto" muted className="hidden" />
-        {/* 麦克风/系统音频轨：跟随 video 同步播放（screen.webm 本身无音轨） */}
-        {audioUrl && <audio ref={micAudioRef} preload="auto" className="hidden" />}
-        {systemAudioUrl && <audio ref={systemAudioRef} preload="auto" className="hidden" />}
+        <div
+          ref={stageRef}
+          className={cn(
+            'h-full w-full',
+            scaleMode === 'actual' ? 'overflow-auto' : 'overflow-hidden'
+          )}
+        >
+          <div
+            className="grid min-h-full min-w-full place-items-center"
+            style={
+              scaleMode === 'actual'
+                ? { width: outputSize.width, height: outputSize.height }
+                : undefined
+            }
+          >
+            <div
+              className="relative flex-none"
+              style={{ width: canvasSize.width, height: canvasSize.height }}
+            >
+              <canvas
+                ref={canvasRef}
+                className="h-full w-full rounded-xl border border-line-strong shadow-[0_30px_80px_rgba(0,0,0,0.6),0_4px_16px_rgba(0,0,0,0.4)]"
+              />
+              <KeyboardOverlayHandle
+                position={keyboardOverlay}
+                onChange={setKeyboardOverlay}
+              />
+            </div>
+            {/* 帧源：隐藏 video，由合成器逐帧取样绘制到 canvas */}
+            <video ref={videoRef} preload="auto" muted className="hidden" />
+            {/* 麦克风/系统音频轨：跟随 video 同步播放（screen.webm 本身无音轨） */}
+            {audioUrl && <audio ref={micAudioRef} preload="auto" className="hidden" />}
+            {systemAudioUrl && <audio ref={systemAudioRef} preload="auto" className="hidden" />}
+          </div>
+        </div>
       </div>
 
       {(noMotion || renderInfo?.downsampled || playbackError) && (
-        <div className="flex flex-none flex-col gap-1.5 px-4 pb-2">
+        <div className="flex flex-none flex-col gap-1.5 px-6 pb-2">
           {noMotion && (
             <p className="rounded-lg bg-amber-950/50 px-3 py-2 text-xs text-amber-300">
               无运镜数据：本会话未采集到点击事件，相机全程保持 1.0x 全景。
@@ -114,10 +181,9 @@ export function PreviewPlayer({
         playing={playing}
         currentMs={currentMs}
         durationMs={durationMs}
-        keyframes={keyframes}
-        events={timeline.events}
         onTogglePlay={togglePlay}
         onSeek={seekTo}
+        subscribeCurrentMs={subscribeCurrentMs}
       />
     </div>
   )
