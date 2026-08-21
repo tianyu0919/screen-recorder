@@ -21,6 +21,8 @@ interface AppState {
   previewStream: MediaStream | null
   permissions: PermissionStatus | null
   status: RecordStatus
+  /** 本次录制开始时刻（Date.now ms）；录制计时由它推导，切换视图/组件重挂载不归零 */
+  recordingStartedAt: number | null
   withMic: boolean
   error: RecordingError | null
   /** 输入钩子降级提示 */
@@ -55,6 +57,7 @@ export const useAppStore = create<AppState & AppStateActions>((set, get) => ({
   previewStream: null,
   permissions: null,
   status: 'idle',
+  recordingStartedAt: null,
   withMic: true,
   error: null,
   inputHookDegraded: false,
@@ -136,7 +139,11 @@ export const useAppStore = create<AppState & AppStateActions>((set, get) => ({
       })
       return
     }
-    set({ status: 'recording', inputHookDegraded: !result.inputHookAvailable })
+    set({
+      status: 'recording',
+      recordingStartedAt: Date.now(),
+      inputHookDegraded: !result.inputHookAvailable
+    })
   },
 
   async stopRecording() {
@@ -144,10 +151,11 @@ export const useAppStore = create<AppState & AppStateActions>((set, get) => ({
     set({ status: 'stopping' })
     try {
       const result = await recorder.stop()
-      set({ status: 'idle', lastSession: result, previewStream: null })
+      set({ status: 'idle', lastSession: result, previewStream: null, recordingStartedAt: null })
     } catch (err) {
       set({
         status: 'idle',
+        recordingStartedAt: null,
         error: {
           code: 'UNKNOWN',
           message: `停止录制失败: ${err instanceof Error ? err.message : String(err)}`
@@ -159,7 +167,7 @@ export const useAppStore = create<AppState & AppStateActions>((set, get) => ({
   handleFatal(err) {
     // 源断开/磁盘不足/编码器异常：终止录制，已落盘片段保留
     void recorder.abort()
-    set({ status: 'idle', error: err, previewStream: null })
+    set({ status: 'idle', error: err, previewStream: null, recordingStartedAt: null })
   }
 }))
 

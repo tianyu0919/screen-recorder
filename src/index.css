@@ -3,5 +3,46 @@
 @tailwind utilities;
 
 body {
-  @apply bg-zinc-950 text-zinc-100 antialiased;
+  @apply bg-base text-ink-1 antialiased;
+}
+
+/* Electron 无边框窗口：拖拽区 / 交互区 */
+.app-drag {
+  -webkit-app-region: drag;
+}
+.app-nodrag {
+  -webkit-app-region: no-drag;
+}
+
+/* ui-slider：自绘滑杆（填充段由 Slider 组件内联渐变实现） */
+.ui-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: theme('colors.surface.3');
+  outline: none;
+  cursor: pointer;
+}
+.ui-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+.ui-slider:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* 时间轴等自绘滚动区：滚动能力保留但不显示滚动条 */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }

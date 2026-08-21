@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="base.css" />
+<style>
+  .toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 52px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--border);
+    flex: none;
+  }
+  .tb-left, .tb-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .session-name {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-1);
+  }
+  .main {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+  }
+  /* 画布区 */
+  .stage {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background:
+      radial-gradient(900px 500px at 30% 20%, rgba(255, 92, 56, 0.05), transparent 60%),
+      linear-gradient(160deg, #17171b 0%, #0c0c0f 80%);
+    display: grid;
+    place-items: center;
+  }
+  .viewport {
+    width: 78%;
+    aspect-ratio: 16 / 10;
+    border-radius: 14px;
+    overflow: hidden;
+    position: relative;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.08),
+      0 30px 80px rgba(0, 0, 0, 0.6),
+      0 4px 16px rgba(0, 0, 0, 0.4);
+  }
+  .camera {
+    position: absolute;
+    inset: 0;
+    transform: scale(1.6);
+    transform-origin: 56% 42%;
+  }
+  /* 录屏内容:伪代码编辑器窗口 */
+  .recwin {
+    position: absolute;
+    inset: 0;
+    background: #16181f;
+    display: flex;
+    flex-direction: column;
+    font-family: var(--mono);
+  }
+  .recwin .winbar {
+    height: 7.5%;
+    background: #1e2028;
+    display: flex;
+    align-items: center;
+    gap: 1.2%;
+    padding: 0 2%;
+    flex: none;
+  }
+  .recwin .winbar i {
+    width: 1.6%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    display: block;
+  }
+  .recwin .winbar .wt {
+    margin-left: 2%;
+    font-size: 11px;
+    color: #8b8fa3;
+  }
+  .recwin .body { flex: 1; display: flex; min-height: 0; }
+  .recwin .side {
+    width: 21%;
+    background: #1a1c24;
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 3% 0;
+    font-size: 10px;
+    color: #9aa0b5;
+  }
+  .recwin .side .fi {
+    padding: 1.4% 8%;
+    white-space: nowrap;
+  }
+  .recwin .side .fi.hot {
+    background: rgba(255, 92, 56, 0.14);
+    color: #ffb59f;
+    border-left: 2px solid var(--accent);
+  }
+  .recwin .side .fi.dim { color: #5c617a; }
+  .recwin .code {
+    flex: 1;
+    padding: 2.6% 3%;
+    font-size: 10.5px;
+    line-height: 1.85;
+    color: #c8cde0;
+    white-space: pre;
+  }
+  .k { color: #7aa2f7; }
+  .s { color: #9ece6a; }
+  .f { color: #ff9e64; }
+  .c { color: #565f89; }
+  .n { color: #f7768e; }
+  /* 光标与点击波纹 */
+  .cursor-halo {
+    position: absolute;
+    left: 34%;
+    top: 38%;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 92, 56, 0.65);
+    background: rgba(255, 92, 56, 0.12);
+    transform: translate(-50%, -50%);
+  }
+  .cursor-halo::after {
+    content: "";
+    position: absolute;
+    inset: -9px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255, 92, 56, 0.25);
+  }
+  .cursor-arrow {
+    position: absolute;
+    left: 35.5%;
+    top: 40%;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+  }
+  .stage-hud {
+    position: absolute;
+    left: 18px;
+    bottom: 16px;
+    display: flex;
+    gap: 8px;
+  }
+  .hud-chip {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    height: 30px;
+    padding: 0 12px;
+    border-radius: 8px;
+    background: rgba(16, 16, 20, 0.85);
+    border: 1px solid var(--border-strong);
+    backdrop-filter: blur(8px);
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .hud-chip b {
+    color: var(--accent);
+    font-family: var(--mono);
+    font-weight: 600;
+  }
+  /* 检查器 */
+  .inspector {
+    width: 296px;
+    flex: none;
+    border-left: 1px solid var(--border);
+    background: var(--surface-1);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .insp-head {
+    height: 38px;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-2);
+    border-bottom: 1px solid var(--border);
+    flex: none;
+  }
+  .insp-body { flex: 1; }
+  .sec {
+    padding: 12px 16px 13px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sec h3 {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-3);
+    letter-spacing: 0.4px;
+    margin-bottom: 11px;
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    gap: 12px;
+  }
+  .row:last-child { margin-bottom: 0; }
+  .row label {
+    font-size: 12.5px;
+    color: var(--text-1);
+    flex: none;
+  }
+  .row .val {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--text-2);
+    flex: none;
+    min-width: 40px;
+    text-align: right;
+  }
+  .row .slider { flex: 1; }
+  .swatches {
+    display: flex;
+    gap: 8px;
+  }
+  .sw {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    border: 1px solid var(--border-strong);
+  }
+  .sw.sel {
+    box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+  }
+  .mini-seg {
+    display: flex;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 2px;
+    gap: 2px;
+  }
+  .mini-seg span {
+    font-size: 11.5px;
+    padding: 3px 10px;
+    border-radius: 5px;
+    color: var(--text-3);
+  }
+  .mini-seg span.on {
+    background: var(--surface-3);
+    color: var(--text-1);
+  }
+  /* 时间轴 */
+  .timeline {
+    flex: none;
+    height: 208px;
+    border-top: 1px solid var(--border);
+    background: #0e0e11;
+    display: flex;
+    flex-direction: column;
+  }
+  .transport {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--border);
+    flex: none;
+  }
+  .play-btn {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--text-1);
+    display: grid;
+    place-items: center;
+  }
+  .tcode {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--text-1);
+  }
+  .tcode span { color: var(--text-3); }
+  .transport .spacer { flex: 1; }
+  .tl-body {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+    position: relative;
+  }
+  .tl-labels {
+    width: 62px;
+    flex: none;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding-top: 22px;
+  }
+  .tl-labels span {
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10.5px;
+    color: var(--text-3);
+  }
+  .tl-scroll {
+    flex: 1;
+    position: relative;
+  }
+  .ruler {
+    height: 22px;
+    position: relative;
+    border-bottom: 1px solid var(--border);
+  }
+  .ruler .tick {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    border-left: 1px solid rgba(255, 255, 255, 0.12);
+    padding-left: 5px;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    color: var(--text-3);
+    line-height: 22px;
+  }
+  .track {
+    height: 34px;
+    position: relative;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  }
+  .zoom-seg {
+    position: absolute;
+    top: 5px;
+    height: 24px;
+    border-radius: 6px;
+    background: var(--accent-soft);
+    border: 1px solid rgba(255, 92, 56, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: #ffb59f;
+  }
+  .zoom-seg.sel {
+    border-color: var(--accent);
+    background: rgba(255, 92, 56, 0.24);
+    box-shadow: 0 0 0 2px rgba(255, 92, 56, 0.18);
+    color: #ffd9cc;
+  }
+  .zoom-seg .grip {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    width: 4px;
+    border-radius: 2px;
+    background: rgba(255, 92, 56, 0.55);
+  }
+  .zoom-seg .grip.l { left: 3px; }
+  .zoom-seg .grip.r { right: 3px; }
+  .ev {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #8e8e96;
+  }
+  .ev.hot {
+    background: var(--accent);
+    box-shadow: 0 0 0 4px rgba(255, 92, 56, 0.2);
+  }
+  .ev.key {
+    width: auto;
+    height: 16px;
+    border-radius: 4px;
+    background: var(--surface-3);
+    border: 1px solid var(--border-strong);
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-2);
+    display: flex;
+    align-items: center;
+    padding: 0 5px;
+  }
+  .wave {
+    position: absolute;
+    inset: 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 2px;
+  }
+  .wave i {
+    flex: 1;
+    border-radius: 1px;
+    background: #3fbf7f;
+    opacity: 0.75;
+    display: block;
+  }
+  .wave.mic i { background: #6b7280; }
+  .playhead {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 36%;
+    width: 1.5px;
+    background: var(--accent);
+    z-index: 5;
+  }
+  .playhead::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5.5px solid transparent;
+    border-top: 7px solid var(--accent);
+  }
+</style>
+</head>
+<body>
+<div class="window">
+  <div class="titlebar">
+    <div class="traffic"><i class="c1"></i><i class="c2"></i><i class="c3"></i></div>
+  </div>
+  <div class="toolbar">
+    <div class="tb-left">
+      <button class="btn ghost" style="padding:0 8px">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <span class="session-name">2026-08-21_14-02-55</span>
+      <span class="chip">01:30</span>
+      <span class="chip">3024 x 1964 · 60fps</span>
+    </div>
+    <div class="tb-right">
+      <button class="btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        打开文件位置
+      </button>
+      <button class="btn primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>
+        导出
+      </button>
+    </div>
+  </div>
+  <div class="main">
+    <div class="stage">
+      <div class="viewport">
+        <div class="camera">
+          <div class="recwin">
+            <div class="winbar">
+              <i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i>
+              <span class="wt">compositor.ts - screen-recorder</span>
+            </div>
+            <div class="body">
+              <div class="side">
+                <div class="fi dim">src</div>
+                <div class="fi dim">&nbsp;&nbsp;render</div>
+                <div class="fi hot">&nbsp;&nbsp;&nbsp;&nbsp;compositor.ts</div>
+                <div class="fi">&nbsp;&nbsp;&nbsp;&nbsp;layout.ts</div>
+                <div class="fi">&nbsp;&nbsp;&nbsp;&nbsp;shaders.ts</div>
+                <div class="fi dim">&nbsp;&nbsp;timeline</div>
+                <div class="fi">&nbsp;&nbsp;&nbsp;&nbsp;keyframes.ts</div>
+                <div class="fi">&nbsp;&nbsp;&nbsp;&nbsp;spring.ts</div>
+                <div class="fi dim">&nbsp;&nbsp;export</div>
+                <div class="fi">&nbsp;&nbsp;&nbsp;&nbsp;pipeline.ts</div>
+              </div>
+              <div class="code"><span class="k">export function</span> <span class="f">composeFrame</span>(t: <span class="n">number</span>) {
+  <span class="k">const</span> cam = <span class="f">sampleCamera</span>(t, keyframes)
+  <span class="k">const</span> zoom = <span class="f">spring</span>(cam.zoom, {
+    stiffness: <span class="n">180</span>, damping: <span class="n">26</span>
+  })
+  <span class="c">// 以光标为中心做缩放取景</span>
+  <span class="k">const</span> frame = <span class="f">cropAround</span>(cursor, zoom)
+  gl.<span class="f">draw</span>(frame, ripplePass(t))
+}</div>
+            </div>
+          </div>
+        </div>
+        <div class="cursor-halo"></div>
+        <svg class="cursor-arrow" width="20" height="20" viewBox="0 0 24 24" fill="#fff" stroke="#000" stroke-width="1.2"><path d="M4 2l16 9-7 1.5L9 20z" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="stage-hud">
+        <span class="hud-chip"><b>2.2x</b>自动运镜</span>
+        <span class="hud-chip">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg>
+          跟随光标
+        </span>
+      </div>
+    </div>
+    <div class="inspector">
+      <div class="insp-head">检查器</div>
+      <div class="insp-body">
+        <div class="sec">
+          <h3>运镜</h3>
+          <div class="row">
+            <label>最大缩放</label>
+            <div class="slider"><div class="fill" style="width:56%"></div><div class="knob" style="left:56%"></div></div>
+            <span class="val">2.2x</span>
+          </div>
+          <div class="row">
+            <label>平滑时长</label>
+            <div class="slider"><div class="fill" style="width:38%"></div><div class="knob" style="left:38%"></div></div>
+            <span class="val">0.45s</span>
+          </div>
+          <div class="row">
+            <label>缓动</label>
+            <div class="mini-seg"><span class="on">弹簧</span><span>线性</span></div>
+          </div>
+        </div>
+        <div class="sec">
+          <h3>光标</h3>
+          <div class="row">
+            <label>大小</label>
+            <div class="slider"><div class="fill" style="width:45%"></div><div class="knob" style="left:45%"></div></div>
+            <span class="val">1.4x</span>
+          </div>
+          <div class="row">
+            <label>点击波纹</label>
+            <span class="switch on"></span>
+          </div>
+          <div class="row">
+            <label>键盘按键提示</label>
+            <span class="switch"></span>
+          </div>
+        </div>
+        <div class="sec">
+          <h3>背景与边框</h3>
+          <div class="row">
+            <label>边距</label>
+            <div class="slider"><div class="fill" style="width:62%"></div><div class="knob" style="left:62%"></div></div>
+            <span class="val">128</span>
+          </div>
+          <div class="row">
+            <label>圆角</label>
+            <div class="slider"><div class="fill" style="width:30%"></div><div class="knob" style="left:30%"></div></div>
+            <span class="val">16</span>
+          </div>
+          <div class="row">
+            <label>背景</label>
+            <div class="swatches">
+              <span class="sw sel" style="background:linear-gradient(160deg,#2a2a30,#101013)"></span>
+              <span class="sw" style="background:linear-gradient(160deg,#22304a,#0d1524)"></span>
+              <span class="sw" style="background:linear-gradient(160deg,#1f3d2e,#0b1a12)"></span>
+              <span class="sw" style="background:linear-gradient(160deg,#4a3226,#1d130d)"></span>
+              <span class="sw" style="background:#000"></span>
+            </div>
+          </div>
+        </div>
+        <div class="sec" style="border-bottom:0">
+          <h3>导出</h3>
+          <div class="row">
+            <label>格式</label>
+            <div class="mini-seg"><span class="on">MP4</span><span>GIF</span></div>
+          </div>
+          <div class="row">
+            <label>分辨率</label>
+            <div class="mini-seg"><span>1080p</span><span class="on">4K</span></div>
+          </div>
+          <div class="row">
+            <label>帧率</label>
+            <div class="mini-seg"><span>30</span><span class="on">60</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="timeline">
+    <div class="transport">
+      <span class="play-btn">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="#0a0a0c"><path d="M7 4l14 8-14 8z" stroke-linejoin="round"/></svg>
+      </span>
+      <span class="tcode">00:32.4 <span>/ 01:30.0</span></span>
+      <span class="spacer"></span>
+      <button class="btn" style="height:28px;font-size:12px">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        在当前位置添加运镜
+      </button>
+    </div>
+    <div class="tl-body">
+      <div class="tl-labels">
+        <span>运镜</span>
+        <span>事件</span>
+        <span>系统</span>
+        <span>麦克风</span>
+      </div>
+      <div class="tl-scroll">
+        <div class="ruler">
+          <span class="tick" style="left:0%">00:00</span>
+          <span class="tick" style="left:11.1%">00:10</span>
+          <span class="tick" style="left:22.2%">00:20</span>
+          <span class="tick" style="left:33.3%">00:30</span>
+          <span class="tick" style="left:44.4%">00:40</span>
+          <span class="tick" style="left:55.5%">00:50</span>
+          <span class="tick" style="left:66.6%">01:00</span>
+          <span class="tick" style="left:77.7%">01:10</span>
+          <span class="tick" style="left:88.8%">01:20</span>
+        </div>
+        <div class="track">
+          <div class="zoom-seg" style="left:6.7%;width:13.3%">1.6x</div>
+          <div class="zoom-seg sel" style="left:28.9%;width:20%">
+            <span class="grip l"></span>2.2x<span class="grip r"></span>
+          </div>
+          <div class="zoom-seg" style="left:64.4%;width:13.4%">1.8x</div>
+        </div>
+        <div class="track">
+          <span class="ev" style="left:4.4%"></span>
+          <span class="ev" style="left:10%"></span>
+          <span class="ev key" style="left:13.3%">&#8984;S</span>
+          <span class="ev" style="left:16.7%"></span>
+          <span class="ev" style="left:24.4%"></span>
+          <span class="ev hot" style="left:33.3%"></span>
+          <span class="ev" style="left:36.7%"></span>
+          <span class="ev key" style="left:42.2%">&#8984;Z</span>
+          <span class="ev" style="left:45.6%"></span>
+          <span class="ev" style="left:57.8%"></span>
+          <span class="ev" style="left:66.7%"></span>
+          <span class="ev" style="left:73.3%"></span>
+          <span class="ev" style="left:82.2%"></span>
+          <span class="ev key" style="left:91.1%">&#8984;V</span>
+        </div>
+        <div class="track"><div class="wave" id="waveSys"></div></div>
+        <div class="track"><div class="wave mic" id="waveMic"></div></div>
+        <div class="playhead"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  // 确定性伪随机波形,仅为设计稿视觉服务
+  function seedRandom(seed) {
+    let s = seed;
+    return () => {
+      s = (s * 9301 + 49297) % 233280;
+      return s / 233280;
+    };
+  }
+  function buildWave(id, seed, base) {
+    const el = document.getElementById(id);
+    const rnd = seedRandom(seed);
+    for (let i = 0; i < 220; i++) {
+      const bar = document.createElement("i");
+      const envelope = Math.sin((i / 220) * Math.PI) * 0.6 + 0.4;
+      const h = Math.max(8, Math.round((base + rnd() * 78) * envelope));
+      bar.style.height = h + "%";
+      el.appendChild(bar);
+    }
+  }
+  buildWave("waveSys", 42, 30);
+  buildWave("waveMic", 7, 12);
+</script>
+</body>
+</html>

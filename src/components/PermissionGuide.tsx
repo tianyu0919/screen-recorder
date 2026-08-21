@@ -17,9 +17,9 @@ export function PermissionGuide(): React.JSX.Element {
   ]
 
   return (
-    <div className="rounded-lg border border-amber-700/50 bg-amber-950/30 p-5">
-      <h2 className="mb-1 text-base font-semibold">需要系统权限</h2>
-      <p className="mb-4 text-sm text-zinc-400">
+    <div className="mb-5 rounded-xl border border-amber-700/50 bg-amber-950/30 p-5">
+      <h2 className="mb-1 text-[15px] font-semibold">需要系统权限</h2>
+      <p className="mb-4 text-[13px] text-ink-2">
         授权后请点击「重新检查」。未授权辅助功能权限时仍可录制，但点击/键盘事件不会采集，自动运镜不可用。
       </p>
       <ul className="mb-4 space-y-3">
@@ -29,10 +29,17 @@ export function PermissionGuide(): React.JSX.Element {
           return (
             <li key={item.key} className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-medium">
-                  {granted ? '✅' : '⚠️'} {item.label}
+                <p className="flex items-center gap-2 text-[13px] font-medium">
+                  <span
+                    className={
+                      granted
+                        ? 'h-1.5 w-1.5 rounded-full bg-[#30d158]'
+                        : 'h-1.5 w-1.5 rounded-full bg-[#ffd60a]'
+                    }
+                  />
+                  {item.label}
                 </p>
-                <p className="text-xs text-zinc-500">{item.desc}</p>
+                <p className="pl-3.5 text-xs text-ink-3">{item.desc}</p>
               </div>
               {!granted && (
                 <Button
