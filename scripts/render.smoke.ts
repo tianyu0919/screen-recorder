@@ -15,6 +15,8 @@ import {
   transformPoint
 } from '../src/render/layout'
 import { DEFAULT_COMPOSITOR_OPTIONS, type RippleParams } from '../src/render/types'
+import { fitStageSize, previewRenderSize } from '../src/lib/stageFit'
+import { previewCompositorConfig } from '../src/components/preview/playbackRender'
 
 let failures = 0
 function check(name: string, cond: boolean, detail = '') {
@@ -28,6 +30,27 @@ function check(name: string, cond: boolean, detail = '') {
 const output = { width: 1920, height: 1080 }
 const padRatio = DEFAULT_COMPOSITOR_OPTIONS.videoStyle.paddingRatio
 const near = (a: number, b: number, eps = 1e-6) => Math.abs(a - b) < eps
+
+// ── 编辑器舞台自适应与预览 backing 降档 ──
+const fitNarrow = fitStageSize({ width: 1000, height: 800 }, output)
+check('舞台窄高时按宽度适配', fitNarrow.width === 1000 && fitNarrow.height === 562)
+const fitWide = fitStageSize({ width: 1800, height: 700 }, output)
+check('舞台宽矮时按高度适配', fitWide.width === 1244 && fitWide.height === 700)
+const fitExact = fitStageSize(output, output)
+check('舞台与输出同尺寸时保持 100%', fitExact.width === 1920 && fitExact.height === 1080)
+const fitEmpty = fitStageSize({ width: 0, height: 700 }, output)
+check('舞台未测量时不产生非法尺寸', fitEmpty.width === 0 && fitEmpty.height === 0)
+const previewSmall = previewRenderSize({ width: 900, height: 506 }, output)
+check('小舞台预览按 64px 宽度桶化', previewSmall.width === 960 && previewSmall.height === 540)
+const previewLarge = previewRenderSize(output, output)
+check('大舞台预览最高限制为 720p', previewLarge.width === 1280 && previewLarge.height === 720)
+const previewEmpty = previewRenderSize({ width: 0, height: 0 }, output)
+check('未测量舞台不创建预览 backing', previewEmpty.width === 0 && previewEmpty.height === 0)
+const previewConfig = previewCompositorConfig(previewLarge)
+check(
+  '预览纹理限制为 backing 长边 1.5 倍且不报告主动降档',
+  previewConfig.textureLimit === 1920 && previewConfig.reportTextureDownsample === false
+)
 
 // ── Task 2.1: 基准摆放（等比缩放居中 + padding） ───────────────
 const canvas: CanvasSize = { width: 2560, height: 1440 }
