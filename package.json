@@ -11,12 +11,19 @@
     "build": "electron-vite build",
     "build:native": "node native/build.mjs",
     "dist": "npm run build:native && npm run build && electron-builder --publish never",
+    "lint": "eslint src electron shared scripts",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json"
   },
   "dependencies": {
+    "@radix-ui/react-select": "^2.3.7",
+    "@radix-ui/react-tooltip": "^1.2.16",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "lucide": "^1.33.0",
+    "lucide-react": "^1.33.0",
     "mediabunny": "^1.55.1",
+    "morphicons": "^1.7.0",
+    "motion": "^13.1.1",
     "mp4-muxer": "^5.2.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -25,6 +32,7 @@
     "zustand": "^4.5.5"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
@@ -32,9 +40,12 @@
     "electron": "^39.1.2",
     "electron-builder": "^26.15.3",
     "electron-vite": "^2.3.0",
+    "eslint": "^10.9.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "postcss": "^8.4.41",
     "tailwindcss": "^3.4.10",
     "typescript": "^5.5.4",
+    "typescript-eslint": "^8.67.0",
     "vite": "^5.4.2"
   }
 }

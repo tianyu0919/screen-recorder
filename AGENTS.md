@@ -65,6 +65,12 @@ Release 流水线：`.github/workflows/release.yml`，打 tag `v*` 触发，macO
 - 写新功能前，先搜已有实现（hooks、组件、lib 工具）；**有相同/相近功能必须复用或扩展，禁止复制粘贴出新副本**。
 - 第二次出现相似逻辑时，立即提取为公共实现，而不是等第三次。
 
+### 2.1 shadcn/ui 组件必须通过 CLI 下载
+
+- 使用 shadcn/ui 组件时，必须通过官方 CLI 下载，例如 `npx shadcn@latest add select`；禁止凭记忆自行编写或复制一个同名替代实现。
+- 下载前先检查 `components.json` 与 `src/components/ui/`，已有组件应复用或在下载版本上做符合项目设计 token 的最小调整。
+- CLI 生成的组件必须适配项目现有 CSS 变量、Tailwind token、TypeScript 和无障碍约定；不得为了保留默认 shadcn 配色破坏 Lenza 主题系统。
+
 ### 3. 分包 / 按模块聚合
 
 - 同一功能领域的代码聚在同一个目录下（如 `input/`、`recorder/`），不要按"文件类型"平铺。
