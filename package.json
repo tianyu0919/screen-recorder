@@ -1,6 +1,6 @@
 {
   "name": "screen-recorder",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "private": true,
   "type": "module",
   "description": "Screen Studio-like screen recorder: record data, apply auto camera motion at export time",
