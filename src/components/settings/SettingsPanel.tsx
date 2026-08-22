@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { FolderOpen, RefreshCw, Settings, X } from 'lucide-react'
+import { ArrowUpCircle, FolderOpen, RefreshCw, Settings, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Segmented } from '@/components/ui/segmented'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -17,8 +17,12 @@ interface SettingsPanelProps {
 
 export function SettingsPanel({ open, onClose }: SettingsPanelProps): React.JSX.Element {
   const { settings, loading, error, update, chooseRecordingsPath, openRecordingsPath } = useSettingsStore()
-  const { snapshot, check } = useUpdateStore()
+  const { snapshot, check, setOpen: setUpdateOpen } = useUpdateStore()
   const updateStatus = snapshot?.status
+  const hasUpdate = updateStatus?.state === 'available'
+    || updateStatus?.state === 'downloading'
+    || updateStatus?.state === 'downloaded'
+    || (updateStatus?.state === 'error' && Boolean(updateStatus.version))
   return (
     <AnimatePresence>
       {open && (
@@ -84,10 +88,20 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps): React.JSX.
                         <Switch checked={settings.autoCheckUpdates} onChange={(autoCheckUpdates) => void update({ autoCheckUpdates })} label="自动检查更新" />
                       </div>
                       <div className="mt-3 flex items-center justify-between border-t border-line pt-3">
-                        <p className="text-[11px] text-ink-3" aria-live="polite">{updateLabel(updateStatus)}</p>
-                        <Button variant="outline" size="sm" disabled={updateStatus?.state === 'checking'} onClick={() => void check()}>
-                          <RefreshCw size={13} className={updateStatus?.state === 'checking' ? 'animate-spin' : ''} />检查更新
-                        </Button>
+                        <p className={`flex items-center gap-1.5 text-[11px] ${hasUpdate ? 'font-medium text-accent' : 'text-ink-3'}`} aria-live="polite">
+                          {hasUpdate && <ArrowUpCircle size={13} />}
+                          {updateLabel(updateStatus)}
+                        </p>
+                        {hasUpdate && (
+                          <Button variant="outline" size="sm" onClick={() => setUpdateOpen(true)}>
+                            <ArrowUpCircle size={13} />查看更新
+                          </Button>
+                        )}
+                        {!hasUpdate && (
+                          <Button variant="outline" size="sm" disabled={updateStatus?.state === 'checking'} onClick={() => void check()}>
+                            <RefreshCw size={13} className={updateStatus?.state === 'checking' ? 'animate-spin' : ''} />检查更新
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </SettingSection>
