@@ -93,13 +93,37 @@ export type CloseBehavior = 'background' | 'quit'
 export type TrashRetentionDays = 1 | 3 | 7 | 30 | null
 
 export interface AppSettings {
-  version: 1
+  version: 2
   theme: ThemeMode
   recordingsPath: string
   recordingRoots: string[]
   trashRetentionDays: TrashRetentionDays
   /** null 表示关闭时仍需询问。 */
   closeBehavior: CloseBehavior | null
+  /** 启动后延迟检查正式版本更新。 */
+  autoCheckUpdates: boolean
+}
+
+export interface UpdateCapabilities {
+  canDownloadInApp: boolean
+  canInstallInApp: boolean
+  reason?: 'macos-unsigned'
+}
+
+export type UpdateStatus =
+  | { state: 'idle' }
+  | { state: 'checking' }
+  | { state: 'available'; version: string; releaseName?: string; releaseNotes?: string; releaseUrl: string }
+  | { state: 'not-available'; checkedAt: number }
+  | { state: 'downloading'; version: string; percent: number; transferred: number; total: number }
+  | { state: 'downloaded'; version: string }
+  | { state: 'error'; operation: 'check' | 'download' | 'install'; message: string; version?: string; releaseUrl?: string }
+
+export interface UpdateSnapshot {
+  currentVersion: string
+  status: UpdateStatus
+  capabilities: UpdateCapabilities
+  recording: boolean
 }
 
 export interface CloseDecision {

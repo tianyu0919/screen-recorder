@@ -24,6 +24,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Verify tag matches package version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: node -e "const p=require('./package.json').version,t=process.env.GITHUB_REF_NAME.replace(/^v/,'');if(p!==t){console.error('Tag '+t+' does not match package version '+p);process.exit(1)}"
       # Swift 工具链 macOS runner 自带；构建 native/sck-audio 系统音频 helper
       - run: npm run build:native
       - run: npm run build
@@ -33,7 +37,11 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: macos
-          path: release/*.dmg
+          path: |
+            release/*.dmg
+            release/*.zip
+            release/latest-mac.yml
+            release/*.blockmap
 
   build-win:
     runs-on: windows-latest
@@ -46,6 +54,10 @@ jobs:
       # Rust 工具链：构建 native/wasapi-audio 系统音频 helper
       - uses: dtolnay/rust-toolchain@stable
       - run: npm ci
+      - name: Verify tag matches package version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: node -e "const p=require('./package.json').version,t=process.env.GITHUB_REF_NAME.replace(/^v/,'');if(p!==t){console.error('Tag '+t+' does not match package version '+p);process.exit(1)}"
       - run: npm run build:native
       - run: npm run build
       - run: npx electron-builder --win --publish never
@@ -54,7 +66,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: release/*.exe
+          path: |
+            release/*.exe
+            release/latest.yml
+            release/*.blockmap
 
   release:
     needs: [build-mac, build-win]

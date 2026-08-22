@@ -17,6 +17,8 @@ import { SettingsPanel } from '@/components/settings/SettingsPanel'
 import { CloseConfirmDialog } from '@/components/CloseConfirmDialog'
 import { useSettingsStore } from '@/store/settingsStore'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { UpdateControl } from '@/components/UpdateControl'
+import { useUpdateStore } from '@/store/updateStore'
 
 const VIEW_OPTIONS: Array<{ value: AppView; label: string }> = [
   { value: 'record', label: '录制' },
@@ -33,11 +35,13 @@ export default function App(): React.JSX.Element {
   const { view, setView, permissions, refreshPermissions } = useAppStore()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const loadSettings = useSettingsStore((state) => state.load)
+  const initializeUpdates = useUpdateStore((state) => state.initialize)
 
   useEffect(() => {
     void refreshPermissions()
     void loadSettings()
-  }, [refreshPermissions, loadSettings])
+    void initializeUpdates()
+  }, [refreshPermissions, loadSettings, initializeUpdates])
 
   const screenGranted = permissions === null || permissions.screen === 'granted'
   const isMac = window.api.platform === 'darwin'
@@ -64,6 +68,7 @@ export default function App(): React.JSX.Element {
           </div>
         </div>
         <div className="app-nodrag flex items-center gap-1.5">
+          <UpdateControl />
           <ThemeSwitch />
           <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)} aria-label="打开应用设置"><Settings size={14} /></Button>
           <WindowControls />

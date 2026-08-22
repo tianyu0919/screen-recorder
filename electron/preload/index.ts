@@ -12,7 +12,7 @@ import type {
   StartRecordingPayload,
   StartRecordingResult
 } from '../../shared/types'
-import type { AppSettings, CloseDecision } from '../../shared/types'
+import type { AppSettings, CloseDecision, UpdateSnapshot } from '../../shared/types'
 
 export interface RecorderApi {
   /** 运行平台（Renderer 侧平台分支统一以此判断，禁直接用 navigator.userAgent） */
@@ -50,9 +50,15 @@ export interface RecorderApi {
   emptyTrash(): Promise<void>
   removeMissingSession(sessionId: string): Promise<void>
   getSettings(): Promise<AppSettings>
-  updateSettings(patch: Partial<Pick<AppSettings, 'theme' | 'trashRetentionDays' | 'closeBehavior'>>): Promise<AppSettings>
+  updateSettings(patch: Partial<Pick<AppSettings, 'theme' | 'trashRetentionDays' | 'closeBehavior' | 'autoCheckUpdates'>>): Promise<AppSettings>
   chooseRecordingsPath(): Promise<AppSettings | null>
   openRecordingsPath(): Promise<void>
+  getUpdateState(): Promise<UpdateSnapshot>
+  checkForUpdates(): Promise<UpdateSnapshot>
+  downloadUpdate(): Promise<void>
+  installUpdate(): Promise<void>
+  openUpdateRelease(): Promise<void>
+  onUpdateStatusChanged(cb: (snapshot: UpdateSnapshot) => void): () => void
   /** 保存导出产物（kr-03）：弹保存对话框并写盘；用户取消返回 null */
   saveExport(
     sessionId: string,
@@ -105,6 +111,16 @@ const api: RecorderApi = {
   updateSettings: (patch) => ipcRenderer.invoke(IPC.SettingsUpdate, patch),
   chooseRecordingsPath: () => ipcRenderer.invoke(IPC.SettingsChooseRecordingsPath),
   openRecordingsPath: () => ipcRenderer.invoke(IPC.SettingsOpenRecordingsPath),
+  getUpdateState: () => ipcRenderer.invoke(IPC.UpdateGetState),
+  checkForUpdates: () => ipcRenderer.invoke(IPC.UpdateCheck),
+  downloadUpdate: () => ipcRenderer.invoke(IPC.UpdateDownload),
+  installUpdate: () => ipcRenderer.invoke(IPC.UpdateInstall),
+  openUpdateRelease: () => ipcRenderer.invoke(IPC.UpdateOpenRelease),
+  onUpdateStatusChanged: (cb) => {
+    const listener = (_e: Electron.IpcRendererEvent, snapshot: UpdateSnapshot): void => cb(snapshot)
+    ipcRenderer.on(IPC.UpdateStatusChanged, listener)
+    return () => ipcRenderer.removeListener(IPC.UpdateStatusChanged, listener)
+  },
   saveExport: (sessionId, data, format) =>
     ipcRenderer.invoke(IPC.ExportSave, sessionId, data, format),
   pickAudioFile: () => ipcRenderer.invoke(IPC.PickAudioFile),

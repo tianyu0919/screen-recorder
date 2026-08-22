@@ -27,6 +27,11 @@ export const IPC = {
   SettingsUpdate: 'settings:update',
   SettingsChooseRecordingsPath: 'settings:choose-recordings-path',
   SettingsOpenRecordingsPath: 'settings:open-recordings-path',
+  UpdateGetState: 'update:get-state',
+  UpdateCheck: 'update:check',
+  UpdateDownload: 'update:download',
+  UpdateInstall: 'update:install',
+  UpdateOpenRelease: 'update:open-release',
   // 导出产物保存（kr-03）
   ExportSave: 'export:save',
   // 自定义音轨文件选择（kr-05 custom-audio-track）
@@ -41,7 +46,8 @@ export const IPC = {
   RecordingStopped: 'recording:stopped',
   InputHookStatus: 'input:hook-status',
   WindowMaximizeChanged: 'window:maximize-changed',
-  WindowCloseRequested: 'window:close-requested'
+  WindowCloseRequested: 'window:close-requested',
+  UpdateStatusChanged: 'update:status-changed'
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

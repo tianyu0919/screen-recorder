@@ -14,12 +14,13 @@ function defaults(): AppSettings {
   const recordingsPath = join(app.getPath('videos'), 'Lenza')
   const legacyPath = join(app.getPath('userData'), 'recordings')
   return {
-    version: 1,
+    version: 2,
     theme: 'light',
     recordingsPath,
     recordingRoots: uniquePaths([recordingsPath, legacyPath]),
     trashRetentionDays: 3,
-    closeBehavior: null
+    closeBehavior: null,
+    autoCheckUpdates: true
   }
 }
 
@@ -43,14 +44,15 @@ function parseSettings(value: unknown): AppSettings {
     ? data.recordingRoots.filter((item): item is string => typeof item === 'string' && item.length > 0)
     : []
   return {
-    version: 1,
+    version: 2,
     theme: isTheme(data.theme) ? data.theme : base.theme,
     recordingsPath,
     recordingRoots: uniquePaths([...roots, recordingsPath, ...base.recordingRoots]),
     trashRetentionDays: RETENTIONS.includes(data.trashRetentionDays as TrashRetentionDays)
       ? (data.trashRetentionDays as TrashRetentionDays)
       : base.trashRetentionDays,
-    closeBehavior: isCloseBehavior(data.closeBehavior) ? data.closeBehavior : null
+    closeBehavior: isCloseBehavior(data.closeBehavior) ? data.closeBehavior : null,
+    autoCheckUpdates: typeof data.autoCheckUpdates === 'boolean' ? data.autoCheckUpdates : true
   }
 }
 
@@ -76,13 +78,14 @@ export class AppSettingsStore {
     return structuredClone(this.value)
   }
 
-  update(patch: Partial<Pick<AppSettings, 'theme' | 'trashRetentionDays' | 'closeBehavior'>>): AppSettings {
+  update(patch: Partial<Pick<AppSettings, 'theme' | 'trashRetentionDays' | 'closeBehavior' | 'autoCheckUpdates'>>): AppSettings {
     const current = this.get()
     this.value = parseSettings({
       ...current,
       ...(patch.theme !== undefined ? { theme: patch.theme } : {}),
       ...(patch.trashRetentionDays !== undefined ? { trashRetentionDays: patch.trashRetentionDays } : {}),
-      ...(patch.closeBehavior !== undefined ? { closeBehavior: patch.closeBehavior } : {})
+      ...(patch.closeBehavior !== undefined ? { closeBehavior: patch.closeBehavior } : {}),
+      ...(patch.autoCheckUpdates !== undefined ? { autoCheckUpdates: patch.autoCheckUpdates } : {})
     })
     this.persist()
     return this.get()

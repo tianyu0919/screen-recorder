@@ -245,4 +245,12 @@ screen-recorder/
 - **原生 helper 随包分发**：electron-builder `extraResources` 把 helper 放到 `resourcesPath` 根（mac: `sck-audio`，win: `wasapi-audio.exe`），与 `electron/capture/systemAudio/{darwin,win32}.ts` 的 `app.isPackaged` 查找路径一一对应；改路径需三处同步。
 - `uiohook-napi`（N-API 预编译）经 `asarUnpack` 从 asar 解出，否则无法加载。
 - 产物**未签名**：macOS 需右键打开绕过 Gatekeeper；Windows 可能触发 SmartScreen。后续如有证书可在 CI 注入 `CSC_LINK` / `CSC_KEY_PASSWORD` 开启签名。
+
+### 8.1 应用更新
+
+- 更新检查由 Main 的 `electron/updater/` 单例负责，Renderer 只能通过 `shared/ipc.ts` 与 preload 白名单读取状态和触发操作。启动约 10 秒后按 `settings.json` 的 `autoCheckUpdates` 检查一次正式 GitHub Release；录制期间延期，且更新绝不主动停止录制。
+- Windows 使用 `electron-updater` + NSIS：用户在弹层确认后才下载，下载完成后仍需用户点击“重启并安装”；录制期间 Main 拒绝安装。
+- macOS 当前没有 Developer ID 签名与 notarization，因此只检查版本并打开精确 GitHub Release，禁止应用内下载/替换；ad-hoc/self-signed 不视为正式更新签名。取得证书后才能开放应用内安装。
+- `electron-builder.yml` 的 GitHub provider 生成 `app-update.yml`；Release 发布 Windows 安装包、`latest.yml`、blockmap，以及 macOS DMG、ZIP、`latest-mac.yml`、blockmap。tag 的 `vX.Y.Z` 必须与 `package.json` 版本一致。
+- 应用设置 schema 为 V2，在原主题、录制根、回收站和关闭策略之外增加 `autoCheckUpdates`；读取 V1 时默认补 `true` 并保留原字段。
 - 本机直连 GitHub 受限时（electron-builder 下载 NSIS/winCodeSign 超时），设 `ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/` 再跑 `npm run dist`；CI runner 无需此设置。

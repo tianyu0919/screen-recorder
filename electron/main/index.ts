@@ -8,6 +8,7 @@ import { registerMediaProtocol } from '../store/sessionReader'
 import { appSettings } from '../store/appSettings'
 import { sessionCatalog } from '../store/sessionCatalog'
 import { backgroundWindow, disposeTray, showWindow } from '../windowLifecycle'
+import { updateService } from '../updater'
 
 /**
  * 应用名（改名时四处同步：index.html <title>、App.tsx 标题、electron-builder.yml
@@ -94,6 +95,7 @@ app.whenReady().then(() => {
   void sessionCatalog.purgeExpired()
   setInterval(() => void sessionCatalog.purgeExpired(), 60_000).unref()
   createWindow()
+  updateService.initialize(() => win)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

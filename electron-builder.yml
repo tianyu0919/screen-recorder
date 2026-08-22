@@ -5,6 +5,11 @@ productName: Lenza
 directories:
   output: release
 
+publish:
+  provider: github
+  owner: tianyu0919
+  repo: screen-recorder
+
 files:
   - package.json
   - dist-electron/**
@@ -15,7 +20,10 @@ asarUnpack:
 
 mac:
   category: public.app-category.productivity
-  target: dmg
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  target:
+    - dmg
+    - zip
   extraResources:
     # macOS 系统音频原生 helper（electron/capture/systemAudio/darwin.ts 按 resourcesPath/sck-audio 引用）
     - from: native/sck-audio/bin/sck-audio
@@ -29,6 +37,7 @@ win:
       to: wasapi-audio.exe
 
 nsis:
+  artifactName: ${productName}-Setup-${version}.${ext}
   oneClick: false
   perMachine: false
   shortcutName: Lenza

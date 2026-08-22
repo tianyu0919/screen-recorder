@@ -1,11 +1,14 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { FolderOpen, Settings, X } from 'lucide-react'
+import { FolderOpen, RefreshCw, Settings, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Segmented } from '@/components/ui/segmented'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   CLOSE_OPTIONS, RETENTION_OPTIONS, THEME_OPTIONS, useSettingsStore
 } from '@/store/settingsStore'
+import { Switch } from '@/components/ui/switch'
+import { useUpdateStore } from '@/store/updateStore'
+import type { UpdateStatus } from '@shared/types'
 
 interface SettingsPanelProps {
   open: boolean
@@ -14,6 +17,8 @@ interface SettingsPanelProps {
 
 export function SettingsPanel({ open, onClose }: SettingsPanelProps): React.JSX.Element {
   const { settings, loading, error, update, chooseRecordingsPath, openRecordingsPath } = useSettingsStore()
+  const { snapshot, check } = useUpdateStore()
+  const updateStatus = snapshot?.status
   return (
     <AnimatePresence>
       {open && (
@@ -71,6 +76,21 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps): React.JSX.
                     {settings.closeBehavior === null && <p className="mb-2 rounded-lg bg-surface-2 px-3 py-2 text-[11px] text-ink-3">尚未设置，关闭窗口时会先询问。</p>}
                     <Segmented options={CLOSE_OPTIONS} value={settings.closeBehavior ?? 'unset'} onChange={(closeBehavior) => void update({ closeBehavior: closeBehavior as 'background' | 'quit' })} className="w-full [&>button]:flex-1" />
                   </SettingSection>
+
+                  <SettingSection title="软件更新" description="启动后检查正式版本；发现更新时由你决定是否下载。">
+                    <div className="rounded-xl border border-line bg-surface-2 p-3">
+                      <div className="flex items-center justify-between gap-4">
+                        <div><p className="text-[13px] font-medium text-ink-1">自动检查更新</p><p className="mt-0.5 text-[11px] text-ink-3">当前版本 v{snapshot?.currentVersion ?? '—'}</p></div>
+                        <Switch checked={settings.autoCheckUpdates} onChange={(autoCheckUpdates) => void update({ autoCheckUpdates })} label="自动检查更新" />
+                      </div>
+                      <div className="mt-3 flex items-center justify-between border-t border-line pt-3">
+                        <p className="text-[11px] text-ink-3" aria-live="polite">{updateLabel(updateStatus)}</p>
+                        <Button variant="outline" size="sm" disabled={updateStatus?.state === 'checking'} onClick={() => void check()}>
+                          <RefreshCw size={13} className={updateStatus?.state === 'checking' ? 'animate-spin' : ''} />检查更新
+                        </Button>
+                      </div>
+                    </div>
+                  </SettingSection>
                 </>
               )}
             </div>
@@ -79,6 +99,16 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps): React.JSX.
       )}
     </AnimatePresence>
   )
+}
+
+function updateLabel(status: UpdateStatus | undefined): string {
+  if (!status || status.state === 'idle') return '尚未检查'
+  if (status.state === 'checking') return '正在检查…'
+  if (status.state === 'not-available') return '已是最新版本'
+  if (status.state === 'available') return `发现 v${status.version}`
+  if (status.state === 'downloading') return `正在下载 ${Math.round(status.percent)}%`
+  if (status.state === 'downloaded') return '更新已下载'
+  return status.message
 }
 
 function SettingSection({ title, description, children }: { title: string; description: string; children: React.ReactNode }): React.JSX.Element {

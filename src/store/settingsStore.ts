@@ -7,7 +7,7 @@ interface SettingsState {
   loading: boolean
   error: string | null
   load(): Promise<void>
-  update(patch: Partial<Pick<AppSettings, 'theme' | 'trashRetentionDays' | 'closeBehavior'>>): Promise<void>
+  update(patch: Partial<Pick<AppSettings, 'theme' | 'trashRetentionDays' | 'closeBehavior' | 'autoCheckUpdates'>>): Promise<void>
   chooseRecordingsPath(): Promise<void>
   openRecordingsPath(): Promise<void>
 }

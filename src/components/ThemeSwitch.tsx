@@ -1,6 +1,7 @@
 import { useThemeStore, type ThemeMode } from '@/store/themeStore'
 import { MonitorIcon, MoonIcon, SunIcon } from '@/components/icons'
 import { useSettingsStore } from '@/store/settingsStore'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 const ORDER: ThemeMode[] = ['system', 'light', 'dark']
 
@@ -18,15 +19,14 @@ export function ThemeSwitch(): React.JSX.Element {
   const { label, Icon } = META[mode]
   const next = ORDER[(ORDER.indexOf(mode) + 1) % ORDER.length]
 
-  return (
+  return <Tooltip><TooltipTrigger asChild>
     <button
       type="button"
       onClick={() => hasSettings ? void updateSettings({ theme: next }) : setMode(next)}
-      title={`主题：${label}（点击切换）`}
       aria-label={`主题：${label}，切换到${META[next].label}`}
       className="flex h-7 w-7 items-center justify-center rounded-md text-ink-2 transition-colors hover:bg-surface-3 hover:text-ink-1"
     >
       <Icon size={14} />
     </button>
-  )
+  </TooltipTrigger><TooltipContent>主题：{label}（点击切换）</TooltipContent></Tooltip>
 }

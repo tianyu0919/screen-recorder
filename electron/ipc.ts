@@ -28,6 +28,7 @@ import { appSettings } from './store/appSettings'
 import { sessionCatalog } from './store/sessionCatalog'
 import type { AppSettings, CloseDecision } from '../shared/types'
 import { backgroundWindow } from './windowLifecycle'
+import { updateService } from './updater'
 
 /** 鼠标轨迹轮询频率（spec: 60–120Hz，取 90Hz） */
 const POLL_HZ = 90
@@ -96,6 +97,11 @@ export function registerIpc(getWindow: () => BrowserWindow | null, appIcon?: Ele
     return appSettings.setRecordingsPath(result.filePaths[0])
   })
   ipcMain.handle(IPC.SettingsOpenRecordingsPath, () => shell.openPath(appSettings.get().recordingsPath))
+  ipcMain.handle(IPC.UpdateGetState, () => updateService.snapshot())
+  ipcMain.handle(IPC.UpdateCheck, () => updateService.check())
+  ipcMain.handle(IPC.UpdateDownload, () => updateService.download())
+  ipcMain.handle(IPC.UpdateInstall, () => updateService.install())
+  ipcMain.handle(IPC.UpdateOpenRelease, () => updateService.openRelease())
   ipcMain.handle(
     IPC.SessionSaveEdit,
     (_e, sessionId: string, json: string): Promise<SessionEditSaveResult> =>
@@ -216,6 +222,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null, appIcon?: Ele
       )
     }
 
+    updateService.setRecording(true)
     return {
       sessionId: session.sessionId,
       startTime: t0,
@@ -248,6 +255,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null, appIcon?: Ele
     // 先停系统音频 helper（stdin EOF 后 patch WAV header），再判断会话有效性，避免残留
     await stopSystemAudio?.()
     stopSystemAudio = null
+    updateService.setRecording(false)
     if (!store.hasActiveSession() || !videoMeta || !displayInfo) {
       return null
     }
@@ -272,6 +280,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null, appIcon?: Ele
     await stopSystemAudio?.()
     stopSystemAudio = null
     await store.abort()
+    updateService.setRecording(false)
   })
 
   return { inputHook }
