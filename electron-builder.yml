@@ -35,6 +35,9 @@ win:
     # Windows 系统音频原生 helper（electron/capture/systemAudio/win32.ts 按 resourcesPath/wasapi-audio.exe 引用）
     - from: native/wasapi-audio/bin/wasapi-audio.exe
       to: wasapi-audio.exe
+    # Windows 托盘图标（electron/main/index.ts 按 resourcesPath/tray-icon.ico 引用）
+    - from: build/icon.ico
+      to: tray-icon.ico
 
 nsis:
   artifactName: ${productName}-Setup-${version}.${ext}

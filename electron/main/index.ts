@@ -18,8 +18,16 @@ import { updateService } from '../updater'
 const APP_NAME = 'Lenza'
 app.setName(APP_NAME)
 
-const iconPath = join(app.getAppPath(), 'build/icon.png')
-const appIcon = existsSync(iconPath) ? nativeImage.createFromPath(iconPath) : undefined
+function loadAppIcon() {
+  const iconPath = app.isPackaged && process.platform === 'win32'
+    ? join(process.resourcesPath, 'tray-icon.ico')
+    : join(app.getAppPath(), 'build/icon.png')
+  if (!existsSync(iconPath)) return undefined
+  const icon = nativeImage.createFromPath(iconPath)
+  return icon.isEmpty() ? undefined : icon
+}
+
+const appIcon = loadAppIcon()
 
 // media:// 流式播放录制视频（kr-02 预览）；须在 app ready 前注册特权
 protocol.registerSchemesAsPrivileged([

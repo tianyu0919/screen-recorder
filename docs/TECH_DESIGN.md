@@ -96,7 +96,7 @@ Screen Studio 能"放大/替换/平滑光标"的前提是：**光标没有被烧
 
 应用偏好由 `electron/store/appSettings.ts` 写入版本化 `userData/settings.json`，包含主题、当前/历史录制根、回收站周期与关闭策略；新字段通过默认值合并迁移。删除先将完整会话移入 `userData/trash` 并记录原位置和清理时间，到期或二次确认后才永久删除。根目录离线与根可访问但会话缺失必须区分，后者只允许移除失效索引。
 
-关闭后台运行按平台拆分在 `electron/windowLifecycle/`：Windows 隐藏主窗口并保留系统托盘入口；macOS 隐藏窗口并通过 Dock `activate` 恢复。共享分发层只选择 `win32.ts` / `darwin.ts`，不混合平台实现。
+关闭后台运行按平台拆分在 `electron/windowLifecycle/`：Windows 从 `resourcesPath/tray-icon.ico` 创建系统托盘，且仅在托盘创建成功后隐藏主窗口；macOS 隐藏窗口并通过 Dock `activate` 恢复。共享分发层只选择 `win32.ts` / `darwin.ts`，不混合平台实现。
 
 ```
 <recordings-root>/<session-id>/
