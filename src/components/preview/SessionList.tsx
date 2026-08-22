@@ -102,7 +102,7 @@ export function SessionList({
   } : null
 
   return (
-    <motion.div variants={staggerContainer} initial="initial" animate="enter" className="relative flex-1 overflow-y-auto px-6 py-5">
+    <motion.div variants={staggerContainer} initial="initial" animate="enter" className="relative flex-1 overflow-y-auto px-6 pb-5 pt-0">
       <div className="flex flex-col gap-5">
         <motion.div variants={staggerItem} className="flex items-center justify-between">
           <div className="flex items-center gap-4"><h2 className="flex items-baseline gap-2 text-lg font-semibold tracking-[-0.02em] text-ink-1">
