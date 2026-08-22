@@ -81,7 +81,7 @@ Screen Studio 能"放大/替换/平滑光标"的前提是：**光标没有被烧
 ### 3.4 音频
 
 - 麦克风：`getUserMedia({ audio: true })`，单独一条轨
-- 编辑器自定义音轨：导入时只执行一次 `decodeAudioData`，缓存 PCM（导出混音）与同一次解码得到的 `AudioBuffer`（预览）；所有自定义 clip 共用一个 `AudioContext`，在播放、seek、速率变化和缓冲恢复边界用 `AudioBufferSourceNode.start(when, offset, duration)` 重建调度，逐帧路径不 seek、不再为 FLAC/MP3 创建额外媒体解码器。
+- 编辑器自定义音轨：导入时只执行一次 `decodeAudioData`，缓存 PCM（导出混音）与同一次解码得到的 `AudioBuffer`（预览）；所有自定义 clip 共用一个 `AudioContext`，在播放、seek、速率变化和缓冲恢复边界用 `AudioBufferSourceNode.start(when, offset, duration)` 重建调度，逐帧路径不 seek、不再为 FLAC/MP3 创建额外媒体解码器。波形横向滚动同步平移 `trimStartMs / trimEndMs` 做素材滑移，保持 `offsetMs` 与片段长度；纵向滚动继续沿用时间轴缩放，方向判断兼容鼠标与 macOS 触控板。
 - 系统声音（kr-01 system-audio 已落地）按平台分路径，产物都是 `system.wav`（48kHz/2ch/int16，与 mic.wav 同规格），预览/导出期与 mic.wav 混合：
   - **双轨回声对齐**：音箱外放时 mic 轨会 acoustically 录入系统音，与 system.wav 混合形成回声；两条采集链有固定延迟差（声卡/Voicemeeter 引擎缓冲，逐机不同，实测 ~183ms）。预览（useSyncedAudio 偏移播放）与导出（mixPcm 偏移混合）统一用 `src/lib/audioAlign.ts` 的降采样互相关估计 system 相对 mic 的恒定偏移并对齐；归一化相关度不足（耳机用户 mic 无系统音）→ 偏移 0 不对齐。
   - **macOS**：loopback 轨在 macOS 上出生即 ended、电平恒 0（electron#52738），不可用。走原生 helper：Main 在录制开始时 spawn `native/sck-audio`（Swift + ScreenCaptureKit，`capturesAudio` + `excludesCurrentProcessAudio`，全系统音频回采），流式写 `system.wav`。首次运行会触发 macOS「屏幕与系统音频录制」TCC 授权。
@@ -92,8 +92,14 @@ Screen Studio 能"放大/替换/平滑光标"的前提是：**光标没有被烧
 
 ### 3.5 录制会话数据格式（落盘）
 
+新录制默认根目录为 `app.getPath('videos')/Lenza`（Windows「视频/Lenza」、macOS `Movies/Lenza`），用户可在设置中切换；切换仅影响新录制。`electron/store/sessionCatalog.ts` 在 `userData/session-index.json` 维护跨根目录索引，旧 `userData/recordings` 自动登记但不搬迁。Main 负责解析 sessionId 到受信绝对路径，Renderer 不接触任意文件路径。
+
+应用偏好由 `electron/store/appSettings.ts` 写入版本化 `userData/settings.json`，包含主题、当前/历史录制根、回收站周期与关闭策略；新字段通过默认值合并迁移。删除先将完整会话移入 `userData/trash` 并记录原位置和清理时间，到期或二次确认后才永久删除。根目录离线与根可访问但会话缺失必须区分，后者只允许移除失效索引。
+
+关闭后台运行按平台拆分在 `electron/windowLifecycle/`：Windows 隐藏主窗口并保留系统托盘入口；macOS 隐藏窗口并通过 Dock `activate` 恢复。共享分发层只选择 `win32.ts` / `darwin.ts`，不混合平台实现。
+
 ```
-recordings/<session-id>/
+<recordings-root>/<session-id>/
 ├── screen.webm          # 原始屏幕画面（纯视频轨）
 ├── mic.wav              # 麦克风（可选）
 ├── system.wav           # 系统音频（可选，kr-01 system-audio）
@@ -132,7 +138,7 @@ recordings/<session-id>/
 - 把录制画面视为一张 `(W, H)` 的大画布，输出是 `1920×1080` 的视口
 - 相机状态：`{ x, y, zoom }`（视口中心点 + 缩放倍率）
 - **可编辑运镜效果**：首次打开旧会话时把点击派生结果物化为稳定 `MotionEffect`。片段支持新增、删除、主体移动和双端拉伸，最短 300ms、100ms 网格及播放头/事件/相邻边界磁吸，且禁止重叠。自动运镜与点击波纹以源点击索引和相对偏移关联；主体移动或左端调整同步移动波纹，右端只改结束，删除仅写覆盖而不改原事件。编辑后焦点与波纹坐标按新的源时间重新采样 `mouseTrack`，手动运镜不生成波纹。
-- **放大鼠标跟随**：仅在 `zoom > 1.05` 的运镜区间消费 `mouseTrack`；鼠标留在视口中央 40%（中心横纵各 ±20% 完整视口尺寸）安全区时相机不动，越界后按 80ms 有界采样生成最小位移目标，并经过位移阈值降噪、画布边缘钳制和同一 spring 求值器平滑过渡。回到全景或进入下一运镜焦点时停止当前跟随；预览与导出复用同一组派生关键帧。
+- **放大鼠标跟随**：仅在 `zoom > 1.05` 的运镜区间消费 `mouseTrack`；不设置视口百分比安全区，任意超过 2px 去抖阈值的有效移动都会按 32ms 有界采样更新相机目标，并经过快速轻量 spring 与画布边缘钳制。回到全景或进入下一运镜焦点时停止当前跟随；预览与导出复用同一组派生关键帧。
 - **相机动画**：关键帧之间用 spring 阻尼曲线插值（react-spring 的 spring 物理或手写 RK4），保证运动有"肉感"不生硬
 
 ### 4.2 渲染器
