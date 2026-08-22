@@ -60,7 +60,7 @@ export function deriveTimelineEffects(
           }
     })
   }
-  // 片段倍率覆盖先落到 zoom，再按最终倍率计算安全区与边缘钳制。
+  // 片段倍率覆盖先落到 zoom，再按最终倍率计算即时跟随的边缘钳制。
   keyframes = addCursorFollowKeyframes(keyframes, events, timeline.canvas)
   return {
     keyframes,

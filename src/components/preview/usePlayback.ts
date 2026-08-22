@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { createCameraAnimator } from '@/timeline/spring'
 import { Compositor } from '@/render/compositor'
-import type { RenderInfo, RipplePoint } from '@/render/types'
+import type { RenderInfo } from '@/render/types'
 import { cutAt, normalizeCuts } from '@/timeline/cuts'
 import { previewCompositorConfig, sameRenderInfo } from './playbackRender'
 import type { Playback, PlaybackOptions } from './playbackTypes'

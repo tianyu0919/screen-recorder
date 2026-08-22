@@ -112,11 +112,7 @@ export function PreviewPlayer({
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {/* 舞台：合成画布居中；整体作为圆角浮层卡片，四周留边距（两主题下都成立） */}
       <div
-        className="mx-6 mb-6 mt-1 min-h-0 flex-1 overflow-hidden rounded-2xl border border-line p-5"
-        style={{
-          background:
-            'radial-gradient(900px 500px at 30% 20%, rgba(255,92,56,0.05), transparent 60%), linear-gradient(160deg, #17171b 0%, #0c0c0f 80%)'
-        }}
+        className="mx-6 mb-6 mt-1 min-h-0 flex-1 overflow-hidden rounded-[20px] border border-line-strong bg-canvas p-5 shadow-card"
       >
         <div
           ref={stageRef}
@@ -139,7 +135,7 @@ export function PreviewPlayer({
             >
               <canvas
                 ref={canvasRef}
-                className="h-full w-full rounded-xl border border-line-strong shadow-[0_30px_80px_rgba(0,0,0,0.6),0_4px_16px_rgba(0,0,0,0.4)]"
+                className="h-full w-full rounded-xl border border-line-strong shadow-float"
               />
               <KeyboardOverlayHandle
                 position={keyboardOverlay}

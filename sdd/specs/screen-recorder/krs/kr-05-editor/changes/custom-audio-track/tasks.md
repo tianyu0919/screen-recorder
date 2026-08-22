@@ -41,6 +41,11 @@
 - [x] Task 8.4: 预览尺寸/纹理、音轨裁剪与导出回归通过；typecheck / build / smoke 全部通过（2026-08-22）
 - [ ] Task 8.5 [P2]: Windows 实机仍有轻微卡顿，后续继续采样性能轨迹并优化
 
+## Phase 9: 音频素材滑移编辑
+- [x] Task 9.1: 增加保持片段长度的音频源窗口滑移纯函数及边界回归
+- [x] Task 9.2: 波形横向滚动接入滑移编辑，纵向滚动继续交给时间轴缩放，并显示素材起止时间
+- [x] Task 9.3: 手势结束触发自动保存，运行 lint、typecheck、build、audio-clip 与 export smoke
+
 # Task Dependencies
 - [Task 2.2] depends on [Task 1.1] and [Task 1.2]
 - [Task 3.1] depends on [Task 2.2]
@@ -57,3 +62,5 @@
 - [Task 8.2] depends on [Task 8.1]
 - [Task 8.4] depends on [Task 8.1] through [Task 8.3]
 - [Task 8.5] depends on [Task 8.4]
+- [Task 9.2] depends on [Task 9.1]
+- [Task 9.3] depends on [Task 9.2]

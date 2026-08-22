@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { PauseIcon, PlayIcon } from '@/components/icons'
+import { Play, Pause } from 'lucide'
+import { MorphIcon } from 'morphicons/react'
 import { usePreviewStore } from '@/store/previewStore'
 import { effectiveDurationMs, sourceToOutputMs } from '@/timeline/cuts'
 import { bufferedTimeWindow } from '@/timeline/eventDisplay'
@@ -168,8 +169,14 @@ export function PlayerTimeline({
   return (
     <div className="flex h-[216px] select-none flex-none flex-col border-t border-line bg-surface-1">
       <div className="flex h-10 flex-none items-center gap-3 border-b border-line px-6">
-        <button onClick={onTogglePlay} disabled={durationMs === 0} aria-label={playing ? '暂停' : '播放'} className="grid h-[26px] w-[26px] place-items-center rounded-full bg-ink-1 text-surface-1 disabled:opacity-40">
-          {playing ? <PauseIcon size={11} /> : <PlayIcon size={11} className="translate-x-[1px]" />}
+        <button onClick={onTogglePlay} disabled={durationMs === 0} aria-label={playing ? '暂停' : '播放'} aria-pressed={playing} className="grid h-7 w-7 place-items-center rounded-full bg-ink-1 text-surface-1 transition-[transform,box-shadow] hover:scale-105 hover:shadow-card active:scale-95 disabled:opacity-40">
+          <MorphIcon
+            icon={playing ? Pause : Play}
+            size={13}
+            strokeWidth={2.4}
+            spring="snappy"
+            reducedMotion="user"
+          />
         </button>
         <span className="font-mono text-[12.5px] text-ink-1">
           {formatMs(sourceToOutputMs(currentMs, store.cuts))}{' '}

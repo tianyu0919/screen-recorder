@@ -35,7 +35,38 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
   customClips: [], clipError: null,
 
   async loadSessions() {
-    set({ sessions: await window.api.listSessions(), sessionsLoaded: true })
+    set({ loading: true, loadError: null })
+    try { set({ sessions: await window.api.listSessions(), sessionsLoaded: true, loading: false }) }
+    catch (error) { set({ loading: false, loadError: `无法加载会话：${error instanceof Error ? error.message : String(error)}` }) }
+  },
+
+  async trashSession(sessionId) {
+    const previous = get().sessions
+    set({ sessions: previous.filter((session) => session.sessionId !== sessionId) })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    try { await window.api.trashSession(sessionId) }
+    catch (error) { set({ sessions: previous }); throw error }
+    set({ sessions: await window.api.listSessions() })
+  },
+  async restoreSession(sessionId) {
+    await window.api.restoreSession(sessionId)
+    set({ sessions: await window.api.listSessions() })
+  },
+  async deleteSessionPermanent(sessionId) {
+    const previous = get().sessions
+    set({ sessions: previous.filter((session) => session.sessionId !== sessionId) })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    try { await window.api.deleteSessionPermanent(sessionId) }
+    catch (error) { set({ sessions: previous }); throw error }
+    set({ sessions: await window.api.listSessions() })
+  },
+  async emptyTrash() {
+    await window.api.emptyTrash()
+    set({ sessions: await window.api.listSessions() })
+  },
+  async removeMissingSession(sessionId) {
+    await window.api.removeMissingSession(sessionId)
+    set({ sessions: await window.api.listSessions() })
   },
 
   async openSession(sessionId) {

@@ -4,35 +4,17 @@ import { buildZoomSegments } from './segments'
 import type { CanvasSize } from './types'
 
 export interface CursorFollowOptions {
-  safeZoneRatio: number
   sampleIntervalMs: number
   minTargetMovePx: number
   zoomThreshold: number
+  followSpring: { stiffness: number; damping: number }
 }
 
 export const DEFAULT_CURSOR_FOLLOW: CursorFollowOptions = {
-  safeZoneRatio: 0.4,
-  sampleIntervalMs: 80,
-  minTargetMovePx: 8,
-  zoomThreshold: 1.05
-}
-
-function targetInsideSafeZone(
-  center: { x: number; y: number },
-  cursor: { x: number; y: number },
-  zoom: number,
-  canvas: CanvasSize,
-  safeZoneRatio: number
-): { x: number; y: number } {
-  const halfSafeWidth = (canvas.width / (2 * zoom)) * safeZoneRatio
-  const halfSafeHeight = (canvas.height / (2 * zoom)) * safeZoneRatio
-  let x = center.x
-  let y = center.y
-  if (cursor.x < center.x - halfSafeWidth) x = cursor.x + halfSafeWidth
-  else if (cursor.x > center.x + halfSafeWidth) x = cursor.x - halfSafeWidth
-  if (cursor.y < center.y - halfSafeHeight) y = cursor.y + halfSafeHeight
-  else if (cursor.y > center.y + halfSafeHeight) y = cursor.y - halfSafeHeight
-  return { x, y }
+  sampleIntervalMs: 32,
+  minTargetMovePx: 2,
+  zoomThreshold: 1.05,
+  followSpring: { stiffness: 520, damping: 42 }
 }
 
 function frameAt(keyframes: CameraKeyframe[], tMs: number): CameraKeyframe | null {
@@ -43,8 +25,8 @@ function frameAt(keyframes: CameraKeyframe[], tMs: number): CameraKeyframe | nul
 }
 
 /**
- * 在点击生成的放大关键帧之间插入稀疏鼠标跟随目标。
- * 只移动 x/y，不改变 zoom 与既有回归时机；结果仍交给同一 spring 求值器平滑过渡。
+ * 在点击生成的放大关键帧之间插入鼠标跟随目标。
+ * 任意有效移动都会直接更新 x/y，仅过滤像素级抖动；快速 spring 保持连续但不拖沓。
  */
 export function addCursorFollowKeyframes(
   keyframes: CameraKeyframe[],
@@ -56,11 +38,7 @@ export function addCursorFollowKeyframes(
   const base = [...keyframes].sort((a, b) => a.t - b.t)
   const track = [...events.mouseTrack].sort((a, b) => a[0] - b[0])
   const additions: CameraKeyframe[] = []
-  const safeZoneRatio = Math.min(1, Math.max(0.1, options.safeZoneRatio))
-  const minMove = Math.max(
-    options.minTargetMovePx,
-    Math.min(canvas.width, canvas.height) * 0.005
-  )
+  const minMove = Math.max(0, options.minTargetMovePx)
 
   const segments = buildZoomSegments(base, Infinity)
   for (const segment of segments) {
@@ -86,11 +64,10 @@ export function addCursorFollowKeyframes(
         center = { x: activeFrame.target.x, y: activeFrame.target.y }
         activeBaseTime = activeFrame.t
       }
-      const desired = targetInsideSafeZone(center, cursor, activeZoom, canvas, safeZoneRatio)
-      const clamped = clampCameraToCanvas({ ...desired, zoom: activeZoom }, canvas)
+      const clamped = clampCameraToCanvas({ ...cursor, zoom: activeZoom }, canvas)
       if (Math.hypot(clamped.x - center.x, clamped.y - center.y) < minMove) continue
       center = { x: clamped.x, y: clamped.y }
-      additions.push({ t: tMs, target: clamped })
+      additions.push({ t: tMs, target: clamped, spring: options.followSpring })
     }
   }
 

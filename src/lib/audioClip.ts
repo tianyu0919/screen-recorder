@@ -48,6 +48,20 @@ export function audioClipDurationMs(clip: CustomClip): number {
   return Math.max(0, clip.trimEndMs - clip.trimStartMs)
 }
 
+/** 保持时间轴位置与片段长度不变，只在原音频内滑移实际播放窗口。 */
+export function shiftAudioClipSourceWindow(
+  clip: CustomClip,
+  deltaMs: number
+): Pick<CustomClip, 'trimStartMs' | 'trimEndMs'> {
+  const durationMs = audioClipDurationMs(clip)
+  if (!Number.isFinite(deltaMs) || durationMs <= 0) {
+    return { trimStartMs: clip.trimStartMs, trimEndMs: clip.trimEndMs }
+  }
+  const maxStartMs = Math.max(0, clip.sourceDurationMs - durationMs)
+  const trimStartMs = Math.min(maxStartMs, Math.max(0, clip.trimStartMs + deltaMs))
+  return { trimStartMs, trimEndMs: trimStartMs + durationMs }
+}
+
 /** 视频真实时长变短或长音频刚导入时，把 clip 非破坏性钳制在片尾内。 */
 export function clampAudioClipToTimeline(clip: CustomClip, durationMs: number): CustomClip {
   if (!Number.isFinite(durationMs) || durationMs <= 0) return clip

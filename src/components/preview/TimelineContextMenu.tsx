@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { formatMs } from '@/timeline/ticks'
+import { Trash2 } from 'lucide-react'
 
 export type TimelineMenuTarget =
   | { kind: 'motion'; id: string }
@@ -65,9 +66,10 @@ export function TimelineContextMenu({
       {menu.target && (
         <>
           <button
-            className="w-full rounded-md px-2 py-1.5 text-left text-[11px] text-red-300 hover:bg-surface-3"
+            className="flex w-full items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-left text-[11px] font-medium text-danger transition-[color,background-color,border-color] [background:color-mix(in_srgb,var(--danger)_8%,transparent)] hover:border-danger hover:[background:color-mix(in_srgb,var(--danger)_15%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger"
             onClick={() => run(() => onDelete(menu.target!))}
           >
+            <Trash2 size={12} strokeWidth={2} />
             删除{menu.target.kind === 'motion' ? '运镜' : menu.target.kind === 'key' ? '事件' : '音频'}
           </button>
           <div className="my-1 border-t border-line" />

@@ -5,7 +5,7 @@
 ```
 Renderer: 检查器「音频」区 [添加音轨] → IPC 选文件 → decodeAudioData →
           previewStore.customClips（元数据+波形峰值） + clipCache（PCM/AudioBuffer，模块级）
-              ├─ 时间轴：波形块主体移动；左右边缘改 trimStartMs / trimEndMs
+              ├─ 时间轴：波形块主体移动；左右边缘裁剪；横向滚动同步滑移 trimStartMs / trimEndMs
               ├─ 预览：单一 AudioContext 按 video.currentTime + trimStartMs 调度每条 clip
               └─ 导出：PCM 先按 trim 区间切片 → mixTracks → 按视频片尾截断 → cutPcm
 Main:     audio:pick-file（dialog.showOpenDialog + 读文件返回 bytes）
@@ -48,7 +48,7 @@ mixTracks(tracks: Array<{ wav: WavData; offsetSec: number; gain: number }>): Wav
 2. `AudioContext.decodeAudioData` 只解码一次 → WavData + AudioBuffer + peaks 入缓存，clip 元数据进 store
 3. 视频元数据给出真实时长后写回 previewStore；过滤片尾外事件并重算 keyframes/ripples，
    同时把自定义 clip 钳制在片尾内
-4. 时间轴波形主体拖拽改 offsetMs；左右 8px 手柄分别调整 trimStartMs / trimEndMs
+4. 时间轴波形主体拖拽改 offsetMs；左右 8px 手柄分别调整 trimStartMs / trimEndMs；波形上的横向滚动保持片段长度并同步滑移两个 trim 边界，纵向滚动继续冒泡给时间轴缩放
 5. 预览：所有 clip 共用一个 `AudioContext`；播放/seek/速率变化时按视频时钟创建一次性
    `AudioBufferSourceNode`，本地播放位置为 `trimStartMs + (videoTime - offsetMs)`，
    `start(when, offset, duration)` 精确约束起止；逐帧路径不 seek

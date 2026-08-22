@@ -33,7 +33,6 @@ export const TimelineRuler = memo(function TimelineRuler({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
     >
-      <span className="absolute left-0 top-0 h-full border-l border-line-strong" />
       <span className="absolute left-0 top-0 pl-1 font-mono text-[9.5px] leading-[22px] text-ink-3">
         00:00
       </span>
@@ -51,7 +50,6 @@ export const TimelineRuler = memo(function TimelineRuler({
           </span>
         </span>
       ))}
-      <span className="absolute right-0 top-0 h-full border-r border-line-strong" />
       <span className="absolute right-0 top-0 pr-1 font-mono text-[9.5px] leading-[22px] text-ink-3">
         {endLabel}
       </span>

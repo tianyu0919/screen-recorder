@@ -41,6 +41,11 @@ export interface PreviewState {
   clipError: string | null
 
   loadSessions(): Promise<void>
+  trashSession(sessionId: string): Promise<void>
+  restoreSession(sessionId: string): Promise<void>
+  deleteSessionPermanent(sessionId: string): Promise<void>
+  emptyTrash(): Promise<void>
+  removeMissingSession(sessionId: string): Promise<void>
   openSession(sessionId: string): Promise<void>
   closeSession(): void
   setMotionParams(patch: Partial<MotionParams>): void

@@ -4,6 +4,7 @@ import {
   audioClipDurationMs,
   audioClipPlaybackWindow,
   clampAudioClipToTimeline,
+  shiftAudioClipSourceWindow,
   type CustomClip,
   updateAudioClipRange
 } from '../src/lib/audioClip'
@@ -76,6 +77,25 @@ const trimmed = updateAudioClipRange(
 check(
   '左侧裁剪同时移动时间轴起点',
   trimmed.offsetMs === 1_000 && trimmed.trimStartMs === 1_000 && audioClipDurationMs(trimmed) === 9_000
+)
+
+const slipClip = { ...clip, offsetMs: 5_000, trimStartMs: 10_000, trimEndMs: 20_000 }
+const slipped = shiftAudioClipSourceWindow(slipClip, 2_500)
+check(
+  '素材滑移保持时间轴位置和片段长度',
+  slipped.trimStartMs === 12_500 &&
+    slipped.trimEndMs === 22_500 &&
+    slipped.trimEndMs - slipped.trimStartMs === 10_000 &&
+    slipClip.offsetMs === 5_000
+)
+const slippedStart = shiftAudioClipSourceWindow(slipClip, -20_000)
+const slippedEnd = shiftAudioClipSourceWindow(slipClip, 100_000)
+check(
+  '素材滑移钳制在原音频边界',
+  slippedStart.trimStartMs === 0 &&
+    slippedStart.trimEndMs === 10_000 &&
+    slippedEnd.trimStartMs === 50_000 &&
+    slippedEnd.trimEndMs === 60_000
 )
 
 const wav: WavData = {

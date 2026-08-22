@@ -1,4 +1,5 @@
 import { useRef, type PointerEvent } from 'react'
+import { GripHorizontal } from 'lucide-react'
 
 interface KeyboardOverlayHandleProps {
   position: { x: number; y: number }
@@ -11,6 +12,8 @@ export function KeyboardOverlayHandle({
   onChange
 }: KeyboardOverlayHandleProps): React.JSX.Element {
   const draggingRef = useRef<{ offsetX: number; offsetY: number } | null>(null)
+  const translateX = position.x > 0.82 ? '-100%' : position.x < 0.18 ? '0%' : '-50%'
+  const translateY = position.y > 0.18 ? 'calc(-50% - 38px)' : 'calc(-50% + 38px)'
 
   const update = (event: PointerEvent<HTMLButtonElement>, commit = false): void => {
     const container = event.currentTarget.parentElement
@@ -31,14 +34,11 @@ export function KeyboardOverlayHandle({
       type="button"
       aria-label="拖动按键提示位置"
       title="拖动设置所有按键提示的位置"
-      className="absolute z-10 cursor-grab select-none rounded-md border border-accent-border bg-black/55 px-2 py-1 text-[10px] font-medium text-white/85 shadow-lg backdrop-blur-sm hover:bg-black/75 active:cursor-grabbing"
+      className="absolute z-10 flex h-7 w-max cursor-grab select-none items-center gap-1.5 whitespace-nowrap rounded-full border border-line-strong bg-surface-1/90 px-2.5 text-[10px] font-medium text-ink-2 shadow-card backdrop-blur-sm transition-[color,border-color,box-shadow] hover:border-accent-border hover:text-accent hover:shadow-float active:cursor-grabbing"
       style={{
         left: `${position.x * 100}%`,
         top: `${position.y * 100}%`,
-        transform:
-          position.y > 0.18
-            ? 'translate(-50%, calc(-50% - 46px))'
-            : 'translate(-50%, calc(-50% + 46px))'
+        transform: `translate(${translateX}, ${translateY})`
       }}
       onPointerDown={(event) => {
         event.stopPropagation()
@@ -67,7 +67,8 @@ export function KeyboardOverlayHandle({
       }}
       onClick={(event) => event.stopPropagation()}
     >
-      ⌨ 按键提示
+      <GripHorizontal size={12} aria-hidden="true" />
+      拖动位置
     </button>
   )
 }

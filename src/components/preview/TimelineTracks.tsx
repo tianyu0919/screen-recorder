@@ -12,6 +12,7 @@ import {
 import { AudioClipsLayer } from './AudioClipsLayer'
 import { MotionEffectsLayer } from './MotionEffectsLayer'
 import type { TimelineMenuTarget } from './TimelineContextMenu'
+import { TimelineEventTooltip } from './TimelineEventTooltip'
 
 interface TimelineTracksProps {
   motionEffects: MotionEffect[]
@@ -70,31 +71,31 @@ export const TimelineTracks = memo(function TimelineTracks(
       <div className="relative h-[42px]">
         {clusters.map((cluster) => {
           const single = cluster.items.length === 1 ? cluster.items[0] : null
-          const title = cluster.items
-            .map((item) => `${item.label} · ${(item.t / 1000).toFixed(1)}s`)
-            .join('\n')
           return (
-            <button
-              key={cluster.id}
-              title={title}
-              className={
-                cluster.mode === 'label'
-                  ? 'absolute top-1/2 flex h-4 -translate-x-1/2 -translate-y-1/2 items-center rounded border border-line-strong bg-surface-3 px-1 font-mono text-[9px] text-ink-2'
-                  : 'absolute top-1/2 h-[7px] w-[7px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#8e8e96]'
-              }
-              style={{ left: `${(cluster.t / props.duration) * 100}%` }}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={() => props.onSeek(cluster.t)}
-              onContextMenu={(event) =>
-                props.onContextMenu(
-                  event,
-                  cluster.t,
-                  single?.kind === 'key' ? { kind: 'key', id: single.id } : undefined
-                )
-              }
-            >
-              {cluster.mode === 'label' ? single?.label : null}
-            </button>
+            <TimelineEventTooltip key={cluster.id} cluster={cluster}>
+              <button
+                aria-label={`${cluster.items.length} 个事件，${(cluster.t / 1000).toFixed(2)} 秒`}
+                className={
+                  cluster.mode === 'label'
+                    ? 'absolute top-1/2 flex h-4 -translate-x-1/2 -translate-y-1/2 items-center rounded border border-line-strong bg-surface-3 px-1 font-mono text-[9px] text-ink-2 transition-[border-color,background-color,box-shadow] hover:border-accent-border hover:bg-accent-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent'
+                    : 'group/event absolute top-1/2 grid h-5 w-5 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent'
+                }
+                style={{ left: `${(cluster.t / props.duration) * 100}%` }}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() => props.onSeek(cluster.t)}
+                onContextMenu={(event) =>
+                  props.onContextMenu(
+                    event,
+                    cluster.t,
+                    single?.kind === 'key' ? { kind: 'key', id: single.id } : undefined
+                  )
+                }
+              >
+                {cluster.mode === 'label' ? single?.label : (
+                  <span className="h-[7px] w-[7px] rounded-full bg-ink-3 transition-[transform,background-color,box-shadow] group-hover/event:scale-125 group-hover/event:bg-accent group-hover/event:shadow-[0_0_0_4px_rgba(255,92,56,0.12)]" />
+                )}
+              </button>
+            </TimelineEventTooltip>
           )
         })}
       </div>

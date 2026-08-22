@@ -1,6 +1,10 @@
-import { memo, useMemo, useRef } from 'react'
+import { memo, useEffect, useMemo, useRef } from 'react'
 import type { CustomClip } from '@/store/previewStore'
-import { audioClipDurationMs, MIN_AUDIO_CLIP_MS } from '@/lib/audioClip'
+import {
+  audioClipDurationMs,
+  MIN_AUDIO_CLIP_MS,
+  shiftAudioClipSourceWindow
+} from '@/lib/audioClip'
 import type { TimelineMenuTarget } from './TimelineContextMenu'
 
 interface AudioClipsLayerProps {
@@ -24,9 +28,16 @@ function peaksPath(peaks: number[]): string {
   return peaks
     .map((p, i) => {
       const h = Math.max(1.5, p * 32)
-      return `M${i} ${(mid - h / 2).toFixed(1)}V${(mid + h / 2).toFixed(1)}`
+      return `M${i + 0.5} ${(mid - h / 2).toFixed(1)}V${(mid + h / 2).toFixed(1)}`
     })
     .join(' ')
+}
+
+function formatSourceTime(ms: number): string {
+  const totalTenths = Math.max(0, Math.round(ms / 100))
+  const minutes = Math.floor(totalTenths / 600)
+  const seconds = Math.floor((totalTenths % 600) / 10)
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${totalTenths % 10}`
 }
 
 function ClipBlock({
@@ -51,6 +62,44 @@ function ClipBlock({
     startX: number
     clip: CustomClip
   } | null>(null)
+  const blockRef = useRef<HTMLDivElement>(null)
+  const wheelCommitTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const workingClip = useRef(clip)
+  const onCommitRef = useRef(onCommit)
+  const onTrimChangeRef = useRef(onTrimChange)
+  const pxPerSecRef = useRef(pxPerSec)
+  workingClip.current = clip
+  onCommitRef.current = onCommit
+  onTrimChangeRef.current = onTrimChange
+  pxPerSecRef.current = pxPerSec
+
+  useEffect(() => {
+    const element = blockRef.current
+    if (!element) return
+    const handleWheel = (event: WheelEvent): void => {
+      const scale = pxPerSecRef.current
+      if (event.ctrlKey || Math.abs(event.deltaX) <= Math.abs(event.deltaY) || scale <= 0) return
+      event.preventDefault()
+      event.stopPropagation()
+      const current = workingClip.current
+      const range = shiftAudioClipSourceWindow(current, (event.deltaX / scale) * 1000)
+      if (range.trimStartMs === current.trimStartMs && range.trimEndMs === current.trimEndMs) return
+      workingClip.current = { ...current, ...range }
+      onTrimChangeRef.current(current.id, range)
+      if (wheelCommitTimer.current) clearTimeout(wheelCommitTimer.current)
+      wheelCommitTimer.current = setTimeout(() => {
+        wheelCommitTimer.current = null
+        onCommitRef.current()
+      }, 180)
+    }
+    element.addEventListener('wheel', handleWheel, { passive: false })
+    return () => {
+      element.removeEventListener('wheel', handleWheel)
+      if (!wheelCommitTimer.current) return
+      clearTimeout(wheelCommitTimer.current)
+      onCommitRef.current()
+    }
+  }, [])
   const clipDuration = audioClipDurationMs(clip)
   const maxOffset = Math.max(0, duration - clipDuration)
   const { visiblePeaks, waveformPath } = useMemo(() => {
@@ -114,7 +163,8 @@ function ClipBlock({
 
   return (
     <div
-      title={`${clip.name}（拖主体移动，拖左右边缘裁剪）`}
+      ref={blockRef}
+      title={`${clip.name}（拖主体移动，拖左右边缘裁剪，左右滚动滑移素材）`}
       className="group absolute top-[7px] h-[34px] cursor-grab overflow-hidden rounded-md border border-line-strong bg-surface-2 text-ink-2 hover:border-accent active:cursor-grabbing"
       style={{
         left: `${(clip.offsetMs / duration) * 100}%`,
@@ -137,6 +187,9 @@ function ClipBlock({
       </svg>
       <span className="pointer-events-none absolute left-1 top-0 max-w-full truncate text-[9px] leading-3 text-ink-3">
         {clip.name}
+      </span>
+      <span className="pointer-events-none absolute right-2 top-0 rounded-b bg-surface-2/90 px-1 font-mono text-[8.5px] leading-3 text-ink-3 opacity-0 transition-opacity group-hover:opacity-100">
+        {formatSourceTime(clip.trimStartMs)}–{formatSourceTime(clip.trimEndMs)}
       </span>
       <div
         aria-label="裁剪音频开头"

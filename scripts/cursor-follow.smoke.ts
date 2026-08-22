@@ -1,5 +1,5 @@
 /**
- * 放大期间鼠标安全区跟随冒烟验证：
+ * 放大期间鼠标即时跟随冒烟验证：
  *   npx -y tsx --tsconfig tsconfig.web.json scripts/cursor-follow.smoke.ts
  */
 import type { RecordingEvents } from '@shared/types'
@@ -43,7 +43,12 @@ const inside = derive(
     ]
   })
 )
-check('安全区内移动不增加位置帧', inside.length === 3, JSON.stringify(inside))
+const insideMove = inside.find((keyframe) => keyframe.t === 1200)
+check(
+  '安全区已移除，小幅有效移动立即更新目标',
+  insideMove?.target.x === 1100 && insideMove.target.y === 600,
+  JSON.stringify(insideMove)
+)
 
 const outsideEvents = makeEvents({
   clicks: [{ t: 1000, x: 960, y: 540, button: 1 }],
@@ -57,8 +62,8 @@ const outsideEvents = makeEvents({
 const outside = derive(outsideEvents)
 const outsideFrame = outside.find((keyframe) => keyframe.t === 1300)
 check(
-  '越过安全区后执行最小距离跟随',
-  outsideFrame?.target.x === 1208 && outsideFrame.target.y === 540 && outsideFrame.target.zoom === 2,
+  '鼠标位置直接成为跟随目标',
+  outsideFrame?.target.x === 1400 && outsideFrame.target.y === 540 && outsideFrame.target.zoom === 2,
   JSON.stringify(outsideFrame)
 )
 const segments = buildZoomSegments(outside, 3000)
@@ -82,15 +87,15 @@ const secondFocus = dense.find((keyframe) => keyframe.t === 1600)
 const afterSecondClick = dense.find((keyframe) => keyframe.t === 1700)
 check(
   '密集点击优先切换新焦点并继续跟随',
-  secondFocus?.target.x === 600 && afterSecondClick?.target.x === 1308,
+  secondFocus?.target.x === 600 && afterSecondClick?.target.x === 1440,
   JSON.stringify(dense)
 )
 
 const zoom3 = derive(outsideEvents, { 800: 3 })
 const zoom3Frame = zoom3.find((keyframe) => keyframe.t === 1300)
 check(
-  '倍率覆盖后按最终 zoom 计算安全区',
-  zoom3Frame?.target.zoom === 3 && zoom3Frame.target.x === 1272,
+  '倍率覆盖后按最终 zoom 钳制即时目标',
+  zoom3Frame?.target.zoom === 3 && zoom3Frame.target.x === 1400,
   JSON.stringify(zoom3Frame)
 )
 
@@ -127,11 +132,11 @@ const jitter = derive(
     mouseTrack: [
       [1000, 960, 540],
       [1080, 1151, 540],
-      [1160, 1154, 540]
+      [1160, 1152, 540]
     ]
   })
 )
-check('安全区边缘微小抖动被过滤', jitter.length === 3)
+check('小于 2px 的像素级抖动被过滤', jitter.length === 4, JSON.stringify(jitter))
 
 const highFrequencyTrack: RecordingEvents['mouseTrack'] = []
 for (let t = 1000; t < 2500; t += 8) highFrequencyTrack.push([t, 960 + (t - 1000), 540])
@@ -141,7 +146,14 @@ const bounded = derive(
     mouseTrack: highFrequencyTrack
   })
 )
-check('120Hz 轨迹按 80ms 有界采样', bounded.length <= 22, String(bounded.length))
+check('120Hz 轨迹按 32ms 有界采样', bounded.length <= 51, String(bounded.length))
+
+const followFrame = bounded.find((keyframe) => keyframe.spring?.stiffness === 520)
+check(
+  '跟随目标使用快速轻量平滑',
+  followFrame?.spring?.damping === 42,
+  JSON.stringify(followFrame)
+)
 
 const noTrackEvents = makeEvents({ clicks: [{ t: 1000, x: 960, y: 540, button: 1 }] })
 const noTrackDerived = derive(noTrackEvents)

@@ -194,7 +194,7 @@ export function CutsLayer({
             <button
               onPointerDown={(e) => e.stopPropagation()}
               onClick={onCommit}
-              className="flex items-center gap-1 rounded-md bg-accent px-2.5 py-1 text-[11.5px] font-semibold text-white shadow-lg hover:bg-accent-hover"
+              className="flex items-center gap-1 rounded-md bg-accent px-2.5 py-1 text-[11.5px] font-semibold text-on-accent shadow-lg hover:bg-accent-hover"
             >
               <CheckIcon size={11} />
               裁掉这段

@@ -11,6 +11,7 @@
 - [x] Task 2.3: 将跟随安全区从中央 60% 改为中央 40%，补倍率、边缘和空轨迹回归
 - [x] Task 2.4: 实现键盘隐私过滤、修饰键组合、功能键白名单、历史事件兼容和重复限流
 - [x] Task 2.5: 实现事件密度分档、像素聚合、Tooltip 数据和可视窗口计算纯函数
+- [x] Task 2.6: 移除放大跟随百分比安全区，降低采样与像素去抖阈值，并为跟随目标使用轻量快速平滑
 
 ## Phase 3: Main 持久化与采集
 - [x] Task 3.1: Main 原子读取/写入 edit.json，返回 updatedAt 并处理损坏/版本不兼容降级
@@ -40,6 +41,7 @@
 - [x] Task 7.1: 增加运镜约束/关联、键盘过滤、事件 LOD、编辑文档迁移和保存 revision smoke
 - [x] Task 7.2: 运行 typecheck、build、timeline/render/export/audio smoke，检查相关文件不超过 300 行
 - [x] Task 7.3: 同步 TECH_DESIGN、kr-02 跟随变更及 edit.json/采集语义文档
+- [x] Task 7.6: 更新即时跟随专项回归并运行 lint、typecheck、build、timeline/render/export/audio/cursor-follow smoke
 - [ ] Task 7.4: Windows 人工冒烟：长会话缩放、播放中虚拟化、运镜手势、右键添加、保存恢复和 MP4 一致性
 - [ ] Task 7.5: macOS 人工冒烟：全局键盘过滤/组合、上下文菜单、保存恢复和 MP4 一致性
 
@@ -47,6 +49,7 @@
 - [Task 1.3] depends on [Task 1.1]
 - [Task 2.1], [Task 2.2], [Task 2.4] and [Task 2.5] depend on [Task 1.1] and can run in parallel
 - [Task 2.3] depends on [Task 2.2]
+- [Task 2.6] depends on [Task 2.3]
 - [Task 3.1] depends on [Task 1.2] and [Task 1.3]
 - [Task 3.2] depends on [Task 1.2]
 - [Task 3.3] depends on [Task 2.4]
@@ -61,3 +64,4 @@
 - [Task 6.2] and [Task 6.3] depend on [Task 4.1] and [Task 6.1] and can run in parallel
 - [Task 7.1] depends on [Task 2.1] through [Task 6.3]
 - [Task 7.2] through [Task 7.5] depend on [Task 7.1]
+- [Task 7.6] depends on [Task 2.6]
