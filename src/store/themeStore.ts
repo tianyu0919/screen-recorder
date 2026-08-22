@@ -3,7 +3,6 @@ import { create } from 'zustand'
 /** 主题模式：system 跟随 OS；色板见 index.css 的 [data-theme] 变量 */
 export type ThemeMode = 'system' | 'light' | 'dark'
 
-const STORAGE_KEY = 'lenza-theme'
 const media = window.matchMedia('(prefers-color-scheme: dark)')
 
 function resolve(mode: ThemeMode): 'light' | 'dark' {
@@ -17,18 +16,15 @@ function apply(mode: ThemeMode): void {
 
 interface ThemeState {
   mode: ThemeMode
-  setMode(mode: ThemeMode): void
+  setMode(mode: ThemeMode, persist?: boolean): void
 }
 
 export const useThemeStore = create<ThemeState>((set) => ({
-  mode: ((): ThemeMode => {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    return saved === 'light' || saved === 'dark' ? saved : 'system'
-  })(),
-  setMode: (mode) => {
-    localStorage.setItem(STORAGE_KEY, mode)
+  mode: 'light',
+  setMode: (mode, persist = true) => {
     apply(mode)
     set({ mode })
+    if (persist) void window.api.updateSettings({ theme: mode })
   }
 }))
 

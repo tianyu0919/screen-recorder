@@ -1,8 +1,7 @@
-import { existsSync } from 'node:fs'
 import { mkdir, open, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { extname, join, normalize, sep } from 'node:path'
 import type { SessionEditSaveResult } from '../../shared/edit'
-import { recordingsRoot } from './sessionReader'
+import { sessionCatalog } from './sessionCatalog'
 
 const SESSION_ID_RE = /^[\w-]+$/
 const ASSET_ID_RE = /^[\w-]{8,}$/
@@ -10,9 +9,7 @@ const AUDIO_EXTENSIONS = new Set(['.wav', '.mp3', '.m4a', '.aac', '.ogg', '.flac
 
 function sessionDir(sessionId: string): string {
   if (!SESSION_ID_RE.test(sessionId)) throw new Error('非法会话 ID')
-  const dir = join(recordingsRoot(), sessionId)
-  if (!existsSync(dir)) throw new Error('会话不存在')
-  return dir
+  return sessionCatalog.resolveSessionDir(sessionId)
 }
 
 function safeAssetPath(sessionId: string, assetFile: string): string {

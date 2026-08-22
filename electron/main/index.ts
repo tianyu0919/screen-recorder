@@ -5,6 +5,9 @@ import { registerIpc } from '../ipc'
 import { IPC } from '../../shared/ipc'
 import { registerDisplayMediaHandler } from '../capture/sources'
 import { registerMediaProtocol } from '../store/sessionReader'
+import { appSettings } from '../store/appSettings'
+import { sessionCatalog } from '../store/sessionCatalog'
+import { backgroundWindow, disposeTray, showWindow } from '../windowLifecycle'
 
 /**
  * 应用名（改名时四处同步：index.html <title>、App.tsx 标题、electron-builder.yml
@@ -26,6 +29,7 @@ protocol.registerSchemesAsPrivileged([
 ])
 
 let win: BrowserWindow | null = null
+let quitting = false
 
 function createWindow(): void {
   win = new BrowserWindow({
@@ -62,6 +66,15 @@ function createWindow(): void {
     win = null
   })
 
+  win.on('close', (event) => {
+    if (quitting) return
+    event.preventDefault()
+    const behavior = appSettings.get().closeBehavior
+    if (behavior === 'background') backgroundWindow(win!, appIcon)
+    else if (behavior === 'quit') app.quit()
+    else win?.webContents.send(IPC.WindowCloseRequested)
+  })
+
   // 最大化状态推送 Renderer（自绘窗口按钮切换 最大化/还原 图标）
   win.on('maximize', () => win?.webContents.send(IPC.WindowMaximizeChanged, true))
   win.on('unmaximize', () => win?.webContents.send(IPC.WindowMaximizeChanged, false))
@@ -76,12 +89,21 @@ app.whenReady().then(() => {
   }
   registerDisplayMediaHandler()
   registerMediaProtocol()
-  registerIpc(() => win)
+  registerIpc(() => win, appIcon)
+  sessionCatalog.load()
+  void sessionCatalog.purgeExpired()
+  setInterval(() => void sessionCatalog.purgeExpired(), 60_000).unref()
   createWindow()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    else if (win) showWindow(win)
   })
+})
+
+app.on('before-quit', () => {
+  quitting = true
+  disposeTray()
 })
 
 app.on('window-all-closed', () => {

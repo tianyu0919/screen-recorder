@@ -1,4 +1,4 @@
-import { ipcMain, screen, desktopCapturer, dialog, type BrowserWindow } from 'electron'
+import { app, ipcMain, screen, desktopCapturer, dialog, shell, type BrowserWindow } from 'electron'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join, basename } from 'node:path'
 import { IPC } from '../shared/ipc'
@@ -24,13 +24,17 @@ import {
   saveEditJson
 } from './store/editStore'
 import { getPermissionStatus, openSystemSettings, requestMicrophoneAccess } from './permissions'
+import { appSettings } from './store/appSettings'
+import { sessionCatalog } from './store/sessionCatalog'
+import type { AppSettings, CloseDecision } from '../shared/types'
+import { backgroundWindow } from './windowLifecycle'
 
 /** 鼠标轨迹轮询频率（spec: 60–120Hz，取 90Hz） */
 const POLL_HZ = 90
 
 export type { StartRecordingPayload, StartRecordingResult }
 
-export function registerIpc(getWindow: () => BrowserWindow | null): {
+export function registerIpc(getWindow: () => BrowserWindow | null, appIcon?: Electron.NativeImage): {
   inputHook: InputHook
 } {
   const poller = new CursorPoller()
@@ -61,11 +65,37 @@ export function registerIpc(getWindow: () => BrowserWindow | null): {
     else w.maximize()
   })
   ipcMain.handle(IPC.WindowClose, () => getWindow()?.close())
+  ipcMain.handle(IPC.WindowResolveClose, (_event, decision: CloseDecision) => {
+    const win = getWindow()
+    if (!win) return
+    if (decision.remember) appSettings.update({ closeBehavior: decision.behavior })
+    if (decision.behavior === 'background') backgroundWindow(win, appIcon)
+    else app.quit()
+  })
 
   // 录制会话读取（kr-02 预览）：枚举 / 加载 events.json + 视频流式 URL
   ipcMain.handle(IPC.SessionList, () => listSessions())
   ipcMain.handle(IPC.SessionLoad, (_e, sessionId: string) => loadSession(sessionId))
   ipcMain.handle(IPC.SessionReveal, (_e, sessionId: string) => revealSession(sessionId))
+  ipcMain.handle(IPC.SessionTrash, (_e, sessionId: string) => sessionCatalog.trash(sessionId))
+  ipcMain.handle(IPC.SessionRestore, (_e, sessionId: string) => sessionCatalog.restore(sessionId))
+  ipcMain.handle(IPC.SessionDeletePermanent, (_e, sessionId: string) => sessionCatalog.deletePermanent(sessionId))
+  ipcMain.handle(IPC.SessionEmptyTrash, () => sessionCatalog.emptyTrash())
+  ipcMain.handle(IPC.SessionRemoveMissing, (_e, sessionId: string) => sessionCatalog.removeMissing(sessionId))
+  ipcMain.handle(IPC.SettingsGet, () => appSettings.get())
+  ipcMain.handle(IPC.SettingsUpdate, async (_e, patch: Partial<AppSettings>) => {
+    const settings = appSettings.update(patch)
+    await sessionCatalog.updateRetention()
+    return settings
+  })
+  ipcMain.handle(IPC.SettingsChooseRecordingsPath, async () => {
+    const win = getWindow()
+    if (!win) return null
+    const result = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'] })
+    if (result.canceled || !result.filePaths[0]) return null
+    return appSettings.setRecordingsPath(result.filePaths[0])
+  })
+  ipcMain.handle(IPC.SettingsOpenRecordingsPath, () => shell.openPath(appSettings.get().recordingsPath))
   ipcMain.handle(
     IPC.SessionSaveEdit,
     (_e, sessionId: string, json: string): Promise<SessionEditSaveResult> =>

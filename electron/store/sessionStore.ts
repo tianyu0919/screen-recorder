@@ -1,8 +1,9 @@
-import { app } from 'electron'
 import { createWriteStream, mkdirSync, writeFileSync, existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { RecordingEvents, RecordingSession } from '../../shared/types'
 import { validateRecordingEvents } from '../../shared/types'
+import { appSettings } from './appSettings'
+import { sessionCatalog } from './sessionCatalog'
 
 /**
  * 录制会话落盘（Task 4.1）：
@@ -18,7 +19,7 @@ export class SessionStore {
 
   /** 会话根目录：userData/recordings */
   get rootDir(): string {
-    return join(app.getPath('userData'), 'recordings')
+    return appSettings.get().recordingsPath
   }
 
   startSession(): RecordingSession {
@@ -89,6 +90,7 @@ export class SessionStore {
     }
     writeFileSync(join(this.session.dir, 'events.json'), JSON.stringify(events))
     const { dir, sessionId } = this.session
+    sessionCatalog.register(sessionId, dir, events.startTime)
     this.session = null
     return { dir, sessionId }
   }

@@ -12,6 +12,7 @@ import type {
   StartRecordingPayload,
   StartRecordingResult
 } from '../../shared/types'
+import type { AppSettings, CloseDecision } from '../../shared/types'
 
 export interface RecorderApi {
   /** 运行平台（Renderer 侧平台分支统一以此判断，禁直接用 navigator.userAgent） */
@@ -43,6 +44,15 @@ export interface RecorderApi {
   ): Promise<string>
   loadSessionAudioAsset(sessionId: string, assetFile: string): Promise<ArrayBuffer>
   deleteSessionAudioAsset(sessionId: string, assetFile: string): Promise<void>
+  trashSession(sessionId: string): Promise<void>
+  restoreSession(sessionId: string): Promise<void>
+  deleteSessionPermanent(sessionId: string): Promise<void>
+  emptyTrash(): Promise<void>
+  removeMissingSession(sessionId: string): Promise<void>
+  getSettings(): Promise<AppSettings>
+  updateSettings(patch: Partial<Pick<AppSettings, 'theme' | 'trashRetentionDays' | 'closeBehavior'>>): Promise<AppSettings>
+  chooseRecordingsPath(): Promise<AppSettings | null>
+  openRecordingsPath(): Promise<void>
   /** 保存导出产物（kr-03）：弹保存对话框并写盘；用户取消返回 null */
   saveExport(
     sessionId: string,
@@ -55,6 +65,8 @@ export interface RecorderApi {
   windowMinimize(): Promise<void>
   windowToggleMaximize(): Promise<void>
   windowClose(): Promise<void>
+  resolveWindowClose(decision: CloseDecision): Promise<void>
+  onWindowCloseRequested(cb: () => void): () => void
   /** 最大化状态变化（切换 最大化/还原 图标） */
   onMaximizedChange(cb: (maximized: boolean) => void): () => void
   onRecordingError(cb: (err: RecordingError) => void): () => void
@@ -84,12 +96,27 @@ const api: RecorderApi = {
     ipcRenderer.invoke(IPC.SessionLoadAudioAsset, sessionId, assetFile),
   deleteSessionAudioAsset: (sessionId, assetFile) =>
     ipcRenderer.invoke(IPC.SessionDeleteAudioAsset, sessionId, assetFile),
+  trashSession: (sessionId) => ipcRenderer.invoke(IPC.SessionTrash, sessionId),
+  restoreSession: (sessionId) => ipcRenderer.invoke(IPC.SessionRestore, sessionId),
+  deleteSessionPermanent: (sessionId) => ipcRenderer.invoke(IPC.SessionDeletePermanent, sessionId),
+  emptyTrash: () => ipcRenderer.invoke(IPC.SessionEmptyTrash),
+  removeMissingSession: (sessionId) => ipcRenderer.invoke(IPC.SessionRemoveMissing, sessionId),
+  getSettings: () => ipcRenderer.invoke(IPC.SettingsGet),
+  updateSettings: (patch) => ipcRenderer.invoke(IPC.SettingsUpdate, patch),
+  chooseRecordingsPath: () => ipcRenderer.invoke(IPC.SettingsChooseRecordingsPath),
+  openRecordingsPath: () => ipcRenderer.invoke(IPC.SettingsOpenRecordingsPath),
   saveExport: (sessionId, data, format) =>
     ipcRenderer.invoke(IPC.ExportSave, sessionId, data, format),
   pickAudioFile: () => ipcRenderer.invoke(IPC.PickAudioFile),
   windowMinimize: () => ipcRenderer.invoke(IPC.WindowMinimize),
   windowToggleMaximize: () => ipcRenderer.invoke(IPC.WindowToggleMaximize),
   windowClose: () => ipcRenderer.invoke(IPC.WindowClose),
+  resolveWindowClose: (decision) => ipcRenderer.invoke(IPC.WindowResolveClose, decision),
+  onWindowCloseRequested: (cb) => {
+    const listener = (): void => cb()
+    ipcRenderer.on(IPC.WindowCloseRequested, listener)
+    return () => ipcRenderer.removeListener(IPC.WindowCloseRequested, listener)
+  },
   onMaximizedChange: (cb) => {
     const listener = (_e: Electron.IpcRendererEvent, maximized: boolean): void => cb(maximized)
     ipcRenderer.on(IPC.WindowMaximizeChanged, listener)

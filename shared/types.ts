@@ -81,6 +81,30 @@ export interface RecordingSession {
   startedAt: number
   /** edit.json 最近一次成功保存时间；从未编辑时不存在。 */
   editedAt?: number
+  lifecycle?: 'active' | 'trashed'
+  availability?: 'available' | 'storage-unavailable' | 'source-missing'
+  trashedAt?: number
+  purgeAt?: number
+  cleanupFailed?: boolean
+}
+
+export type ThemeMode = 'system' | 'light' | 'dark'
+export type CloseBehavior = 'background' | 'quit'
+export type TrashRetentionDays = 1 | 3 | 7 | 30 | null
+
+export interface AppSettings {
+  version: 1
+  theme: ThemeMode
+  recordingsPath: string
+  recordingRoots: string[]
+  trashRetentionDays: TrashRetentionDays
+  /** null 表示关闭时仍需询问。 */
+  closeBehavior: CloseBehavior | null
+}
+
+export interface CloseDecision {
+  behavior: CloseBehavior
+  remember: boolean
 }
 
 /** SessionLoad IPC 返回（kr-02 预览加载会话） */

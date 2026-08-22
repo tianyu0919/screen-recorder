@@ -1,8 +1,9 @@
-import { app, protocol, shell } from 'electron'
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { protocol, shell } from 'electron'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { open, readFile } from 'node:fs/promises'
 import { join, normalize, sep } from 'node:path'
 import type { RecordingSession, SessionLoadResult } from '../../shared/types'
+import { sessionCatalog } from './sessionCatalog'
 
 /**
  * 录制会话读取（kr-02 Phase 3 预览）：
@@ -10,11 +11,6 @@ import type { RecordingSession, SessionLoadResult } from '../../shared/types'
  * 注册 media:// 自定义协议流式喂 <video>（net.fetch file:// 支持 Range，seek 不整文件读内存）。
  * 与 SessionStore（录制期落盘）分离：本模块只读。
  */
-
-/** 会话根目录（与 SessionStore.rootDir 一致） */
-export function recordingsRoot(): string {
-  return join(app.getPath('userData'), 'recordings')
-}
 
 const SESSION_ID_RE = /^[\w-]+$/
 
@@ -45,28 +41,13 @@ function readEditedAt(editPath: string): number | undefined {
 
 /** 枚举已落盘会话（按开始时间倒序）；events.json 损坏的会话也列出，选中后走友好错误路径 */
 export function listSessions(): RecordingSession[] {
-  const root = recordingsRoot()
-  if (!existsSync(root)) return []
-  const out: RecordingSession[] = []
-  for (const sessionId of readdirSync(root)) {
-    try {
-      const dir = join(root, sessionId)
-      if (!statSync(dir).isDirectory()) continue
-      const eventsPath = join(dir, 'events.json')
-      if (!existsSync(eventsPath)) continue
-      const editedAt = readEditedAt(join(dir, 'edit.json'))
-      out.push({ sessionId, dir, startedAt: readStartedAt(eventsPath), editedAt })
-    } catch {
-      /* 单个会话读取失败不阻塞列表 */
-    }
-  }
-  return out.sort((a, b) => (b.editedAt ?? b.startedAt) - (a.editedAt ?? a.startedAt))
+  return sessionCatalog.list()
 }
 
 /** 加载会话：返回 events.json 原文 + 视频流式 URL；文件缺失抛错（IPC 包装为友好提示） */
 export function loadSession(sessionId: string): SessionLoadResult {
   if (!SESSION_ID_RE.test(sessionId)) throw new Error('非法会话 ID')
-  const dir = join(recordingsRoot(), sessionId)
+  const dir = sessionCatalog.resolveSessionDir(sessionId)
   const eventsPath = join(dir, 'events.json')
   if (!existsSync(eventsPath)) throw new Error('会话不存在或缺少 events.json')
   const eventsJson = readFileSync(eventsPath, 'utf8')
@@ -106,7 +87,7 @@ export function loadSession(sessionId: string): SessionLoadResult {
 /** 在系统文件管理器（macOS Finder）中显示会话视频文件；文件缺失时回退到会话目录 */
 export function revealSession(sessionId: string): void {
   if (!SESSION_ID_RE.test(sessionId)) throw new Error('非法会话 ID')
-  const dir = join(recordingsRoot(), sessionId)
+  const dir = sessionCatalog.resolveSessionDir(sessionId)
   if (!existsSync(dir)) throw new Error('会话不存在')
   const videoPath = join(dir, 'screen.webm')
   shell.showItemInFolder(existsSync(videoPath) ? videoPath : dir)
@@ -127,11 +108,13 @@ export function registerMediaProtocol(): void {
     const url = new URL(request.url)
     // URL 形如 media://rec/<sessionId>/<file>：host=rec，pathname=/<sessionId>/<file>
     const rel = decodeURIComponent(url.pathname).replace(/^\/+/, '')
-    const root = recordingsRoot()
-    const abs = normalize(join(root, rel))
-    if (abs !== root && !abs.startsWith(root + sep)) {
-      return new Response('forbidden', { status: 403 })
-    }
+    const [sessionId, ...fileParts] = rel.split('/')
+    if (!sessionId || fileParts.length === 0) return new Response('forbidden', { status: 403 })
+    let root: string
+    try { root = sessionCatalog.resolveSessionDir(sessionId, true) }
+    catch { return new Response('not found', { status: 404 }) }
+    const abs = normalize(join(root, ...fileParts))
+    if (abs !== root && !abs.startsWith(root + sep)) return new Response('forbidden', { status: 403 })
     if (!existsSync(abs)) {
       return new Response('not found', { status: 404 })
     }
