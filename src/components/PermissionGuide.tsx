@@ -33,8 +33,8 @@ export function PermissionGuide(): React.JSX.Element {
                   <span
                     className={
                       granted
-                        ? 'h-1.5 w-1.5 rounded-full bg-[#30d158]'
-                        : 'h-1.5 w-1.5 rounded-full bg-[#ffd60a]'
+                        ? 'h-1.5 w-1.5 rounded-full bg-success'
+                        : 'h-1.5 w-1.5 rounded-full bg-warning'
                     }
                   />
                   {item.label}

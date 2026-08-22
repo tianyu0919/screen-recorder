@@ -2,7 +2,7 @@
 
 ## Phase 1: 基线审计与设计基础
 
-- [ ] Task 1.1：记录当前工作树与三视图基线，逐项映射现有组件、store、IPC 和导出入口，确认无业务逻辑替换。
+- [x] Task 1.1：记录当前工作树与三视图基线，逐项映射现有组件、store、IPC 和导出入口，确认无业务逻辑替换。
 - [ ] Task 1.2：审计 `package.json` 与 lockfile；若 Motion 缺失则安装 `motion`，若 lint 命令缺失则补充与当前 TypeScript/React 栈匹配的最小 lint 配置和脚本。
 - [ ] Task 1.3：重构全局 light/dark 语义 token、字体、阴影、圆角、focus-visible 与 reduced-motion 规则；浅色设为首次启动默认值，保留 system/light/dark 偏好切换。
 - [ ] Task 1.4：更新页面 metadata 与根布局主题色，保持 CSP 和 Electron 加载路径不变。

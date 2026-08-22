@@ -14,20 +14,16 @@ export function Switch({ checked, onChange, disabled, label }: SwitchProps): Rea
       type="button"
       role="switch"
       aria-checked={checked}
+      data-state={checked ? 'checked' : 'unchecked'}
       aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
-        'relative h-[21px] w-9 flex-none rounded-full border transition-colors disabled:opacity-40',
+        'ui-switch relative h-[22px] w-[38px] flex-none rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-base disabled:cursor-not-allowed disabled:opacity-60',
         checked ? 'border-transparent bg-accent' : 'border-line-strong bg-surface-3'
       )}
     >
-      <span
-        className={cn(
-          'absolute top-[2px] h-[15px] w-[15px] rounded-full transition-all',
-          checked ? 'left-[17px] bg-white' : 'left-[2px] bg-ink-3'
-        )}
-      />
+      <span className="ui-switch-thumb" />
     </button>
   )
 }

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useAppStore, type AppView } from '@/store/appStore'
 import { SourcePicker } from '@/components/SourcePicker'
 import { PermissionGuide } from '@/components/PermissionGuide'
@@ -9,6 +9,14 @@ import { Segmented } from '@/components/ui/segmented'
 import { Chip } from '@/components/ui/chip'
 import { WindowControls } from '@/components/WindowControls'
 import { ThemeSwitch } from '@/components/ThemeSwitch'
+import { AnimatePresence, MotionConfig, motion } from 'motion/react'
+import { viewTransition } from '@/lib/motion'
+import { Settings } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { SettingsPanel } from '@/components/settings/SettingsPanel'
+import { CloseConfirmDialog } from '@/components/CloseConfirmDialog'
+import { useSettingsStore } from '@/store/settingsStore'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 const VIEW_OPTIONS: Array<{ value: AppView; label: string }> = [
   { value: 'record', label: '录制' },
@@ -23,16 +31,20 @@ const PERMISSION_ITEMS: Array<{ key: 'screen' | 'accessibility' | 'microphone'; 
 
 export default function App(): React.JSX.Element {
   const { view, setView, permissions, refreshPermissions } = useAppStore()
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const loadSettings = useSettingsStore((state) => state.load)
 
   useEffect(() => {
     void refreshPermissions()
-  }, [refreshPermissions])
+    void loadSettings()
+  }, [refreshPermissions, loadSettings])
 
   const screenGranted = permissions === null || permissions.screen === 'granted'
   const isMac = window.api.platform === 'darwin'
   const isWin = window.api.platform === 'win32'
 
   return (
+    <TooltipProvider delayDuration={180} skipDelayDuration={80}>
     <main className="flex h-screen flex-col overflow-hidden bg-base">
       {/* macOS 红绿灯拖拽区（hiddenInset 标题栏）；Windows 拖拽由 header 提供 */}
       {isMac && <div className="app-drag h-10 flex-none" />}
@@ -48,11 +60,12 @@ export default function App(): React.JSX.Element {
           <AppLogo />
           <div>
             <h1 className="text-[15px] font-semibold leading-tight">Lenza</h1>
-            <p className="text-[11.5px] text-ink-3">录制时采集数据，导出时自动运镜</p>
+            <p className="text-[11.5px] text-ink-3">录制时采集数据，导出时自动运算</p>
           </div>
         </div>
         <div className="app-nodrag flex items-center gap-1.5">
           <ThemeSwitch />
+          <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)} aria-label="打开应用设置"><Settings size={14} /></Button>
           <WindowControls />
         </div>
       </header>
@@ -72,8 +85,10 @@ export default function App(): React.JSX.Element {
         <Segmented options={VIEW_OPTIONS} value={view} onChange={setView} />
       </div>
 
+      <MotionConfig reducedMotion="user" transition={{ type: 'spring', stiffness: 420, damping: 32 }}>
+      <AnimatePresence mode="wait" initial={false}>
       {view === 'record' ? (
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <motion.div key="record" variants={viewTransition} initial="initial" animate="enter" exit="exit" className="flex flex-1 flex-col overflow-hidden">
           <div className="flex-1 overflow-y-auto px-6">
             {permissions && !screenGranted && <PermissionGuide />}
             {permissions && screenGranted && permissions.accessibility !== 'granted' && (
@@ -83,12 +98,17 @@ export default function App(): React.JSX.Element {
           </div>
 
           <RecordingPanel />
-        </div>
+        </motion.div>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col">
+        <motion.div key="preview" variants={viewTransition} initial="initial" animate="enter" exit="exit" className="flex min-h-0 flex-1 flex-col">
           <PreviewScreen />
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
+      </MotionConfig>
+      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <CloseConfirmDialog />
     </main>
+    </TooltipProvider>
   )
 }

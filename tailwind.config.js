@@ -14,7 +14,16 @@ export default {
           hover: 'var(--accent-hover)',
           soft: 'var(--accent-soft)',
           border: 'var(--accent-border)'
-        }
+        },
+        'on-accent': 'var(--on-accent)',
+        success: 'var(--success)',
+        warning: 'var(--warning)',
+        danger: 'var(--danger)',
+        canvas: { DEFAULT: 'var(--canvas)', raised: 'var(--canvas-raised)' }
+      },
+      boxShadow: {
+        card: 'var(--shadow-card)',
+        float: 'var(--shadow-float)'
       }
     }
   },

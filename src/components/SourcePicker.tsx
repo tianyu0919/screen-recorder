@@ -4,20 +4,25 @@ import { Button } from '@/components/ui/button'
 import { AppWindowIcon, CheckIcon, MonitorIcon, RefreshIcon } from '@/components/icons'
 import { cn } from '@/lib/utils'
 import type { CaptureSource } from '@shared/types'
+import { motion } from 'motion/react'
+import { staggerContainer, staggerItem } from '@/lib/motion'
 
 function SourceCard({ source }: { source: CaptureSource }): React.JSX.Element {
   const { selectedSourceId, selectSource, status } = useAppStore()
   const selected = selectedSourceId === source.id
   const Icon = source.type === 'screen' ? MonitorIcon : AppWindowIcon
   return (
-    <button
+    <motion.button
+      variants={staggerItem}
+      whileHover={status === 'idle' ? { y: -4 } : undefined}
+      whileTap={status === 'idle' ? { scale: 0.985 } : undefined}
       disabled={status !== 'idle'}
       onClick={() => void selectSource(source.id)}
       className={cn(
-        'group relative rounded-xl border p-2 text-left transition-colors disabled:opacity-60',
+        'group relative rounded-2xl border bg-surface-1 p-2.5 text-left shadow-card transition-[border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-60',
         selected
           ? 'border-accent-border bg-accent-soft shadow-[0_0_0_3px_rgba(255,92,56,0.12)]'
-          : 'border-line bg-surface-1 hover:border-line-strong'
+          : 'border-line hover:border-line-strong hover:shadow-float'
       )}
     >
       {source.thumbnail ? (
@@ -36,12 +41,12 @@ function SourceCard({ source }: { source: CaptureSource }): React.JSX.Element {
         </span>
       </div>
       {selected && (
-        <span className="absolute right-3.5 top-3.5 flex h-5 items-center gap-1 rounded-full bg-accent px-2 text-[10.5px] font-semibold text-white">
+        <span className="selected-badge absolute right-3.5 top-3.5 flex h-5 items-center gap-1 rounded-full bg-accent px-2 text-[10.5px] font-semibold">
           <CheckIcon size={10} />
           已选择
         </span>
       )}
-    </button>
+    </motion.button>
   )
 }
 
@@ -108,11 +113,11 @@ export function SourcePicker(): React.JSX.Element {
       {screens.length > 0 && (
         <section>
           <SectionHead title="屏幕" count={`${screens.length} 个显示器`} action={refreshButton} />
-          <div className="grid grid-cols-3 gap-3.5 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+          <motion.div variants={staggerContainer} initial="initial" animate="enter" className="grid grid-cols-3 gap-3.5 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
             {screens.map((s) => (
               <SourceCard key={s.id} source={s} />
             ))}
-          </div>
+          </motion.div>
         </section>
       )}
       {windows.length > 0 && (
@@ -122,11 +127,11 @@ export function SourcePicker(): React.JSX.Element {
             count={`${windows.length} 个应用窗口`}
             action={screens.length === 0 ? refreshButton : undefined}
           />
-          <div className="grid grid-cols-3 gap-3.5 pb-1 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+          <motion.div variants={staggerContainer} initial="initial" animate="enter" className="grid grid-cols-3 gap-3.5 pb-1 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
             {windows.map((s) => (
               <SourceCard key={s.id} source={s} />
             ))}
-          </div>
+          </motion.div>
         </section>
       )}
     </div>

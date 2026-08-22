@@ -2,42 +2,109 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 主题色板：dark 为默认；light 覆盖。tailwind.config.js 的颜色映射到这些变量 */
+/* Lenza 语义色板：浅色优先，深色使用同一组 token。 */
 :root,
-:root[data-theme='dark'] {
-  --base: #0a0a0c;
-  --surface-1: #121215;
-  --surface-2: #1a1a1f;
-  --surface-3: #24242a;
-  --line: rgba(255, 255, 255, 0.08);
-  --line-strong: rgba(255, 255, 255, 0.14);
-  --ink-1: #f5f5f6;
-  --ink-2: #a3a3ab;
-  --ink-3: #5d5d66;
-  --accent: #ff5c38;
-  --accent-hover: #ff6f4e;
-  --accent-soft: rgba(255, 92, 56, 0.14);
-  --accent-border: rgba(255, 92, 56, 0.5);
+:root[data-theme='light'] {
+  --base: #eef0f2;
+  --surface-1: #fafafa;
+  --surface-2: #f3f4f5;
+  --surface-3: #e6e8ea;
+  --line: rgba(30, 34, 38, 0.09);
+  --line-strong: rgba(30, 34, 38, 0.17);
+  --ink-1: #1d2024;
+  --ink-2: #5f656d;
+  --ink-3: #9298a0;
+  --accent: #f0522d;
+  --accent-hover: #dd4320;
+  --accent-soft: rgba(240, 82, 45, 0.1);
+  --accent-border: rgba(240, 82, 45, 0.42);
+  --on-accent: #ffffff;
+  --success: #29965a;
+  --warning: #c98218;
+  --danger: #cf3f36;
+  --canvas: #15171a;
+  --canvas-raised: #202328;
+  --shadow-card: 0 1px 2px rgba(26, 30, 34, 0.04), 0 10px 28px rgba(26, 30, 34, 0.06);
+  --shadow-float: 0 18px 50px rgba(26, 30, 34, 0.13);
 }
 
-:root[data-theme='light'] {
-  --base: #e9e9ed;
-  --surface-1: #f6f6f8;
-  --surface-2: #e0e0e6;
-  --surface-3: #d5d5dc;
-  --line: rgba(10, 10, 12, 0.09);
-  --line-strong: rgba(10, 10, 12, 0.16);
-  --ink-1: #17171a;
-  --ink-2: #55555e;
-  --ink-3: #8e8e96;
-  --accent: #f04a26;
-  --accent-hover: #e03d1a;
-  --accent-soft: rgba(240, 74, 38, 0.1);
-  --accent-border: rgba(240, 74, 38, 0.45);
+:root[data-theme='dark'] {
+  --base: #101113;
+  --surface-1: #17191c;
+  --surface-2: #1e2125;
+  --surface-3: #292d32;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.15);
+  --ink-1: #f2f3f4;
+  --ink-2: #aeb3b9;
+  --ink-3: #737980;
+  --accent: #ff6541;
+  --accent-hover: #ff795b;
+  --accent-soft: rgba(255, 101, 65, 0.13);
+  --accent-border: rgba(255, 101, 65, 0.48);
+  --on-accent: #ffffff;
+  --success: #46b879;
+  --warning: #e2a142;
+  --danger: #f06b62;
+  --canvas: #0b0c0e;
+  --canvas-raised: #17191d;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.2), 0 12px 30px rgba(0, 0, 0, 0.18);
+  --shadow-float: 0 20px 60px rgba(0, 0, 0, 0.38);
 }
 
 body {
   @apply bg-base text-ink-1 antialiased;
+  font-family: Geist, "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+button, input, [role='button'] { -webkit-tap-highlight-color: transparent; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.status-dot-success {
+  background: var(--success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 14%, transparent);
+}
+.status-dot-warning {
+  background: var(--warning);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 14%, transparent);
+}
+.status-dot-danger {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+.selected-badge {
+  color: var(--on-accent);
+}
+
+.ui-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--surface-1);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 1px 4px rgba(20, 23, 26, 0.24);
+  transform: translateX(0);
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), background-color 150ms;
+}
+.ui-switch[data-state='checked'] .ui-switch-thumb {
+  background: var(--on-accent);
+  border-color: transparent;
+  transform: translateX(16px);
+}
+
+/* 橙红色强调控件统一使用纯白前景，覆盖继承自父按钮的深色文字。 */
+button.bg-accent,
+[role='button'].bg-accent,
+.bg-accent.selected-badge {
+  color: var(--on-accent);
 }
 
 /* Electron 无边框窗口：拖拽区 / 交互区 */
@@ -64,8 +131,13 @@ body {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  background: var(--on-accent);
+  border: 2px solid var(--accent);
+  box-shadow: 0 2px 8px rgba(20, 23, 26, 0.22), 0 0 0 2px var(--surface-1);
+}
+.ui-slider:hover::-webkit-slider-thumb,
+.ui-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 2px 8px rgba(20, 23, 26, 0.22), 0 0 0 3px var(--accent-soft);
 }
 .ui-slider:disabled {
   opacity: 0.4;
@@ -96,4 +168,23 @@ body {
 }
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+@keyframes select-in {
+  from { opacity: 0; transform: translateY(-3px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes select-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-2px) scale(0.985); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
