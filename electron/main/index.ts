@@ -29,14 +29,6 @@ function loadAppIcon() {
 
 const appIcon = loadAppIcon()
 
-// media:// 流式播放录制视频（kr-02 预览）；须在 app ready 前注册特权
-protocol.registerSchemesAsPrivileged([
-  {
-    scheme: 'media',
-    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true }
-  }
-])
-
 let win: BrowserWindow | null = null
 let quitting = false
 
@@ -89,33 +81,51 @@ function createWindow(): void {
   win.on('unmaximize', () => win?.webContents.send(IPC.WindowMaximizeChanged, false))
 }
 
-app.whenReady().then(() => {
-  // Windows/Linux 去掉默认应用菜单（File/Edit/View...），macOS 保留以维持系统级快捷键与 Dock 菜单
-  if (process.platform !== 'darwin') Menu.setApplicationMenu(null)
-  // 仅开发期覆盖 Dock 图标；打包后 .app 自带 icns，无需也不应覆盖
-  if (process.platform === 'darwin' && appIcon && !app.isPackaged) {
-    app.dock?.setIcon(appIcon)
-  }
-  registerDisplayMediaHandler()
-  registerMediaProtocol()
-  registerIpc(() => win, appIcon)
-  sessionCatalog.load()
-  void sessionCatalog.purgeExpired()
-  setInterval(() => void sessionCatalog.purgeExpired(), 60_000).unref()
-  createWindow()
-  updateService.initialize(() => win)
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
-    else if (win) showWindow(win)
+if (!hasSingleInstanceLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (win && !win.isDestroyed()) showWindow(win)
   })
-})
 
-app.on('before-quit', () => {
-  quitting = true
-  disposeTray()
-})
+  // media:// 流式播放录制视频（kr-02 预览）；须在 app ready 前注册特权
+  protocol.registerSchemesAsPrivileged([
+    {
+      scheme: 'media',
+      privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true }
+    }
+  ])
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit()
-})
+  app.whenReady().then(() => {
+    // Windows/Linux 去掉默认应用菜单（File/Edit/View...），macOS 保留以维持系统级快捷键与 Dock 菜单
+    if (process.platform !== 'darwin') Menu.setApplicationMenu(null)
+    // 仅开发期覆盖 Dock 图标；打包后 .app 自带 icns，无需也不应覆盖
+    if (process.platform === 'darwin' && appIcon && !app.isPackaged) {
+      app.dock?.setIcon(appIcon)
+    }
+    registerDisplayMediaHandler()
+    registerMediaProtocol()
+    registerIpc(() => win, appIcon)
+    sessionCatalog.load()
+    void sessionCatalog.purgeExpired()
+    setInterval(() => void sessionCatalog.purgeExpired(), 60_000).unref()
+    createWindow()
+    updateService.initialize(() => win)
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow()
+      else if (win) showWindow(win)
+    })
+  })
+
+  app.on('before-quit', () => {
+    quitting = true
+    disposeTray()
+  })
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') app.quit()
+  })
+}

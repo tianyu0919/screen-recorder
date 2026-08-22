@@ -98,6 +98,8 @@ Screen Studio 能"放大/替换/平滑光标"的前提是：**光标没有被烧
 
 关闭后台运行按平台拆分在 `electron/windowLifecycle/`：Windows 从 `resourcesPath/tray-icon.ico` 创建系统托盘，且仅在托盘创建成功后隐藏主窗口；macOS 隐藏窗口并通过 Dock `activate` 恢复。共享分发层只选择 `win32.ts` / `darwin.ts`，不混合平台实现。
 
+Main 进程启动时通过 Electron 单实例锁阻止重复实例。再次从快捷方式或应用目录启动时，`second-instance` 事件统一调用平台窗口恢复逻辑：最小化窗口先还原，后台隐藏窗口重新显示并聚焦；macOS 同时激活应用。
+
 ```
 <recordings-root>/<session-id>/
 ├── screen.webm          # 原始屏幕画面（纯视频轨）
