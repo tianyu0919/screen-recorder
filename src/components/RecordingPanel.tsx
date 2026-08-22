@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useAppStore } from '@/store/appStore'
-import { usePreviewStore } from '@/store/previewStore'
 import { Switch } from '@/components/ui/switch'
 import { AudioLinesIcon, CloseIcon, MicIcon } from '@/components/icons'
 import { cn } from '@/lib/utils'
 import { motion, useReducedMotion } from 'motion/react'
 import { Play, Video } from 'lucide-react'
+import { openPreviewSession, preloadPreview } from '@/lib/previewLoader'
 
 function formatElapsed(sec: number): string {
   const m = Math.floor(sec / 60)
@@ -160,8 +160,15 @@ export function RecordingPanel(): React.JSX.Element {
                 whileTap={{ scale: 0.97 }}
                 onClick={() => {
                   useAppStore.getState().setView('preview')
-                  void usePreviewStore.getState().openSession(lastSession.sessionId)
+                  void openPreviewSession(lastSession.sessionId).catch(() => {
+                    useAppStore.setState({
+                      view: 'record',
+                      error: { code: 'UNKNOWN', message: '预览编辑器加载失败，请重试' }
+                    })
+                  })
                 }}
+                onPointerEnter={preloadPreview}
+                onFocus={preloadPreview}
                 className="flex h-8 flex-none items-center gap-1.5 rounded-lg border border-accent-border bg-accent-soft px-3 text-[12px] font-semibold text-accent transition-colors hover:bg-accent hover:text-on-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-base"
               >
                 <Play size={12} fill="currentColor" />

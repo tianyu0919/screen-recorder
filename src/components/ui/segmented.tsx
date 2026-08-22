@@ -4,6 +4,7 @@ interface SegmentedProps<T extends string> {
   options: Array<{ value: T; label: string }>
   value: T
   onChange(v: T): void
+  onIntent?(v: T): void
   className?: string
 }
 
@@ -12,6 +13,7 @@ export function Segmented<T extends string>({
   options,
   value,
   onChange,
+  onIntent,
   className
 }: SegmentedProps<T>): React.JSX.Element {
   return (
@@ -29,6 +31,8 @@ export function Segmented<T extends string>({
           role="tab"
           aria-selected={value === opt.value}
           onClick={() => onChange(opt.value)}
+          onPointerEnter={() => onIntent?.(opt.value)}
+          onFocus={() => onIntent?.(opt.value)}
           className={cn(
             'rounded-md px-4 py-[5px] text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
             value === opt.value

@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { useAppStore, type AppView } from '@/store/appStore'
 import { SourcePicker } from '@/components/SourcePicker'
 import { PermissionGuide } from '@/components/PermissionGuide'
 import { RecordingPanel } from '@/components/RecordingPanel'
-import { PreviewScreen } from '@/components/preview/PreviewScreen'
 import { AppLogo } from '@/components/AppLogo'
 import { Segmented } from '@/components/ui/segmented'
 import { Chip } from '@/components/ui/chip'
@@ -19,6 +18,14 @@ import { useSettingsStore } from '@/store/settingsStore'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { UpdateControl } from '@/components/UpdateControl'
 import { useUpdateStore } from '@/store/updateStore'
+import { loadPreviewScreen, preloadPreview } from '@/lib/previewLoader'
+import { PreviewLoadingState } from '@/components/preview/PreviewLoadingState'
+import { PreviewLoadBoundary } from '@/components/preview/PreviewLoadBoundary'
+
+const PreviewScreen = lazy(async () => {
+  const module = await loadPreviewScreen()
+  return { default: module.PreviewScreen }
+})
 
 const VIEW_OPTIONS: Array<{ value: AppView; label: string }> = [
   { value: 'record', label: '录制' },
@@ -32,7 +39,7 @@ const PERMISSION_ITEMS: Array<{ key: 'screen' | 'accessibility' | 'microphone'; 
 ]
 
 export default function App(): React.JSX.Element {
-  const { view, setView, permissions, refreshPermissions } = useAppStore()
+  const { view, setView, permissions, refreshPermissions, status } = useAppStore()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const loadSettings = useSettingsStore((state) => state.load)
   const initializeUpdates = useUpdateStore((state) => state.initialize)
@@ -87,7 +94,7 @@ export default function App(): React.JSX.Element {
               </Chip>
             ))}
         </div>
-        <Segmented options={VIEW_OPTIONS} value={view} onChange={setView} />
+        <Segmented options={VIEW_OPTIONS} value={view} onChange={setView} onIntent={(target) => { if (target === 'preview') preloadPreview() }} />
       </div>
 
       <MotionConfig reducedMotion="user" transition={{ type: 'spring', stiffness: 420, damping: 32 }}>
@@ -106,7 +113,9 @@ export default function App(): React.JSX.Element {
         </motion.div>
       ) : (
         <motion.div key="preview" variants={viewTransition} initial="initial" animate="enter" exit="exit" className="flex min-h-0 flex-1 flex-col">
-          <PreviewScreen />
+          <PreviewLoadBoundary onBack={() => setView('record')} onRetry={() => window.location.reload()} canReload={status === 'idle'}>
+            <Suspense fallback={<PreviewLoadingState />}><PreviewScreen /></Suspense>
+          </PreviewLoadBoundary>
         </motion.div>
       )}
       </AnimatePresence>
