@@ -40,4 +40,10 @@ nsis:
   artifactName: ${productName}-Setup-${version}.${ext}
   oneClick: false
   perMachine: false
+  allowToChangeInstallationDirectory: true
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  include: build/installer.nsh
+  createDesktopShortcut: true
+  runAfterFinish: true
   shortcutName: Lenza

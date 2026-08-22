@@ -252,5 +252,6 @@ screen-recorder/
 - Windows 使用 `electron-updater` + NSIS：用户在弹层确认后才下载，下载完成后仍需用户点击“重启并安装”；录制期间 Main 拒绝安装。
 - macOS 当前没有 Developer ID 签名与 notarization，因此只检查版本并打开精确 GitHub Release，禁止应用内下载/替换；ad-hoc/self-signed 不视为正式更新签名。取得证书后才能开放应用内安装。
 - `electron-builder.yml` 的 GitHub provider 生成 `app-update.yml`；Release 发布 Windows 安装包、`latest.yml`、blockmap，以及 macOS DMG、ZIP、`latest-mac.yml`、blockmap。tag 的 `vX.Y.Z` 必须与 `package.json` 版本一致。
+- Windows 首次安装使用 electron-builder 默认 assisted NSIS 脚本，`build/installer.nsh` 只通过官方 include 宏增加 Lenza 欢迎页；用户可选择安装范围和目录。不得用完整自定义 script 替换默认安装器，以免破坏 `electron-updater` 的覆盖安装参数。
 - 应用设置 schema 为 V2，在原主题、录制根、回收站和关闭策略之外增加 `autoCheckUpdates`；读取 V1 时默认补 `true` 并保留原字段。
 - 本机直连 GitHub 受限时（electron-builder 下载 NSIS/winCodeSign 超时），设 `ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/` 再跑 `npm run dist`；CI runner 无需此设置。
