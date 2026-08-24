@@ -28,7 +28,7 @@ import {
  * WebGL 合成器主类（Task 2.1–2.4）。
  * 纯渲染模块：drawFrame(帧源, 相机, 时间, 点击点) 一入一画，无 store / 实时时钟依赖；
  * 构造接受 HTMLCanvasElement（预览）或 OffscreenCanvas（kr-03 Worker 离线导出）。
- * 合成顺序（spec §4.2）：背景渐变 → 视频画面（圆角 + 阴影）→ 点击波纹。
+ * 合成顺序：纯色底 → 保持原始矩形边缘的视频画面 → 点击波纹。
  */
 
 export class CompositorError extends Error {
@@ -83,17 +83,13 @@ export class Compositor {
     this.gl = gl
 
     this.quad = createQuadBuffer(gl)
-    this.bg = makeSlots(gl, BG_FRAG_SRC, ['u_output', 'u_colorFrom', 'u_colorTo', 'u_angle'])
+    this.bg = makeSlots(gl, BG_FRAG_SRC, ['u_output', 'u_color'])
     this.video = makeSlots(gl, VIDEO_FRAG_SRC, [
       'u_tex',
       'u_output',
       'u_canvasSize',
       'u_scale',
-      'u_offset',
-      'u_cornerRadius',
-      'u_shadowColor',
-      'u_shadowBlur',
-      'u_shadowOffsetY'
+      'u_offset'
     ])
     this.ripple = makeSlots(gl, RIPPLE_FRAG_SRC, [
       'u_output',
@@ -137,17 +133,15 @@ export class Compositor {
 
     gl.viewport(0, 0, output.width, output.height)
 
-    // 1) 背景渐变（不透明底，不开混合）
+    // 1) 纯色底（背景关闭时视频以零留白完整覆盖）。
     gl.disable(gl.BLEND)
     gl.useProgram(this.bg.program)
     this.bindQuad()
     gl.uniform2f(this.u(this.bg, 'u_output'), output.width, output.height)
-    gl.uniform4fv(this.u(this.bg, 'u_colorFrom'), background.from)
-    gl.uniform4fv(this.u(this.bg, 'u_colorTo'), background.to)
-    gl.uniform1f(this.u(this.bg, 'u_angle'), background.angleRad)
+    gl.uniform4fv(this.u(this.bg, 'u_color'), background.color)
     gl.drawArrays(gl.TRIANGLES, 0, 3)
 
-    // 2) 视频画面（圆角裁剪 + 阴影，alpha 混合覆盖背景）
+    // 2) 视频画面（真实矩形边缘，alpha 混合覆盖背景）
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
     gl.useProgram(this.video.program)
@@ -159,10 +153,6 @@ export class Compositor {
     gl.uniform2f(this.u(this.video, 'u_canvasSize'), this.canvasSize.width, this.canvasSize.height)
     gl.uniform1f(this.u(this.video, 'u_scale'), transform.scale)
     gl.uniform2f(this.u(this.video, 'u_offset'), transform.offsetX, transform.offsetY)
-    gl.uniform1f(this.u(this.video, 'u_cornerRadius'), videoStyle.cornerRadius)
-    gl.uniform4fv(this.u(this.video, 'u_shadowColor'), videoStyle.shadow.color)
-    gl.uniform1f(this.u(this.video, 'u_shadowBlur'), Math.max(1, videoStyle.shadow.blur))
-    gl.uniform1f(this.u(this.video, 'u_shadowOffsetY'), videoStyle.shadow.offsetY)
     gl.drawArrays(gl.TRIANGLES, 0, 3)
 
     // 3) 点击波纹叠加（options.maxRipples 为配置上限，MAX_RIPPLES 为 shader 容量硬顶）
@@ -283,8 +273,7 @@ function mergeOptions(config: CompositorConfig): CompositorOptions {
     background: { ...d.background, ...config.background },
     videoStyle: {
       ...d.videoStyle,
-      ...config.videoStyle,
-      shadow: { ...d.videoStyle.shadow, ...config.videoStyle?.shadow }
+      ...config.videoStyle
     },
     ripple: { ...d.ripple, ...config.ripple },
     maxRipples: config.maxRipples ?? d.maxRipples

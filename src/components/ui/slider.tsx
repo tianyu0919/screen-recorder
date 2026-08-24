@@ -36,7 +36,7 @@ export function Slider({
       // min-w-0：Chromium 给 range 输入约 129px 的默认最小宽，flex 布局里必须允许收缩
       className={cn('ui-slider min-w-0', className)}
       style={{
-        background: `linear-gradient(to right, var(--accent) ${percent}%, var(--surface-3) ${percent}%)`
+        background: `linear-gradient(to right, ${disabled ? 'var(--ink-3)' : 'var(--accent)'} ${percent}%, var(--surface-3) ${percent}%)`
       }}
     />
   )

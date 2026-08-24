@@ -12,6 +12,10 @@ import { createPreviewMotionActions } from './previewMotionActions'
 import { markEditDirty, resetEditAutosave } from './editAutosave'
 import { restoreCustomAudio } from './customAudioPersistence'
 import type { PreviewSession, PreviewState } from './previewTypes'
+import {
+  DEFAULT_BACKGROUND_PADDING_PERCENT,
+  normalizeBackgroundPaddingPercent
+} from '@shared/edit'
 
 export type { CustomClip } from '@/lib/audioClip'
 
@@ -29,9 +33,16 @@ const EMPTY_EDIT_STATE = {
 
 export const usePreviewStore = create<PreviewState>((set, get) => ({
   sessions: [], sessionsLoaded: false, loading: false, loadError: null,
-  current: null, motionParams: DEFAULT_MOTION_PARAMS, keyframes: [], ripples: [],
+  current: null, motionParams: DEFAULT_MOTION_PARAMS, motionEnabled: true,
+  keyframes: [], ripples: [],
   ...EMPTY_EDIT_STATE,
   cuts: [], sourceDurationMs: null, audioGain: { mic: 1, system: 1 },
+  audioMute: { mic: false, system: false },
+  renderSettings: {
+    backgroundEnabled: false,
+    backgroundColor: '#16181D',
+    backgroundPaddingPercent: DEFAULT_BACKGROUND_PADDING_PERCENT
+  },
   customClips: [], clipError: null,
 
   async loadSessions() {
@@ -105,15 +116,17 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
       const restored = await restoreCustomAudio(sessionId, document.customAudio)
       const derived = derivePreviewEdit(
         current, document.motionParams, document.motionEffects, document.manualKeyPrompts,
-        document.hiddenRecordedKeyIndices, timeline.durationMs
+        document.hiddenRecordedKeyIndices, timeline.durationMs, document.motionEnabled
       )
       set({
         loading: false, current, motionParams: document.motionParams,
+        motionEnabled: document.motionEnabled,
         motionEffects: document.motionEffects, selectedMotionId: null,
         manualKeyPrompts: document.manualKeyPrompts,
         hiddenRecordedKeyIndices: document.hiddenRecordedKeyIndices,
         keyboardOverlay: document.keyboardOverlay, cuts: document.cuts,
-        audioGain: document.audioGain, customClips: restored.clips,
+        audioGain: document.audioGain, audioMute: document.audioMute,
+        renderSettings: document.renderSettings, customClips: restored.clips,
         clipError: restored.error, sourceDurationMs: null,
         saveState: { kind: 'idle' }, editRevision: 0, editLoadError, ...derived
       })
@@ -132,7 +145,14 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     clearClipAssets()
     set({
       current: null, keyframes: [], ripples: [], loadError: null, cuts: [],
-      sourceDurationMs: null, audioGain: { mic: 1, system: 1 }, customClips: [],
+      sourceDurationMs: null, audioGain: { mic: 1, system: 1 },
+      audioMute: { mic: false, system: false },
+      renderSettings: {
+        backgroundEnabled: false,
+        backgroundColor: '#16181D',
+        backgroundPaddingPercent: DEFAULT_BACKGROUND_PADDING_PERCENT
+      },
+      motionEnabled: true, customClips: [],
       clipError: null, ...EMPTY_EDIT_STATE
     })
   },
@@ -147,9 +167,36 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     if (!state.current) return
     set(derivePreviewEdit(
       state.current, motionParams, motionEffects, state.manualKeyPrompts,
-      state.hiddenRecordedKeyIndices, state.sourceDurationMs ?? Infinity
+      state.hiddenRecordedKeyIndices, state.sourceDurationMs ?? Infinity,
+      state.motionEnabled
     ))
     markEditDirty(get, set)
+  },
+
+  setMotionEnabled(motionEnabled) {
+    const state = get()
+    if (state.motionEnabled === motionEnabled) return
+    set({
+      motionEnabled,
+      ...(state.current ? derivePreviewEdit(
+        state.current, state.motionParams, state.motionEffects, state.manualKeyPrompts,
+        state.hiddenRecordedKeyIndices, state.sourceDurationMs ?? Infinity, motionEnabled
+      ) : {})
+    })
+    markEditDirty(get, set, 0)
+  },
+
+  setRenderSettings(patch) {
+    const next = { ...get().renderSettings, ...patch }
+    if (patch.backgroundColor && !/^#[0-9a-f]{6}$/i.test(patch.backgroundColor)) return
+    if (patch.backgroundColor) next.backgroundColor = patch.backgroundColor.toUpperCase()
+    if (patch.backgroundPaddingPercent !== undefined) {
+      next.backgroundPaddingPercent = normalizeBackgroundPaddingPercent(
+        patch.backgroundPaddingPercent
+      )
+    }
+    set({ renderSettings: next })
+    markEditDirty(get, set, 0)
   },
 
   addCut(range) {
@@ -177,7 +224,7 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
       customClips: clampPreviewClips(state, durationMs),
       ...(state.current ? derivePreviewEdit(
         state.current, state.motionParams, motionEffects, state.manualKeyPrompts,
-        state.hiddenRecordedKeyIndices, durationMs
+        state.hiddenRecordedKeyIndices, durationMs, state.motionEnabled
       ) : {})
     })
   },

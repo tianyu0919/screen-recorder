@@ -206,7 +206,8 @@ export function PlayerTimeline({
             <TimelineRuler duration={duration} contentWidth={contentWpx} pxPerSec={pxPerSec} onPointerDown={cutSel.beginDrag('create')} onPointerMove={cutSel.onDragMove} onPointerUp={cutSel.onDragEnd} />
             <CutsLayer cuts={store.cuts} duration={duration} rangeSel={cutSel.rangeSel} sel={cutSel} onCommit={() => { if (cutSel.rangeSel) store.addCut(cutSel.rangeSel); cutSel.setRangeSel(null) }} onDiscard={() => cutSel.setRangeSel(null)} onEditCut={(range, index) => { store.removeCut(index); cutSel.setRangeSel(range) }} />
             <TimelineTracks
-              motionEffects={store.motionEffects} selectedMotionId={store.selectedMotionId}
+              motionEffects={store.motionEffects} motionEnabled={store.motionEnabled}
+              selectedMotionId={store.selectedMotionId}
               keyPrompts={store.keyPrompts} ripples={store.ripples} clips={store.customClips}
               duration={duration} pxPerSec={pxPerSec} eventWindow={eventWindow} getPlayheadMs={getPlayheadMs}
               onSelectMotion={store.selectMotionEffect} onSeek={onSeek}

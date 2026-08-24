@@ -47,6 +47,7 @@ const clip: CustomClip = {
   name: 'bgm.wav',
   offsetMs: 0,
   gain: 1,
+  muted: false,
   sourceDurationMs: 60_000,
   trimStartMs: 0,
   trimEndMs: 60_000,

@@ -9,11 +9,13 @@ type SetState = (patch: Partial<PreviewState>) => void
 type AudioActions = Pick<
   PreviewState,
   | 'setAudioGain'
+  | 'setAudioMuted'
   | 'addCustomClip'
   | 'removeCustomClip'
   | 'setClipOffset'
   | 'setClipTrim'
   | 'setClipGain'
+  | 'setClipMuted'
 >
 
 export function createPreviewAudioActions(set: SetState, get: GetState): AudioActions {
@@ -21,6 +23,11 @@ export function createPreviewAudioActions(set: SetState, get: GetState): AudioAc
     setAudioGain(patch) {
       set({ audioGain: { ...get().audioGain, ...patch } })
       markEditDirty(get, set)
+    },
+
+    setAudioMuted(track, muted) {
+      set({ audioMute: { ...get().audioMute, [track]: muted } })
+      markEditDirty(get, set, 0)
     },
 
     async addCustomClip(offsetMs = 0) {
@@ -83,6 +90,15 @@ export function createPreviewAudioActions(set: SetState, get: GetState): AudioAc
         )
       })
       markEditDirty(get, set)
+    },
+
+    setClipMuted(id, muted) {
+      set({
+        customClips: get().customClips.map((clip) =>
+          clip.id === id ? { ...clip, muted } : clip
+        )
+      })
+      markEditDirty(get, set, 0)
     }
   }
 }

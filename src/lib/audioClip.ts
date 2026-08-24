@@ -5,6 +5,8 @@ export interface CustomClip {
   /** clip 在视频源时间轴上的起点。 */
   offsetMs: number
   gain: number
+  /** 静音不覆盖 gain，取消静音后恢复原增益。 */
+  muted: boolean
   /** 原音频总时长与当前保留区间。 */
   sourceDurationMs: number
   trimStartMs: number

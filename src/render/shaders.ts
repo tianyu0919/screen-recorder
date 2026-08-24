@@ -20,25 +20,17 @@ void main() {
 }
 `
 
-/** Task 2.2 背景层：沿 u_angle 方向的线性渐变，铺满整幅输出画布 */
+/** 纯色背景层。 */
 export const BG_FRAG_SRC = /* glsl */ `
 precision mediump float;
-uniform vec4 u_colorFrom;
-uniform vec4 u_colorTo;
-uniform float u_angle;
-varying vec2 v_uv;
+uniform vec4 u_color;
 void main() {
-  vec2 dir = vec2(sin(u_angle), cos(u_angle));
-  vec2 p = v_uv - 0.5;
-  float g = clamp(dot(p, dir) + 0.5, 0.0, 1.0);
-  gl_FragColor = mix(u_colorFrom, u_colorTo, g);
+  gl_FragColor = u_color;
 }
 `
 
 /**
- * Task 2.1 + 2.2 视频层：按相机仿射变换（u_scale/u_offset）反算纹理坐标采样，
- * 圆角 SDF 裁剪（1px 抗锯齿），矩形外按阴影 SDF 距离衰减画投影。
- * 画布外（含圆角外）的视频区域由阴影/背景透出，无黑边。
+ * 视频层：按相机仿射变换反算纹理坐标，矩形外透明。
  */
 export const VIDEO_FRAG_SRC = /* glsl */ `
 precision highp float;
@@ -46,34 +38,15 @@ uniform sampler2D u_tex;
 uniform vec2 u_canvasSize;
 uniform float u_scale;
 uniform vec2 u_offset;
-uniform float u_cornerRadius;
-uniform vec4 u_shadowColor;
-uniform float u_shadowBlur;
-uniform float u_shadowOffsetY;
 varying vec2 v_px;
 varying vec2 v_uv;
 
-float sdRoundBox(vec2 p, vec2 b, float r) {
-  vec2 q = abs(p) - b + r;
-  return length(max(q, vec2(0.0))) + min(max(q.x, q.y), 0.0) - r;
-}
-
 void main() {
-  vec2 half_ = u_canvasSize * u_scale * 0.5;
-  vec2 center = u_offset + half_;
-  float r = min(u_cornerRadius, min(half_.x, half_.y));
-  // 输出像素 → 画布坐标 → 纹理 uv（纹理首行 = 视频顶行，与左上原点一致）
   vec2 canvasPos = (v_px - u_offset) / u_scale;
-  vec2 uv = clamp(canvasPos / u_canvasSize, 0.0, 1.0);
-  float sd = sdRoundBox(v_px - center, half_, r);
-  // 视频 alpha：圆角边界 1px 过渡
-  float va = clamp(0.5 - sd, 0.0, 1.0);
-  // 阴影：矩形（带垂直偏移）外向距离在 blur 内衰减
-  float sdShadow = sdRoundBox(v_px - (center + vec2(0.0, u_shadowOffsetY)), half_, r);
-  float sa = u_shadowColor.a * (1.0 - smoothstep(0.0, u_shadowBlur, sdShadow));
-  vec4 shadow = vec4(u_shadowColor.rgb, sa);
+  vec2 uv = canvasPos / u_canvasSize;
+  float inside = step(0.0, uv.x) * step(0.0, uv.y) * step(uv.x, 1.0) * step(uv.y, 1.0);
   vec4 texel = texture2D(u_tex, uv);
-  gl_FragColor = vec4(mix(shadow.rgb, texel.rgb, va), mix(shadow.a, 1.0, va));
+  gl_FragColor = vec4(texel.rgb, inside);
 }
 `
 

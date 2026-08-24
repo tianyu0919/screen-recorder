@@ -1,5 +1,12 @@
 import { create } from 'zustand'
-import type { AppSettings, CloseBehavior, ThemeMode, TrashRetentionDays } from '@shared/types'
+import type {
+  AppSettings,
+  AppSettingsPatch,
+  CloseBehavior,
+  PreviewQualityMode,
+  ThemeMode,
+  TrashRetentionDays
+} from '@shared/types'
 import { useThemeStore } from './themeStore'
 
 interface SettingsState {
@@ -7,7 +14,7 @@ interface SettingsState {
   loading: boolean
   error: string | null
   load(): Promise<void>
-  update(patch: Partial<Pick<AppSettings, 'theme' | 'trashRetentionDays' | 'closeBehavior' | 'autoCheckUpdates'>>): Promise<void>
+  update(patch: AppSettingsPatch): Promise<void>
   chooseRecordingsPath(): Promise<void>
   openRecordingsPath(): Promise<void>
 }
@@ -77,4 +84,11 @@ export const RETENTION_OPTIONS: Array<{ value: TrashRetentionDays; label: string
 export const CLOSE_OPTIONS: Array<{ value: CloseBehavior; label: string }> = [
   { value: 'background', label: '后台运行' },
   { value: 'quit', label: '直接退出' }
+]
+
+export const PREVIEW_QUALITY_OPTIONS: Array<{ value: PreviewQualityMode; label: string }> = [
+  { value: 'auto', label: '自动' },
+  { value: 'smooth', label: '流畅' },
+  { value: 'high', label: '高清' },
+  { value: 'ultra', label: '超清' }
 ]

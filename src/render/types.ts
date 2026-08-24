@@ -13,27 +13,14 @@ export interface OutputSize {
   height: number
 }
 
-/** 背景渐变参数（整幅输出画布，视频留白区域可见） */
+/** 纯色背景参数（仅在视频未铺满画布时可见） */
 export interface BackgroundParams {
-  /** 渐变起点颜色 */
-  from: Rgba
-  /** 渐变终点颜色 */
-  to: Rgba
-  /** 渐变方向角（弧度）：0 = 从上到下，π/2 = 从左到右 */
-  angleRad: number
+  color: Rgba
 }
 
-/** 视频画面样式（Task 2.2：padding / 圆角 / 阴影） */
+/** 视频画面样式；录制内容边缘保持原始矩形，不施加圆角或阴影。 */
 export interface VideoStyleParams {
-  /**
-   * 四周留白比例（相对输出短边）。zoom=1 全景时视频居中留白，
-   * 露出背景渐变；zoom 放大后视频超出画布，圆角/阴影自然出屏。
-   */
   paddingRatio: number
-  /** 圆角半径（输出像素，zoom=1 基准；不随 zoom 缩放） */
-  cornerRadius: number
-  /** 投影：颜色 / 模糊半径（输出像素）/ 垂直偏移 */
-  shadow: { color: Rgba; blur: number; offsetY: number }
 }
 
 /** 点击波纹参数（Task 2.3） */
@@ -60,14 +47,10 @@ export interface CompositorOptions {
 export const DEFAULT_COMPOSITOR_OPTIONS: CompositorOptions = {
   output: { width: 1920, height: 1080 },
   background: {
-    from: [0.23, 0.25, 0.38, 1],
-    to: [0.09, 0.09, 0.14, 1],
-    angleRad: Math.PI / 4
+    color: [22 / 255, 24 / 255, 29 / 255, 1]
   },
   videoStyle: {
-    paddingRatio: 0.06,
-    cornerRadius: 24,
-    shadow: { color: [0, 0, 0, 0.45], blur: 48, offsetY: 16 }
+    paddingRatio: 0
   },
   ripple: {
     durationMs: 700,

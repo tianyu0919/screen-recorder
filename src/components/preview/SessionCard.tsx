@@ -34,7 +34,6 @@ export function SessionCard({ session, disabled, onOpen, onAction }: SessionCard
   useEffect(() => () => { if (previewTimerRef.current) clearTimeout(previewTimerRef.current) }, [])
   return (
     <motion.article
-      layout
       variants={staggerItem}
       exit={{ opacity: 0, scale: 0.96, y: -8, transition: { duration: 0.18, ease: 'easeOut' } }}
       whileHover={{ y: -4 }}
@@ -50,11 +49,14 @@ export function SessionCard({ session, disabled, onOpen, onAction }: SessionCard
               onDurationChange={(event) => { const video = event.currentTarget; if (Number.isFinite(video.duration)) { setDurationMs(video.duration * 1000); video.currentTime = Math.min(1, video.duration * 0.05) } }}
               onError={() => setFailed(true)} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.015]" />
           )}
-          {durationMs !== null && available && <span className="absolute bottom-2 right-2 rounded-md bg-canvas/80 px-1.5 py-0.5 font-mono text-[10.5px] text-on-accent">{formatDuration(durationMs)}</span>}
         </div>
         <div className="mt-1.5 flex items-center justify-between gap-2 px-0.5">
-          <span className="truncate font-mono text-[11px] text-ink-3">{session.sessionId}</span>
-          {!trashed && available && <span className="text-[11px] font-semibold text-accent opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">进入预览</span>}
+          <span className="min-w-0 truncate font-mono text-[11px] text-ink-3">{session.sessionId}</span>
+          {durationMs !== null && available && (
+            <span className="flex-none rounded-md border border-line bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] font-semibold leading-none text-ink-2">
+              {formatDuration(durationMs)}
+            </span>
+          )}
         </div>
       </button>
       <div className="min-h-[24px] pr-9"><SessionStatus session={session} /></div>

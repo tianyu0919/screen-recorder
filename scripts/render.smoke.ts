@@ -15,8 +15,13 @@ import {
   transformPoint
 } from '../src/render/layout'
 import { DEFAULT_COMPOSITOR_OPTIONS, type RippleParams } from '../src/render/types'
-import { fitStageSize, previewRenderSize } from '../src/lib/stageFit'
+import {
+  MAX_FOCUS_PREVIEW_RENDER_SIZE,
+  fitStageSize,
+  previewRenderSize
+} from '../src/lib/stageFit'
 import { previewCompositorConfig } from '../src/components/preview/playbackRender'
+import { hexToRgba, resolveOutputPlan } from '../src/render/outputPlan'
 
 let failures = 0
 function check(name: string, cond: boolean, detail = '') {
@@ -44,9 +49,28 @@ const previewSmall = previewRenderSize({ width: 900, height: 506 }, output)
 check('小舞台预览按 64px 宽度桶化', previewSmall.width === 960 && previewSmall.height === 540)
 const previewLarge = previewRenderSize(output, output)
 check('大舞台预览最高限制为 720p', previewLarge.width === 1280 && previewLarge.height === 720)
+const focus1080 = previewRenderSize(
+  { width: 1280, height: 720 },
+  output,
+  MAX_FOCUS_PREVIEW_RENDER_SIZE,
+  64,
+  2
+)
+check('Retina 专注预览按输出上限提升至 1080p', focus1080.width === 1920 && focus1080.height === 1080)
+const focus2k = previewRenderSize(
+  { width: 1280, height: 720 },
+  { width: 3840, height: 2160 },
+  MAX_FOCUS_PREVIEW_RENDER_SIZE,
+  64,
+  2
+)
+check('4K 输出的 Retina 专注预览最高限制为 2K', focus2k.width === 2560 && focus2k.height === 1440)
 const previewEmpty = previewRenderSize({ width: 0, height: 0 }, output)
 check('未测量舞台不创建预览 backing', previewEmpty.width === 0 && previewEmpty.height === 0)
-const previewConfig = previewCompositorConfig(previewLarge)
+const previewConfig = previewCompositorConfig(previewLarge, {
+  background: { color: hexToRgba('#16181D') },
+  videoStyle: { paddingRatio: 0 }
+})
 check(
   '预览纹理限制为 backing 长边 1.5 倍且不报告主动降档',
   previewConfig.textureLimit === 1920 && previewConfig.reportTextureDownsample === false
@@ -99,24 +123,54 @@ check(
 )
 check('2.1 zoom=2 变换 scale = baseScale × 2', near(t2.scale, t1.scale * 2))
 
-// 钳制保护：边缘点击 + zoom 后，视频边缘露出的背景渐变带 ≤ zoom=1 的摆放边距
-// （数学上恰等于摆放边距，与 zoom 无关；spec 明示背景渐变区域不算穿帮）
+// 钳制保护：边缘点击 + zoom 后，视频边缘露出的背景带 ≤ zoom=1 的摆放边距。
 const edgeCam = clampCameraToCanvas({ x: 0, y: 0, zoom: 2 }, canvas)
 const te = cameraToOutputTransform(edgeCam, canvas, pl, output)
 const v00 = transformPoint(te, 0, 0) // 视频左上角在输出中的位置
 check(
-  '2.1 边缘点击钳制后渐变露出 ≤ 摆放边距',
+  '2.1 边缘点击钳制后背景露出 ≤ 摆放边距',
   near(v00.x, pl.x) && near(v00.y, pl.y),
   JSON.stringify(v00)
 )
 
-// ── Task 2.2: 参数化配置对象 ───────────────────────────────────
+// ── Task 2.2: 真实边缘 + 可选纯色背景 ──────────────────────────
 check(
-  '2.2 背景/圆角/阴影参数为可配置对象且有默认值',
-  DEFAULT_COMPOSITOR_OPTIONS.background.from.length === 4 &&
-    DEFAULT_COMPOSITOR_OPTIONS.videoStyle.cornerRadius > 0 &&
-    DEFAULT_COMPOSITOR_OPTIONS.videoStyle.shadow.blur > 0
+  '2.2 默认合成器不加留白且使用纯色底',
+  DEFAULT_COMPOSITOR_OPTIONS.background.color.length === 4 &&
+    DEFAULT_COMPOSITOR_OPTIONS.videoStyle.paddingRatio === 0
 )
+const sourcePlan = resolveOutputPlan(
+  { width: 3456, height: 2234 },
+  { backgroundEnabled: false, backgroundColor: '#16181D', backgroundPaddingPercent: 6 }
+)
+check('2.2 背景关闭按源尺寸输出', sourcePlan.output.width === 3456 && sourcePlan.output.height === 2234 && sourcePlan.paddingRatio === 0)
+const backgroundPlan = resolveOutputPlan(
+  { width: 3456, height: 2234 },
+  { backgroundEnabled: true, backgroundColor: '#ffffff', backgroundPaddingPercent: 6 }
+)
+check('2.2 背景开启使用 1080p 画布与规范色', backgroundPlan.output.width === 1920 && backgroundPlan.output.height === 1080 && backgroundPlan.backgroundColor === '#FFFFFF' && backgroundPlan.paddingRatio > 0)
+check('2.2 默认背景边距换算为 6%', near(backgroundPlan.paddingRatio, 0.06))
+const zeroPaddingPlan = resolveOutputPlan(
+  { width: 1920, height: 1080 },
+  { backgroundEnabled: true, backgroundColor: '#16181D', backgroundPaddingPercent: 0 }
+)
+check('2.2 背景边距支持 0%', zeroPaddingPlan.paddingRatio === 0)
+const maxPaddingPlan = resolveOutputPlan(
+  { width: 1920, height: 1080 },
+  { backgroundEnabled: true, backgroundColor: '#16181D', backgroundPaddingPercent: 20 }
+)
+check('2.2 背景边距支持 20%', near(maxPaddingPlan.paddingRatio, 0.2))
+const clampedPaddingPlan = resolveOutputPlan(
+  { width: 1920, height: 1080 },
+  { backgroundEnabled: true, backgroundColor: '#16181D', backgroundPaddingPercent: 50 }
+)
+check('2.2 背景边距越界时钳制', near(clampedPaddingPlan.paddingRatio, 0.2))
+const fallbackPlan = resolveOutputPlan(
+  { width: 5000, height: 3000 },
+  { backgroundEnabled: false, backgroundColor: '#16181D', backgroundPaddingPercent: 6 },
+  { width: 2560, height: 1440 }
+)
+check('2.2 编码降档保持比例并归一偶数尺寸', fallbackPlan.downscaled && fallbackPlan.output.width === 2400 && fallbackPlan.output.height === 1440)
 
 // ── Task 2.3: 波纹时间求值 ─────────────────────────────────────
 const rp: RippleParams = DEFAULT_COMPOSITOR_OPTIONS.ripple

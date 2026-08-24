@@ -1,7 +1,14 @@
 import { app } from 'electron'
 import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import type { AppSettings, CloseBehavior, ThemeMode, TrashRetentionDays } from '../../shared/types'
+import type {
+  AppSettings,
+  AppSettingsPatch,
+  CloseBehavior,
+  ThemeMode,
+  TrashRetentionDays
+} from '../../shared/types'
+import { normalizePreviewQuality } from '../../shared/types'
 
 const SETTINGS_FILE = 'settings.json'
 const RETENTIONS: TrashRetentionDays[] = [1, 3, 7, 30, null]
@@ -20,7 +27,8 @@ function defaults(): AppSettings {
     recordingRoots: uniquePaths([recordingsPath, legacyPath]),
     trashRetentionDays: 3,
     closeBehavior: null,
-    autoCheckUpdates: true
+    autoCheckUpdates: true,
+    previewQuality: 'auto'
   }
 }
 
@@ -52,7 +60,8 @@ function parseSettings(value: unknown): AppSettings {
       ? (data.trashRetentionDays as TrashRetentionDays)
       : base.trashRetentionDays,
     closeBehavior: isCloseBehavior(data.closeBehavior) ? data.closeBehavior : null,
-    autoCheckUpdates: typeof data.autoCheckUpdates === 'boolean' ? data.autoCheckUpdates : true
+    autoCheckUpdates: typeof data.autoCheckUpdates === 'boolean' ? data.autoCheckUpdates : true,
+    previewQuality: normalizePreviewQuality(data.previewQuality)
   }
 }
 
@@ -78,14 +87,15 @@ export class AppSettingsStore {
     return structuredClone(this.value)
   }
 
-  update(patch: Partial<Pick<AppSettings, 'theme' | 'trashRetentionDays' | 'closeBehavior' | 'autoCheckUpdates'>>): AppSettings {
+  update(patch: AppSettingsPatch): AppSettings {
     const current = this.get()
     this.value = parseSettings({
       ...current,
       ...(patch.theme !== undefined ? { theme: patch.theme } : {}),
       ...(patch.trashRetentionDays !== undefined ? { trashRetentionDays: patch.trashRetentionDays } : {}),
       ...(patch.closeBehavior !== undefined ? { closeBehavior: patch.closeBehavior } : {}),
-      ...(patch.autoCheckUpdates !== undefined ? { autoCheckUpdates: patch.autoCheckUpdates } : {})
+      ...(patch.autoCheckUpdates !== undefined ? { autoCheckUpdates: patch.autoCheckUpdates } : {}),
+      ...(patch.previewQuality !== undefined ? { previewQuality: patch.previewQuality } : {})
     })
     this.persist()
     return this.get()

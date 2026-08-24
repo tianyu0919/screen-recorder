@@ -10,10 +10,11 @@ import {
   slicePcm
 } from './audio'
 import { ExportError, WebmFrameDecoder } from './decoder'
-import { OUTPUT_FPS, OUTPUT_HEIGHT, OUTPUT_WIDTH, createMuxer, probeVideoEncoder } from './encoder'
+import { OUTPUT_FPS, createMuxer, probeVideoEncoder } from './encoder'
 import { effectiveDurationMs, normalizeCuts, outputToSourceMs } from '../timeline/cuts'
 import type { ExportDoneMessage, ExportStartMessage } from './messages'
 import { keyOverlayFrameAt } from '../render/keyOverlay'
+import { hexToRgba, resolveOutputPlan } from '../render/outputPlan'
 
 /**
  * 时间轴驱动主循环（Task 2.1 / 2.2）：
@@ -31,7 +32,7 @@ const PROGRESS_INTERVAL = 30
 
 export async function runExport(
   params: ExportStartMessage,
-  onProgress: (done: number, total: number) => void
+  onProgress: (done: number, total: number, output?: { width: number; height: number }) => void
 ): Promise<Omit<ExportDoneMessage, 'type'>> {
   const videoUrl = `media://rec/${params.sessionId}/screen.webm`
   const { decoder, durationSec } = await WebmFrameDecoder.open(videoUrl)
@@ -49,7 +50,11 @@ export async function runExport(
     const cuts = normalizeCuts(params.cuts, durationMs)
     const outDurationMs = effectiveDurationMs(durationMs, cuts)
 
-    const choice = await probeVideoEncoder()
+    const plan = resolveOutputPlan(params.canvas, params.renderSettings)
+    const choice = await probeVideoEncoder(plan.output)
+    const output = { width: choice.config.width, height: choice.config.height }
+    const totalFrames = Math.max(1, Math.ceil((outDurationMs / 1000) * OUTPUT_FPS))
+    onProgress(0, totalFrames, output)
 
     // 音频：mic.wav + system.wav 两轨混合（缺失/解析失败/编码不支持 → 无音轨继续，结果里标注）
     // 两轨都在时先做回声对齐（音箱外放时 mic 轨含系统音，采集链延迟差见 lib/audioAlign.ts）
@@ -88,8 +93,12 @@ export async function runExport(
         : null
     )
 
-    const canvas = new OffscreenCanvas(OUTPUT_WIDTH, OUTPUT_HEIGHT)
-    compositor = new Compositor(canvas)
+    const canvas = new OffscreenCanvas(output.width, output.height)
+    compositor = new Compositor(canvas, {
+      output,
+      background: { color: hexToRgba(plan.backgroundColor) },
+      videoStyle: { paddingRatio: plan.paddingRatio }
+    })
     compositor.setCanvasSize(params.canvas)
 
     let encodeError: unknown = null
@@ -101,7 +110,6 @@ export async function runExport(
     })
     encoder.configure(choice.config)
 
-    const totalFrames = Math.max(1, Math.ceil((outDurationMs / 1000) * OUTPUT_FPS))
     const frameDurationUs = 1e6 / OUTPUT_FPS
     for (let i = 0; i < totalFrames; i++) {
       if (encodeError) throw new ExportError(`视频编码失败: ${errMsg(encodeError)}`)
@@ -113,7 +121,7 @@ export async function runExport(
         params.keyPrompts,
         sourceMs,
         params.keyboardOverlay,
-        { width: OUTPUT_WIDTH, height: OUTPUT_HEIGHT }
+        output
       )
       compositor.drawFrame(source, camera, sourceMs, params.ripples, keyOverlay)
       // 捕获前 flush：确保 WebGL 绘制命令已提交，VideoFrame 快照拿到本帧内容
@@ -152,7 +160,9 @@ export async function runExport(
       format: choice.format,
       audio: hasAudio,
       frames: totalFrames,
-      durationMs: outDurationMs
+      durationMs: outDurationMs,
+      outputWidth: output.width,
+      outputHeight: output.height
     }
   } finally {
     if (encoder && encoder.state !== 'closed') encoder.close()

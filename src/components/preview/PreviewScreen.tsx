@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { PreviewPlayer } from './PreviewPlayer'
 import { MotionParamsPanel } from './MotionParamsPanel'
 import { AudioPanel } from './AudioPanel'
+import { BackgroundPanel } from './BackgroundPanel'
 import { CutsPanel } from './CutsPanel'
 import { ExportControls } from './ExportControls'
 import { SessionList } from './SessionList'
@@ -14,6 +15,14 @@ import { PreviewLayoutControls } from './PreviewLayoutControls'
 import type { PreviewScaleMode } from '@/lib/stageFit'
 import { EditSaveStatus } from './EditSaveStatus'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
+import { blocksGlobalShortcut } from '@/lib/keyboardTarget'
+import { useSettingsStore } from '@/store/settingsStore'
+import { usePreviewPerformanceToast } from './usePreviewPerformanceToast'
+
+interface PreviewScreenProps {
+  focusMode: boolean
+  onFocusModeChange(active: boolean): void
+}
 
 const detailEntrance: Variants = {
   initial: { opacity: 0 },
@@ -36,9 +45,14 @@ const detailSectionEntrance: Variants = {
  * 预览界面（Task 3.3）：会话列表 → 选中加载 → 播放器 + 运镜参数面板。
  * events.json 损坏/不兼容时显示友好错误且不进入预览（current 保持 null）。
  */
-export function PreviewScreen(): React.JSX.Element {
+export function PreviewScreen({
+  focusMode,
+  onFocusModeChange
+}: PreviewScreenProps): React.JSX.Element {
   const [scaleMode, setScaleMode] = useState<PreviewScaleMode>('fit')
   const [inspectorOpen, setInspectorOpen] = useState(true)
+  const previewQuality = useSettingsStore((state) => state.settings?.previewQuality ?? 'auto')
+  const updateSettings = useSettingsStore((state) => state.update)
   const {
     sessions,
     sessionsLoaded,
@@ -61,6 +75,7 @@ export function PreviewScreen(): React.JSX.Element {
     emptyTrash,
     removeMissingSession
   } = usePreviewStore()
+  const notifyPerformanceIssue = usePreviewPerformanceToast(current?.session.sessionId ?? null)
 
   useEffect(() => {
     void loadSessions()
@@ -69,7 +84,28 @@ export function PreviewScreen(): React.JSX.Element {
   useEffect(() => {
     setScaleMode('fit')
     setInspectorOpen(true)
+    onFocusModeChange(false)
   }, [current?.session.sessionId])
+
+  useEffect(() => {
+    if (!current) return
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.repeat) return
+      if (focusMode && event.key === 'Escape') {
+        event.preventDefault()
+        onFocusModeChange(false)
+        return
+      }
+      if (blocksGlobalShortcut(event.target)) return
+      const key = event.key.toLowerCase()
+      if (key === 'f') {
+        event.preventDefault()
+        onFocusModeChange(!focusMode)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [current, focusMode, onFocusModeChange])
 
   if (current) {
     const { timeline } = current
@@ -94,7 +130,7 @@ export function PreviewScreen(): React.JSX.Element {
         className="relative flex min-h-0 flex-1 flex-col"
       >
         {/* 工具栏：会话标识 + 导出操作 */}
-        <motion.div variants={detailSectionEntrance} className="flex h-[52px] flex-none items-center justify-between border-b border-line px-6">
+        {!focusMode && <motion.div variants={detailSectionEntrance} className="flex h-[52px] flex-none items-center justify-between border-b border-line px-6">
           <div className="flex min-w-0 items-center gap-2.5">
             <Button variant="ghost" size="sm" onClick={closeSession} aria-label="返回会话列表">
               <ChevronLeftIcon size={15} />
@@ -117,8 +153,11 @@ export function PreviewScreen(): React.JSX.Element {
           <div className="flex items-center gap-2">
             <PreviewLayoutControls
               scaleMode={scaleMode}
+              quality={previewQuality}
               inspectorOpen={inspectorOpen}
+              onEnterFocus={() => onFocusModeChange(true)}
               onScaleModeChange={setScaleMode}
+              onQualityChange={(quality) => void updateSettings({ previewQuality: quality })}
               onToggleInspector={() => setInspectorOpen((open) => !open)}
             />
             <Button
@@ -130,7 +169,7 @@ export function PreviewScreen(): React.JSX.Element {
             </Button>
             <ExportControls />
           </div>
-        </motion.div>
+        </motion.div>}
 
         <motion.div variants={detailSectionEntrance} className="flex min-h-0 flex-1">
           <PreviewPlayer
@@ -142,11 +181,15 @@ export function PreviewScreen(): React.JSX.Element {
             keyframes={keyframes}
             ripples={ripples}
             scaleMode={scaleMode}
+            quality={previewQuality}
+            focusMode={focusMode}
+            onPerformanceIssue={notifyPerformanceIssue}
+            onExitFocus={() => onFocusModeChange(false)}
           />
 
           {/* 检查器：运镜参数 / 裁剪 / 会话信息，区块间以 hairline 分隔 */}
           <AnimatePresence>
-            {inspectorOpen && (
+            {!focusMode && inspectorOpen && (
               <motion.aside
                 key="inspector"
                 initial={{ width: 0, opacity: 0, x: 16 }}
@@ -158,6 +201,7 @@ export function PreviewScreen(): React.JSX.Element {
                 <div className="flex h-full w-[280px] flex-col overflow-y-auto">
                   <MotionParamsPanel />
                   <AudioPanel />
+                  <BackgroundPanel />
                   <CutsPanel />
                   <section className="px-4 py-3.5">
                     <h3 className="mb-3 text-[11px] font-semibold tracking-[0.4px] text-ink-3">
@@ -177,7 +221,7 @@ export function PreviewScreen(): React.JSX.Element {
             )}
           </AnimatePresence>
         </motion.div>
-        {editLoadError && (
+        {!focusMode && editLoadError && (
           <div className="absolute left-6 top-[62px] z-20 rounded-lg bg-amber-950/90 px-3 py-2 text-xs text-amber-300 shadow-lg">
             编辑数据未恢复：{editLoadError}
           </div>

@@ -16,6 +16,7 @@ import { TimelineEventTooltip } from './TimelineEventTooltip'
 
 interface TimelineTracksProps {
   motionEffects: MotionEffect[]
+  motionEnabled: boolean
   selectedMotionId: string | null
   keyPrompts: DisplayKeyPrompt[]
   ripples: RipplePoint[]
@@ -55,6 +56,7 @@ export const TimelineTracks = memo(function TimelineTracks(
       <div className="relative h-[42px] border-b border-line">
         <MotionEffectsLayer
           effects={props.motionEffects}
+          enabled={props.motionEnabled}
           duration={props.duration}
           pxPerSec={props.pxPerSec}
           selectedId={props.selectedMotionId}

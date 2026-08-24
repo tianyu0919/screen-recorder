@@ -50,7 +50,8 @@ function applyMotionEffects(
       motionEffects,
       state.manualKeyPrompts,
       state.hiddenRecordedKeyIndices,
-      state.sourceDurationMs ?? Infinity
+      state.sourceDurationMs ?? Infinity,
+      state.motionEnabled
     )
   })
 }
@@ -58,11 +59,12 @@ function applyMotionEffects(
 export function createPreviewMotionActions(set: SetState, get: GetState): MotionActions {
   return {
     setSegmentZoom(id, zoom) {
+      if (!get().motionEnabled) return
       applyMotionEffects(
         set,
         get,
         get().motionEffects.map((effect) =>
-          effect.id === id ? { ...effect, zoom: Math.min(4, Math.max(1.2, zoom)) } : effect
+          effect.id === id ? { ...effect, zoom: Math.min(4, Math.max(1, zoom)) } : effect
         )
       )
       markEditDirty(get, set)
@@ -78,7 +80,7 @@ export function createPreviewMotionActions(set: SetState, get: GetState): Motion
 
     addMotionEffect(tMs) {
       const state = get()
-      if (!state.current) return null
+      if (!state.current || !state.motionEnabled) return null
       const effect = createManualMotionEffect(
         tMs,
         state.sourceDurationMs ?? state.current.timeline.durationMs,
@@ -94,6 +96,7 @@ export function createPreviewMotionActions(set: SetState, get: GetState): Motion
     },
 
     moveMotionEffect(id, startMs, commit = false, playhead) {
+      if (!get().motionEnabled) return
       const state = get()
       const effects = moveEffect(
         state.motionEffects,
@@ -107,6 +110,7 @@ export function createPreviewMotionActions(set: SetState, get: GetState): Motion
     },
 
     resizeMotionEffect(id, edge, tMs, commit = false, playhead) {
+      if (!get().motionEnabled) return
       const state = get()
       const effects = resizeEffect(
         state.motionEffects,
@@ -121,6 +125,7 @@ export function createPreviewMotionActions(set: SetState, get: GetState): Motion
     },
 
     removeMotionEffect(id) {
+      if (!get().motionEnabled) return
       applyMotionEffects(set, get, get().motionEffects.filter((effect) => effect.id !== id))
       set({ selectedMotionId: null })
       markEditDirty(get, set, 0)
@@ -143,7 +148,8 @@ export function createPreviewMotionActions(set: SetState, get: GetState): Motion
               state.motionEffects,
               manualKeyPrompts,
               state.hiddenRecordedKeyIndices,
-              state.sourceDurationMs ?? Infinity
+              state.sourceDurationMs ?? Infinity,
+              state.motionEnabled
             ).keyPrompts
           : []
       })
@@ -166,7 +172,8 @@ export function createPreviewMotionActions(set: SetState, get: GetState): Motion
             state.motionEffects,
             manualKeyPrompts,
             hiddenRecordedKeyIndices,
-            state.sourceDurationMs ?? Infinity
+            state.sourceDurationMs ?? Infinity,
+            state.motionEnabled
           ).keyPrompts
         })
       }

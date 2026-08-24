@@ -8,11 +8,18 @@ import { useClipsAudio } from './useClipsAudio'
 import { PlayerTimeline } from './PlayerTimeline'
 import { usePreviewStore } from '@/store/previewStore'
 import { useStageFit } from './useStageFit'
-import { DEFAULT_COMPOSITOR_OPTIONS } from '@/render/types'
 import type { PreviewScaleMode } from '@/lib/stageFit'
-import { previewRenderSize } from '@/lib/stageFit'
+import {
+  MAX_FOCUS_PREVIEW_RENDER_SIZE,
+  previewQualityProfile,
+  previewRenderSize
+} from '@/lib/stageFit'
 import { cn } from '@/lib/utils'
 import { KeyboardOverlayHandle } from './KeyboardOverlayHandle'
+import { resolveOutputPlan } from '@/render/outputPlan'
+import { FocusPreviewControls } from './FocusPreviewControls'
+import { blocksGlobalShortcut } from '@/lib/keyboardTarget'
+import type { PreviewQualityMode } from '@shared/types'
 
 interface PreviewPlayerProps {
   timeline: Timeline
@@ -26,6 +33,10 @@ interface PreviewPlayerProps {
   keyframes: CameraKeyframe[]
   ripples: RipplePoint[]
   scaleMode: PreviewScaleMode
+  quality: PreviewQualityMode
+  focusMode: boolean
+  onPerformanceIssue(): void
+  onExitFocus(): void
 }
 
 /**
@@ -41,16 +52,33 @@ export function PreviewPlayer({
   systemAudioOffsetSec,
   keyframes,
   ripples,
-  scaleMode
+  scaleMode,
+  quality,
+  focusMode,
+  onPerformanceIssue,
+  onExitFocus
 }: PreviewPlayerProps): React.JSX.Element {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const outputSize = DEFAULT_COMPOSITOR_OPTIONS.output
-  const { stageRef, canvasSize } = useStageFit(scaleMode, outputSize)
+  const renderSettings = usePreviewStore((s) => s.renderSettings)
+  const outputPlan = useMemo(
+    () => resolveOutputPlan(timeline.canvas, renderSettings),
+    [renderSettings, timeline.canvas]
+  )
+  const outputSize = outputPlan.output
+  const { stageRef, canvasSize } = useStageFit(focusMode ? 'fit' : scaleMode, outputSize)
   const renderOutputSize = useMemo(() => {
-    const size = previewRenderSize(canvasSize, outputSize)
+    const profile = previewQualityProfile(quality, window.devicePixelRatio || 1)
+    const pixelRatio = focusMode ? Math.min(2, window.devicePixelRatio || 1) : profile.pixelRatio
+    const size = previewRenderSize(
+      canvasSize,
+      outputSize,
+      focusMode ? MAX_FOCUS_PREVIEW_RENDER_SIZE : profile.maxSize,
+      64,
+      pixelRatio
+    )
     return size.width > 0 && size.height > 0 ? size : null
-  }, [canvasSize.height, canvasSize.width, outputSize])
+  }, [canvasSize.height, canvasSize.width, focusMode, outputSize, quality])
   const cuts = usePreviewStore((s) => s.cuts)
   const keyPrompts = usePreviewStore((s) => s.keyPrompts)
   const keyboardOverlay = usePreviewStore((s) => s.keyboardOverlay)
@@ -68,11 +96,15 @@ export function PreviewPlayer({
   } = usePlayback(videoRef, canvasRef, {
       canvasSize: timeline.canvas,
       renderOutputSize,
+      renderSettings,
       keyframes,
       ripples,
       keyPrompts,
       keyboardOverlay,
       cuts,
+      sourceFps: timeline.events.video.fps,
+      performanceMonitoring: !focusMode && quality !== 'smooth',
+      onPerformanceIssue,
       // webm 无 Duration 元数据时 video.duration=Infinity，回退到事件时间轴估计时长
       fallbackDurationMs: timeline.durationMs
     })
@@ -81,16 +113,18 @@ export function PreviewPlayer({
   }, [durationMs, setSourceDurationMs])
 
   const noMotion = keyframes.every((keyframe) => keyframe.target.zoom <= 1.05)
+  const motionEnabled = usePreviewStore((s) => s.motionEnabled)
   // 麦克风/系统音频双轨：各自跟随 video 同步（逻辑见 useSyncedAudio）；
   // system 轨带回声对齐偏移（音箱外放时 mic 会录入系统音，见 lib/audioAlign.ts）；
   // 音量增益来自检查器「音频」滑杆，实时生效
   const audioGain = usePreviewStore((s) => s.audioGain)
-  const micAudioRef = useSyncedAudio(videoRef, audioUrl, 0, audioGain.mic)
+  const audioMute = usePreviewStore((s) => s.audioMute)
+  const micAudioRef = useSyncedAudio(videoRef, audioUrl, 0, audioMute.mic ? 0 : audioGain.mic)
   const systemAudioRef = useSyncedAudio(
     videoRef,
     systemAudioUrl,
     systemAudioOffsetSec,
-    audioGain.system
+    audioMute.system ? 0 : audioGain.system
   )
   // 自定义音轨（波形块拖拽定位）：区间播放，锚定源时间轴
   const customClips = usePreviewStore((s) => s.customClips)
@@ -108,11 +142,29 @@ export function PreviewPlayer({
     }
   }, [videoUrl])
 
+  useEffect(() => {
+    if (!focusMode) return
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.repeat || blocksGlobalShortcut(event.target)) return
+      if (event.code === 'Space') {
+        event.preventDefault()
+        togglePlay()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [focusMode, togglePlay])
+
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <div className={cn('relative flex min-h-0 min-w-0 flex-1 flex-col', focusMode && 'bg-canvas')}>
       {/* 舞台：合成画布居中；整体作为圆角浮层卡片，四周留边距（两主题下都成立） */}
       <div
-        className="mx-6 mb-6 mt-1 min-h-0 flex-1 overflow-hidden rounded-[20px] border border-line-strong bg-canvas p-5 shadow-card"
+        className={cn(
+          'relative min-h-0 flex-1 overflow-hidden bg-canvas',
+          focusMode
+            ? 'm-0 p-4'
+            : 'mx-6 mb-6 mt-1 rounded-[20px] border border-line-strong p-5 shadow-card'
+        )}
       >
         <div
           ref={stageRef}
@@ -135,12 +187,14 @@ export function PreviewPlayer({
             >
               <canvas
                 ref={canvasRef}
-                className="h-full w-full rounded-xl border border-line-strong shadow-float"
+                className={cn('h-full w-full', !focusMode && 'border border-line-strong')}
               />
-              <KeyboardOverlayHandle
-                position={keyboardOverlay}
-                onChange={setKeyboardOverlay}
-              />
+              {!focusMode && (
+                <KeyboardOverlayHandle
+                  position={keyboardOverlay}
+                  onChange={setKeyboardOverlay}
+                />
+              )}
             </div>
             {/* 帧源：隐藏 video，由合成器逐帧取样绘制到 canvas */}
             <video ref={videoRef} preload="auto" muted className="hidden" />
@@ -149,15 +203,25 @@ export function PreviewPlayer({
             {systemAudioUrl && <audio ref={systemAudioRef} preload="auto" className="hidden" />}
           </div>
         </div>
+        {!focusMode && noMotion && (
+          <p
+            role="status"
+            className="pointer-events-none absolute bottom-3 left-1/2 z-10 flex max-w-[calc(100%_-_24px)] -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full border border-line-strong bg-surface-1/90 px-3 py-1.5 text-[11px] text-ink-2 shadow-card backdrop-blur-sm"
+          >
+            <span className="h-1.5 w-1.5 flex-none rounded-full bg-warning" aria-hidden="true" />
+            {motionEnabled
+              ? '无运镜数据，画面保持 1.0x 全景'
+              : '运镜已关闭，画面保持 1.0x 全景'}
+          </p>
+        )}
       </div>
 
-      {(noMotion || renderInfo?.downsampled || playbackError) && (
+      {!focusMode && <div className="flex flex-none items-center justify-end px-6 pb-2 font-mono text-[10.5px] text-ink-3">
+        输出 {outputSize.width}×{outputSize.height}
+      </div>}
+
+      {!focusMode && (renderInfo?.downsampled || playbackError) && (
         <div className="flex flex-none flex-col gap-1.5 px-6 pb-2">
-          {noMotion && (
-            <p className="rounded-lg bg-amber-950/50 px-3 py-2 text-xs text-amber-300">
-              无运镜数据：本会话未采集到点击事件，相机全程保持 1.0x 全景。
-            </p>
-          )}
           {renderInfo?.downsampled && (
             <p className="rounded-lg bg-amber-950/50 px-3 py-2 text-xs text-amber-300">
               源视频 {renderInfo.sourceWidth}×{renderInfo.sourceHeight} 超出纹理上限（
@@ -173,14 +237,33 @@ export function PreviewPlayer({
         </div>
       )}
 
-      <PlayerTimeline
-        playing={playing}
-        currentMs={currentMs}
-        durationMs={durationMs}
-        onTogglePlay={togglePlay}
-        onSeek={seekTo}
-        subscribeCurrentMs={subscribeCurrentMs}
-      />
+      {focusMode ? (
+        <>
+          {playbackError && (
+            <p role="alert" className="absolute left-1/2 top-5 z-20 -translate-x-1/2 rounded-xl bg-danger px-4 py-2 text-sm text-on-accent shadow-float">
+              {playbackError}
+            </p>
+          )}
+          <FocusPreviewControls
+            playing={playing}
+            currentMs={currentMs}
+            durationMs={durationMs}
+            cuts={cuts}
+            onTogglePlay={togglePlay}
+            onSeek={seekTo}
+            onExit={onExitFocus}
+          />
+        </>
+      ) : (
+        <PlayerTimeline
+          playing={playing}
+          currentMs={currentMs}
+          durationMs={durationMs}
+          onTogglePlay={togglePlay}
+          onSeek={seekTo}
+          subscribeCurrentMs={subscribeCurrentMs}
+        />
+      )}
     </div>
   )
 }

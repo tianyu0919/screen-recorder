@@ -1,4 +1,4 @@
-import type { EditDocumentV1 } from '@shared/edit'
+import type { EditDocument } from '@shared/edit'
 import { serializeEditDocument } from '@/timeline/editDocument'
 import type { PreviewState } from './previewTypes'
 
@@ -9,20 +9,23 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null
 let fadeTimer: ReturnType<typeof setTimeout> | null = null
 let saving = false
 
-function snapshot(state: PreviewState): EditDocumentV1 {
+function snapshot(state: PreviewState): EditDocument {
   return {
-    version: 1,
+    version: 2,
     updatedAt: new Date().toISOString(),
+    motionEnabled: state.motionEnabled,
     motionParams: state.motionParams,
     motionEffects: state.motionEffects,
     manualKeyPrompts: state.manualKeyPrompts,
     hiddenRecordedKeyIndices: state.hiddenRecordedKeyIndices,
     cuts: state.cuts,
     audioGain: state.audioGain,
+    audioMute: state.audioMute,
     customAudio: state.customClips.flatMap((clip) =>
       clip.assetFile ? [{ ...clip, assetFile: clip.assetFile }] : []
     ),
-    keyboardOverlay: state.keyboardOverlay
+    keyboardOverlay: state.keyboardOverlay,
+    renderSettings: state.renderSettings
   }
 }
 

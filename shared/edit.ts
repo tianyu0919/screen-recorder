@@ -27,7 +27,7 @@ export interface ManualKeyPrompt {
   keys: string[]
 }
 
-export interface PersistedAudioClip {
+export interface PersistedAudioClipV1 {
   id: string
   name: string
   assetFile: string
@@ -39,6 +39,26 @@ export interface PersistedAudioClip {
   peaks: number[]
 }
 
+export interface PersistedAudioClip extends PersistedAudioClipV1 {
+  muted: boolean
+}
+
+export interface RenderSettings {
+  backgroundEnabled: boolean
+  backgroundColor: string
+  backgroundPaddingPercent: number
+}
+
+export const DEFAULT_BACKGROUND_PADDING_PERCENT = 6
+export const MIN_BACKGROUND_PADDING_PERCENT = 0
+export const MAX_BACKGROUND_PADDING_PERCENT = 20
+
+export function normalizeBackgroundPaddingPercent(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.min(MAX_BACKGROUND_PADDING_PERCENT, Math.max(MIN_BACKGROUND_PADDING_PERCENT, value))
+    : DEFAULT_BACKGROUND_PADDING_PERCENT
+}
+
 export interface EditDocumentV1 {
   version: 1
   updatedAt: string
@@ -48,9 +68,27 @@ export interface EditDocumentV1 {
   hiddenRecordedKeyIndices: number[]
   cuts: Array<{ startMs: number; endMs: number }>
   audioGain: { mic: number; system: number }
-  customAudio: PersistedAudioClip[]
+  customAudio: PersistedAudioClipV1[]
   keyboardOverlay: { x: number; y: number }
 }
+
+export interface EditDocumentV2 {
+  version: 2
+  updatedAt: string
+  motionEnabled: boolean
+  motionParams: MotionParamsEdit
+  motionEffects: MotionEffect[]
+  manualKeyPrompts: ManualKeyPrompt[]
+  hiddenRecordedKeyIndices: number[]
+  cuts: Array<{ startMs: number; endMs: number }>
+  audioGain: { mic: number; system: number }
+  audioMute: { mic: boolean; system: boolean }
+  customAudio: PersistedAudioClip[]
+  keyboardOverlay: { x: number; y: number }
+  renderSettings: RenderSettings
+}
+
+export type EditDocument = EditDocumentV2
 
 export type EditSaveState =
   | { kind: 'idle' }

@@ -131,6 +131,45 @@ button.bg-accent,
   -webkit-app-region: no-drag;
 }
 
+/* 性能提醒使用上下层级，避免中文说明与双操作被挤成狭窄的横向布局。 */
+[data-sonner-toaster].toaster {
+  --width: min(440px, calc(100vw - 32px));
+}
+.preview-performance-toast[data-styled='true'] {
+  display: grid !important;
+  grid-template-columns: 20px minmax(0, 1fr) auto auto;
+  column-gap: 8px !important;
+  row-gap: 0 !important;
+  align-items: start !important;
+  padding: 16px 16px 16px 18px !important;
+  border-radius: 14px !important;
+}
+.preview-performance-toast [data-icon] {
+  grid-column: 1;
+  grid-row: 1;
+  margin-top: 2px !important;
+  color: var(--warning);
+}
+.preview-performance-toast [data-content] {
+  grid-column: 2 / -1;
+  grid-row: 1;
+  padding-right: 30px;
+}
+.preview-performance-toast [data-description] {
+  margin-top: 3px;
+  line-height: 1.5 !important;
+}
+.preview-performance-toast [data-cancel] {
+  grid-column: 3;
+  grid-row: 2;
+  margin: 12px 0 0 !important;
+}
+.preview-performance-toast [data-action] {
+  grid-column: 4;
+  grid-row: 2;
+  margin: 12px 0 0 !important;
+}
+
 /* ui-slider：自绘滑杆（填充段由 Slider 组件内联渐变实现） */
 .ui-slider {
   -webkit-appearance: none;
@@ -158,6 +197,10 @@ button.bg-accent,
 .ui-slider:disabled {
   opacity: 0.4;
   cursor: default;
+}
+.ui-slider:disabled::-webkit-slider-thumb {
+  border-color: var(--ink-3);
+  box-shadow: 0 0 0 2px var(--surface-1);
 }
 
 /* 全局细滚动条（深色主题）；自绘滚动区用 .no-scrollbar 完全隐藏 */

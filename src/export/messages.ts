@@ -3,6 +3,7 @@ import type { RipplePoint } from '../render/types'
 import type { CutRange } from '../timeline/cuts'
 import type { CanvasSize } from '../timeline/types'
 import type { DisplayKeyPrompt } from '../timeline/keyPrompts'
+import type { RenderSettings } from '@shared/edit'
 
 /**
  * Renderer ↔ 导出 Worker 消息协议（Task 1.1）。
@@ -24,6 +25,7 @@ export interface ExportStartMessage {
   cuts: CutRange[]
   /** 分轨音量增益（0–1，检查器音频滑杆），混音时应用到 mic/system 轨 */
   audioGain: { mic: number; system: number }
+  renderSettings: RenderSettings
   /** 自定义音轨（kr-05 custom-audio-track）：Renderer 已解码 PCM，锚定源时间轴 */
   customAudio: Array<{
     offsetMs: number
@@ -45,6 +47,8 @@ export interface ExportProgressMessage {
   type: 'progress'
   done: number
   total: number
+  outputWidth?: number
+  outputHeight?: number
 }
 
 export interface ExportDoneMessage {
@@ -56,6 +60,8 @@ export interface ExportDoneMessage {
   audio: boolean
   frames: number
   durationMs: number
+  outputWidth: number
+  outputHeight: number
 }
 
 export interface ExportErrorMessage {

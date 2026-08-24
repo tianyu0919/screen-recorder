@@ -44,7 +44,7 @@ export function useClipsAudio(
   useEffect(() => {
     for (const clip of clips) {
       const active = activeRef.current.get(clip.id)
-      if (active) active.gain.gain.value = Math.max(0, Math.min(1, clip.gain))
+      if (active) active.gain.gain.value = clip.muted ? 0 : Math.max(0, Math.min(1, clip.gain))
     }
   }, [clips])
 
@@ -78,7 +78,7 @@ export function useClipsAudio(
         const gain = context.createGain()
         source.buffer = asset.audioBuffer
         source.playbackRate.value = rate
-        gain.gain.value = Math.max(0, Math.min(1, clip.gain))
+        gain.gain.value = clip.muted ? 0 : Math.max(0, Math.min(1, clip.gain))
         source.connect(gain)
         gain.connect(context.destination)
         activeRef.current.set(clip.id, { source, gain })

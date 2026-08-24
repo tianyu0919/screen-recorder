@@ -7,14 +7,8 @@ import { previewCompositorConfig, sameRenderInfo } from './playbackRender'
 import type { Playback, PlaybackOptions } from './playbackTypes'
 import { attachPlaybackVideoEvents } from './playbackVideoEvents'
 import { keyOverlayFrameAt } from '@/render/keyOverlay'
-
-/**
- * 预览播放引擎 hook（Task 3.1/3.2）：
- * 隐藏 <video> 作帧源，requestVideoFrameCallback 驱动渲染循环；
- * 实时播放用 createCameraAnimator 增量积分，seek 用 animator.reset(tMs)
- * 从头重放到目标时刻（与 sampleCameraAt 结果一致），随后立即 drawFrame 呈现。
- * 卸载/换会话时完整释放：cancelVideoFrameCallback、animator 重建、compositor.dispose。
- */
+import { hexToRgba, resolveOutputPlan } from '@/render/outputPlan'
+import { PreviewPerformanceMonitor } from '@/lib/previewPerformance'
 
 export function usePlayback(
   videoRef: RefObject<HTMLVideoElement | null>,
@@ -22,12 +16,16 @@ export function usePlayback(
   {
     canvasSize,
     renderOutputSize,
+    renderSettings,
     keyframes,
     ripples,
     keyPrompts,
     keyboardOverlay,
     cuts,
-    fallbackDurationMs
+    fallbackDurationMs,
+    sourceFps,
+    performanceMonitoring,
+    onPerformanceIssue
   }: PlaybackOptions
 ): Playback {
   const compositorRef = useRef<Compositor | null>(null)
@@ -44,20 +42,20 @@ export function usePlayback(
   renderOutputSizeRef.current = renderOutputSize
   const cutsRef = useRef(cuts)
   cutsRef.current = normalizeCuts(cuts)
-  /** 裁剪跳转进行中：seek 是异步的，完成前不再触发新跳转，否则连续 seek 卡死画面 */
   const skippingRef = useRef(false)
-  /** 时长探针进行中（webm 无 Duration：先 seek 到极大时间点逼浏览器解析真实时长） */
   const probingRef = useRef(false)
   const renderInfoRef = useRef<RenderInfo | null>(null)
   const progressListenersRef = useRef(new Set<(currentMs: number) => void>())
   const lastUiProgressAtRef = useRef(-Infinity)
+  const performanceMonitorRef = useRef(new PreviewPerformanceMonitor())
+  const performanceOptionsRef = useRef({ sourceFps, performanceMonitoring, onPerformanceIssue })
+  performanceOptionsRef.current = { sourceFps, performanceMonitoring, onPerformanceIssue }
   const [playing, setPlaying] = useState(false)
   const [currentMs, setCurrentMs] = useState(0)
   const [durationMs, setDurationMs] = useState(0)
   const [renderInfo, setRenderInfo] = useState<RenderInfo | null>(null)
   const [playbackError, setPlaybackError] = useState<string | null>(null)
 
-  /** 逐帧位置直接发布给命令式消费者；React 文本 UI 降到最多 20fps。 */
   const publishCurrentMs = useCallback((tMs: number, forceReact = false) => {
     for (const listener of progressListenersRef.current) listener(tMs)
     const now = performance.now()
@@ -73,8 +71,6 @@ export function usePlayback(
       progressListenersRef.current.delete(listener)
     }
   }, [])
-
-  /** 用当前已解码帧 + 当前相机状态合成一帧（readyState < 2 时无帧可画，跳过） */
   const draw = useCallback(
     (tMs: number) => {
       const video = videoRef.current
@@ -90,19 +86,29 @@ export function usePlayback(
         renderInfoRef.current = next
         setRenderInfo(next)
       }
+      const perf = performanceOptionsRef.current
+      if (!perf.performanceMonitoring || video.paused || document.visibilityState !== 'visible') {
+        performanceMonitorRef.current.reset()
+      } else if (performanceMonitorRef.current.sample(performance.now(), tMs, perf.sourceFps)) {
+        perf.onPerformanceIssue()
+      }
     },
     [videoRef]
   )
 
-  /** 合成器生命周期：随画布与视频分辨率创建/销毁 */
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !canvasSize || !renderOutputSize) return
     try {
-      const comp = new Compositor(canvas, previewCompositorConfig(renderOutputSize))
+      const outputPlan = resolveOutputPlan(canvasSize, renderSettings)
+      const comp = new Compositor(canvas, previewCompositorConfig(renderOutputSize, {
+        background: { color: hexToRgba(renderSettings.backgroundColor) },
+        videoStyle: { paddingRatio: outputPlan.paddingRatio }
+      }))
       comp.setCanvasSize(canvasSize)
       compositorRef.current = comp
       renderInfoRef.current = null
+      performanceMonitorRef.current.reset()
       setPlaybackError(null)
       draw(lastMsRef.current)
       return () => {
@@ -116,9 +122,8 @@ export function usePlayback(
       )
       return
     }
-  }, [canvasRef, canvasSize, draw, renderOutputSize])
+  }, [canvasRef, canvasSize, draw, renderOutputSize, renderSettings])
 
-  /** animator 生命周期：关键帧变化（参数调整）时重建并重放到当前时刻、立即重绘 */
   useEffect(() => {
     if (!canvasSize) {
       animatorRef.current = null
@@ -140,7 +145,6 @@ export function usePlayback(
     []
   )
 
-  /** rVFC 渲染循环：每个新视频帧推进 animator 增量积分并合成 */
   const onFrame = useCallback(
     function frame() {
       const video = videoRef.current
@@ -179,7 +183,6 @@ export function usePlayback(
     [videoRef, draw, publishCurrentMs]
   )
 
-  /** video 元素事件：元数据/时长/首帧/seek 完成/播放结束 */
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
@@ -199,7 +202,6 @@ export function usePlayback(
     })
   }, [videoRef, draw, cancelLoop, fallbackDurationMs, publishCurrentMs])
 
-  /** 卸载兜底：停循环、停视频（compositor 由上方 effect 释放） */
   useEffect(
     () => () => {
       const video = videoRef.current
@@ -248,7 +250,6 @@ export function usePlayback(
     }
   }, [videoRef, onFrame, cancelLoop])
 
-  /** 拖拽 seek：任意时间点从头重放求相机状态，立即合成呈现（暂停态同样生效） */
   const seekTo = useCallback(
     (ms: number) => {
       const video = videoRef.current
@@ -270,7 +271,6 @@ export function usePlayback(
     [videoRef, draw, fallbackDurationMs, publishCurrentMs]
   )
 
-  /** 裁剪变化时（如新增的区间覆盖了当前位置）：暂停态也把播放头移出裁剪区 */
   useEffect(() => {
     const video = videoRef.current
     if (!video || video.readyState < 1) return

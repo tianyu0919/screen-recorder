@@ -34,6 +34,7 @@ export async function importCustomAudio(
         name: picked.name,
         offsetMs,
         gain: 1,
+        muted: false,
         sourceDurationMs,
         trimStartMs: 0,
         trimEndMs: sourceDurationMs,

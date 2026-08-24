@@ -21,6 +21,7 @@ interface ExportState {
   resultPath: string | null
   outputFormat: ExportFormat | null
   hasAudio: boolean
+  outputSize: { width: number; height: number } | null
   errorMessage: string | null
 
   startExport(): Promise<void>
@@ -42,13 +43,14 @@ export const useExportStore = create<ExportState>((set, get) => ({
   resultPath: null,
   outputFormat: null,
   hasAudio: false,
+  outputSize: null,
   errorMessage: null,
 
   async startExport() {
     if (get().status === 'exporting') return
     const {
       current, keyframes, ripples, keyPrompts, keyboardOverlay,
-      cuts, audioGain, customClips
+      cuts, audioGain, audioMute, customClips, renderSettings
     } =
       usePreviewStore.getState()
     if (!current) return
@@ -65,13 +67,19 @@ export const useExportStore = create<ExportState>((set, get) => ({
       resultPath: null,
       outputFormat: null,
       hasAudio: false,
+      outputSize: null,
       errorMessage: null
     })
 
     worker.onmessage = (event: MessageEvent<ExportWorkerMessage>) => {
       const msg = event.data
       if (msg.type === 'progress') {
-        set({ progress: msg.total > 0 ? msg.done / msg.total : 0 })
+        set({
+          progress: msg.total > 0 ? msg.done / msg.total : 0,
+          ...(msg.outputWidth && msg.outputHeight
+            ? { outputSize: { width: msg.outputWidth, height: msg.outputHeight } }
+            : {})
+        })
       } else if (msg.type === 'error') {
         terminateWorker()
         set({ status: 'error', errorMessage: msg.message })
@@ -86,6 +94,7 @@ export const useExportStore = create<ExportState>((set, get) => ({
               progress: 1,
               outputFormat: msg.format,
               hasAudio: msg.audio,
+              outputSize: { width: msg.outputWidth, height: msg.outputHeight },
               resultPath: saved?.path ?? null
             })
           })
@@ -110,7 +119,11 @@ export const useExportStore = create<ExportState>((set, get) => ({
       keyPrompts,
       keyboardOverlay,
       cuts,
-      audioGain,
+      audioGain: {
+        mic: audioMute.mic ? 0 : audioGain.mic,
+        system: audioMute.system ? 0 : audioGain.system
+      },
+      renderSettings,
       // 自定义音轨 PCM：缓存缺失的轨跳过（不阻断导出）；samples 结构化克隆（缓存保留复导出）
       customAudio: customClips.flatMap((c) => {
         const asset = getClipAsset(c.id)
@@ -120,7 +133,7 @@ export const useExportStore = create<ExportState>((set, get) => ({
                 offsetMs: c.offsetMs,
                 trimStartMs: c.trimStartMs,
                 trimEndMs: c.trimEndMs,
-                gain: c.gain,
+                gain: c.muted ? 0 : c.gain,
                 sampleRate: asset.wav.sampleRate,
                 channels: asset.wav.channels,
                 samples: asset.wav.samples.buffer as ArrayBuffer
@@ -147,6 +160,7 @@ export const useExportStore = create<ExportState>((set, get) => ({
       resultPath: null,
       outputFormat: null,
       hasAudio: false,
+      outputSize: null,
       errorMessage: null
     })
   }

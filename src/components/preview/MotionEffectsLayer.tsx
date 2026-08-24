@@ -6,6 +6,7 @@ import type { TimelineMenuTarget } from './TimelineContextMenu'
 
 interface Props {
   effects: MotionEffect[]
+  enabled: boolean
   duration: number
   pxPerSec: number
   selectedId: string | null
@@ -32,7 +33,7 @@ function MotionBlock({ effect, props }: { effect: MotionEffect; props: Props }):
   const selected = effect.id === props.selectedId
 
   const begin = (mode: DragMode) => (event: React.PointerEvent<HTMLElement>): void => {
-    if (event.button !== 0) return
+    if (event.button !== 0 || !props.enabled) return
     event.stopPropagation()
     event.currentTarget.setPointerCapture(event.pointerId)
     drag.current = {
@@ -69,15 +70,19 @@ function MotionBlock({ effect, props }: { effect: MotionEffect; props: Props }):
     if (state?.moved) props.onCommit()
   }
 
-  const detail = `${effect.zoom.toFixed(1)}x · ${formatMs(effect.startMs)}–${formatMs(effect.endMs)} · ${((effect.endMs - effect.startMs) / 1000).toFixed(1)}s`
+  const detail = props.enabled
+    ? `${effect.zoom.toFixed(1)}x · ${formatMs(effect.startMs)}–${formatMs(effect.endMs)} · ${((effect.endMs - effect.startMs) / 1000).toFixed(1)}s`
+    : '运镜已关闭，启用后可继续编辑'
   return (
     <div
       title={detail}
       className={cn(
-        'group absolute top-[9px] flex h-6 cursor-grab items-center justify-center overflow-hidden rounded-md border font-mono text-[10.5px] active:cursor-grabbing',
-        selected
+        'group absolute top-[9px] flex h-6 items-center justify-center overflow-hidden rounded-md border font-mono text-[10.5px]',
+        !props.enabled
+          ? 'cursor-not-allowed border-line-strong bg-surface-3 text-ink-3 opacity-45'
+          : selected
           ? 'border-accent bg-[rgba(255,92,56,0.24)] text-accent shadow-[0_0_0_2px_rgba(255,92,56,0.18)]'
-          : 'border-[rgba(255,92,56,0.3)] bg-accent-soft text-accent/80 hover:border-accent-border'
+          : 'cursor-grab border-[rgba(255,92,56,0.3)] bg-accent-soft text-accent/80 hover:border-accent-border active:cursor-grabbing'
       )}
       style={{
         left: `${(effect.startMs / props.duration) * 100}%`,
@@ -87,19 +92,22 @@ function MotionBlock({ effect, props }: { effect: MotionEffect; props: Props }):
       onPointerMove={move}
       onPointerUp={end}
       onPointerCancel={end}
-      onContextMenu={(event) => props.onContextMenu(event, effect.startMs, { kind: 'motion', id: effect.id })}
+      onContextMenu={(event) => {
+        if (props.enabled) props.onContextMenu(event, effect.startMs, { kind: 'motion', id: effect.id })
+        else event.preventDefault()
+      }}
     >
       {(widthPx > 44 || selected) && <span className="pointer-events-none">{effect.zoom.toFixed(1)}x</span>}
-      <span
+      {props.enabled && <span
         aria-label="调整运镜开始时间"
         className="absolute inset-y-0 left-0 z-10 w-2 cursor-ew-resize border-l-2 border-accent opacity-40 group-hover:opacity-100"
         onPointerDown={begin('start')}
-      />
-      <span
+      />}
+      {props.enabled && <span
         aria-label="调整运镜结束时间"
         className="absolute inset-y-0 right-0 z-10 w-2 cursor-ew-resize border-r-2 border-accent opacity-40 group-hover:opacity-100"
         onPointerDown={begin('end')}
-      />
+      />}
     </div>
   )
 }

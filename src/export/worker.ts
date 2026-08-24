@@ -17,7 +17,10 @@ const scope = self as unknown as {
 scope.onmessage = (event) => {
   const msg = event.data
   if (msg.type !== 'start') return
-  runExport(msg, (done, total) => scope.postMessage({ type: 'progress', done, total }))
+  runExport(msg, (done, total, output) => scope.postMessage({
+    type: 'progress', done, total,
+    ...(output ? { outputWidth: output.width, outputHeight: output.height } : {})
+  }))
     .then((result) => {
       scope.postMessage({ type: 'done', ...result }, [result.buffer])
     })

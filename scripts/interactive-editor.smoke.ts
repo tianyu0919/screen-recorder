@@ -1,6 +1,6 @@
-import type { EditDocumentV1 } from '../shared/edit'
+import type { EditDocumentV1, EditDocumentV2 } from '../shared/edit'
 import type { RecordingEvents } from '../shared/types'
-import { parseEditDocument, serializeEditDocument } from '../src/timeline/editDocument'
+import { parseEditDocument } from '../src/timeline/editDocument'
 import { bufferedTimeWindow, clusterTimelineEvents } from '../src/timeline/eventDisplay'
 import { activeKeyPromptAt, deriveRecordedKeyPrompts } from '../src/timeline/keyPrompts'
 import { DEFAULT_MOTION_PARAMS } from '../src/timeline/keyframes'
@@ -102,10 +102,45 @@ const document: EditDocumentV1 = {
   customAudio: [],
   keyboardOverlay: { x: 0.5, y: 0.86 }
 }
-const restored = parseEditDocument(serializeEditDocument(document))
+const restored = parseEditDocument(JSON.stringify(document))
 check(
-  'edit.json 可恢复完整效果与全局提示位置',
-  restored.motionEffects[0].startMs === 3000 && restored.keyboardOverlay.y === 0.86
+  'V1 edit.json 迁移后恢复效果并补齐 V2 默认值',
+  restored.version === 2 && restored.motionEffects[0].startMs === 3000 &&
+    restored.keyboardOverlay.y === 0.86 && restored.motionEnabled &&
+    !restored.audioMute.mic && !restored.renderSettings.backgroundEnabled &&
+    restored.renderSettings.backgroundPaddingPercent === 6
+)
+const legacyV2 = parseEditDocument(JSON.stringify({
+  ...restored,
+  renderSettings: { backgroundEnabled: true, backgroundColor: '#16181D' }
+}))
+check(
+  '旧 V2 缺少背景边距时补齐 6%',
+  legacyV2.renderSettings.backgroundPaddingPercent === 6
+)
+const boundedV2 = parseEditDocument(JSON.stringify({
+  ...restored,
+  renderSettings: {
+    backgroundEnabled: true,
+    backgroundColor: '#16181D',
+    backgroundPaddingPercent: 99
+  }
+}))
+check(
+  'V2 背景边距越界时钳制到 20%',
+  boundedV2.renderSettings.backgroundPaddingPercent === 20
+)
+const invalidPaddingV2 = parseEditDocument(JSON.stringify({
+  ...restored,
+  renderSettings: {
+    backgroundEnabled: true,
+    backgroundColor: '#16181D',
+    backgroundPaddingPercent: null
+  }
+}))
+check(
+  'V2 背景边距非数值时回退 6%',
+  invalidPaddingV2.renderSettings.backgroundPaddingPercent === 6
 )
 
 const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
@@ -131,9 +166,15 @@ let autosaveState = {
   editRevision: 0,
   saveState: { kind: 'idle' as const },
   motionParams: DEFAULT_MOTION_PARAMS,
+  motionEnabled: true,
   motionEffects: moved,
   manualKeyPrompts: [], hiddenRecordedKeyIndices: [], cuts: [],
-  audioGain: { mic: 1, system: 1 }, customClips: [],
+  audioGain: { mic: 1, system: 1 }, audioMute: { mic: false, system: false },
+  renderSettings: {
+    backgroundEnabled: false,
+    backgroundColor: '#16181D',
+    backgroundPaddingPercent: 12
+  }, customClips: [],
   keyboardOverlay: { x: 0.5, y: 0.86 }
 } as unknown as PreviewState
 const getAutosave = (): PreviewState => autosaveState
@@ -147,10 +188,11 @@ markEditDirty(getAutosave, setAutosave, 0)
 await wait(10)
 releaseFirst?.()
 await wait(30)
-const latestSaved = saveCalls.at(-1) ? JSON.parse(saveCalls.at(-1)!) as EditDocumentV1 : null
+const latestSaved = saveCalls.at(-1) ? JSON.parse(saveCalls.at(-1)!) as EditDocumentV2 : null
 check(
   '保存中继续编辑最终落盘最新 revision',
   saveCalls.length === 2 && latestSaved?.keyboardOverlay.x === 0.8 &&
+    latestSaved.renderSettings.backgroundPaddingPercent === 12 &&
     autosaveState.saveState.kind === 'saved'
 )
 resetEditAutosave()

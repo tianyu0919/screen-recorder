@@ -3,7 +3,8 @@ import type { RecordingSession } from '@shared/types'
 import { formatDayLabel } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { RefreshIcon } from '@/components/icons'
-import { SessionCard, type SessionAction } from './SessionCard'
+import type { SessionAction } from './SessionCard'
+import { SessionGrid } from './SessionGrid'
 import { motion } from 'motion/react'
 import { staggerContainer, staggerItem, viewTransition } from '@/lib/motion'
 import { AnimatePresence } from 'motion/react'
@@ -148,13 +149,12 @@ export function SessionList({
               {groupByDay(visibleSessions).map((group) => (
                 <motion.section exit={{ opacity: 0, height: 0, marginBottom: 0 }} key={`${tab}-${group.label}`} className="flex flex-col gap-2.5 pb-1">
                   <h3 className="text-[11px] font-semibold tracking-[0.4px] text-ink-3">{group.label}</h3>
-                  <motion.div variants={staggerContainer} initial="initial" animate="enter" className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-                    <AnimatePresence mode="popLayout">
-                      {group.items.map((s) => (
-                        <SessionCard key={s.sessionId} session={s} disabled={loading || openingSessionId !== null} onOpen={(sessionId) => void handleOpen(sessionId)} onAction={(action, session) => setPending({ action, sessionId: session.sessionId })} />
-                      ))}
-                    </AnimatePresence>
-                  </motion.div>
+                  <SessionGrid
+                    sessions={group.items}
+                    disabled={loading || openingSessionId !== null}
+                    onOpen={(sessionId) => void handleOpen(sessionId)}
+                    onAction={(action, session) => setPending({ action, sessionId: session.sessionId })}
+                  />
                 </motion.section>
               ))}
             </AnimatePresence>

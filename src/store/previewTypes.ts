@@ -1,5 +1,5 @@
 import type { CameraKeyframe, RecordingSession } from '@shared/types'
-import type { EditSaveState, MotionEffect } from '@shared/edit'
+import type { EditSaveState, MotionEffect, RenderSettings } from '@shared/edit'
 import type { Timeline } from '@/timeline/types'
 import type { MotionParams } from '@/timeline/keyframes'
 import type { CutRange } from '@/timeline/cuts'
@@ -23,6 +23,7 @@ export interface PreviewState {
   loadError: string | null
   current: PreviewSession | null
   motionParams: MotionParams
+  motionEnabled: boolean
   keyframes: CameraKeyframe[]
   ripples: RipplePoint[]
   motionEffects: MotionEffect[]
@@ -37,6 +38,8 @@ export interface PreviewState {
   cuts: CutRange[]
   sourceDurationMs: number | null
   audioGain: { mic: number; system: number }
+  audioMute: { mic: boolean; system: boolean }
+  renderSettings: RenderSettings
   customClips: CustomClip[]
   clipError: string | null
 
@@ -49,6 +52,7 @@ export interface PreviewState {
   openSession(sessionId: string): Promise<void>
   closeSession(): void
   setMotionParams(patch: Partial<MotionParams>): void
+  setMotionEnabled(enabled: boolean): void
   setSegmentZoom(id: string, zoom: number): void
   resetSegmentZoom(id: string): void
   selectMotionEffect(id: string | null): void
@@ -72,6 +76,7 @@ export interface PreviewState {
   clearCuts(): void
   setSourceDurationMs(durationMs: number): void
   setAudioGain(patch: Partial<{ mic: number; system: number }>): void
+  setAudioMuted(track: 'mic' | 'system', muted: boolean): void
   addCustomClip(offsetMs?: number): Promise<void>
   removeCustomClip(id: string): void
   setClipOffset(id: string, offsetMs: number): void
@@ -80,4 +85,6 @@ export interface PreviewState {
     patch: Partial<Pick<CustomClip, 'offsetMs' | 'trimStartMs' | 'trimEndMs'>>
   ): void
   setClipGain(id: string, gain: number): void
+  setClipMuted(id: string, muted: boolean): void
+  setRenderSettings(patch: Partial<RenderSettings>): void
 }

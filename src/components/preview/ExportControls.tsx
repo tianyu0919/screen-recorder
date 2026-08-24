@@ -15,6 +15,7 @@ export function ExportControls(): React.JSX.Element {
     resultPath,
     outputFormat,
     hasAudio,
+    outputSize,
     errorMessage,
     startExport,
     cancelExport,
@@ -28,7 +29,9 @@ export function ExportControls(): React.JSX.Element {
         <div className="h-1.5 w-32 overflow-hidden rounded bg-surface-3">
           <div className="h-full bg-accent" style={{ width: `${percent}%` }} />
         </div>
-        <span className="font-mono text-xs text-ink-2">{percent}%</span>
+        <span className="font-mono text-xs text-ink-2">
+          {percent}%{outputSize ? ` · ${outputSize.width}×${outputSize.height}` : ''}
+        </span>
         <Button variant="ghost" size="sm" onClick={cancelExport}>
           取消
         </Button>
@@ -41,7 +44,7 @@ export function ExportControls(): React.JSX.Element {
       <div className="flex items-center gap-2">
         <span className="max-w-[320px] truncate text-xs text-ink-2" title={resultPath ?? ''}>
           {resultPath
-            ? `已导出 ${outputFormat?.toUpperCase()}${hasAudio ? '' : '（无音轨）'}：${resultPath}`
+            ? `已导出 ${outputFormat?.toUpperCase()} · ${outputSize?.width ?? '?'}×${outputSize?.height ?? '?'}${hasAudio ? '' : '（无音轨）'}：${resultPath}`
             : '已取消保存'}
         </span>
         <Button variant="ghost" size="sm" onClick={reset}>
