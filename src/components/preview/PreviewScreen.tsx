@@ -18,6 +18,7 @@ import { AnimatePresence, motion, type Variants } from 'motion/react'
 import { blocksGlobalShortcut } from '@/lib/keyboardTarget'
 import { useSettingsStore } from '@/store/settingsStore'
 import { usePreviewPerformanceToast } from './usePreviewPerformanceToast'
+import { useExportStore } from '@/store/exportStore'
 
 interface PreviewScreenProps {
   focusMode: boolean
@@ -53,6 +54,7 @@ export function PreviewScreen({
   const [inspectorOpen, setInspectorOpen] = useState(true)
   const previewQuality = useSettingsStore((state) => state.settings?.previewQuality ?? 'auto')
   const updateSettings = useSettingsStore((state) => state.update)
+  const resetExport = useExportStore((state) => state.reset)
   const {
     sessions,
     sessionsLoaded,
@@ -82,10 +84,11 @@ export function PreviewScreen({
   }, [loadSessions])
 
   useEffect(() => {
+    resetExport()
     setScaleMode('fit')
     setInspectorOpen(true)
     onFocusModeChange(false)
-  }, [current?.session.sessionId])
+  }, [current?.session.sessionId, onFocusModeChange, resetExport])
 
   useEffect(() => {
     if (!current) return
@@ -150,7 +153,7 @@ export function PreviewScreen({
             </Chip>
             <EditSaveStatus state={saveState} onRetry={retrySave} />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-none items-center gap-2">
             <PreviewLayoutControls
               scaleMode={scaleMode}
               quality={previewQuality}
@@ -162,6 +165,7 @@ export function PreviewScreen({
             />
             <Button
               variant="outline"
+              className="flex-none whitespace-nowrap"
               onClick={() => void window.api.revealSession(current.session.sessionId)}
             >
               <FolderIcon size={14} />

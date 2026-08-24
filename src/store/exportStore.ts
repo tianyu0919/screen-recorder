@@ -31,6 +31,8 @@ interface ExportState {
 
 /** 当前导出 Worker 句柄（不进 state，避免不必要的订阅触发） */
 let activeWorker: Worker | null = null
+/** 使已终止导出的异步回调失效，避免保存完成后把旧结果写回新会话。 */
+let exportGeneration = 0
 
 function terminateWorker(): void {
   activeWorker?.terminate()
@@ -57,6 +59,7 @@ export const useExportStore = create<ExportState>((set, get) => ({
     const sessionId = current.session.sessionId
 
     terminateWorker()
+    const generation = ++exportGeneration
     const worker = new Worker(new URL('../export/worker.ts', import.meta.url), {
       type: 'module'
     })
@@ -72,6 +75,7 @@ export const useExportStore = create<ExportState>((set, get) => ({
     })
 
     worker.onmessage = (event: MessageEvent<ExportWorkerMessage>) => {
+      if (generation !== exportGeneration) return
       const msg = event.data
       if (msg.type === 'progress') {
         set({
@@ -89,6 +93,7 @@ export const useExportStore = create<ExportState>((set, get) => ({
         void window.api
           .saveExport(sessionId, msg.buffer, msg.format)
           .then((saved) => {
+            if (generation !== exportGeneration) return
             set({
               status: 'done',
               progress: 1,
@@ -99,6 +104,7 @@ export const useExportStore = create<ExportState>((set, get) => ({
             })
           })
           .catch((err: unknown) => {
+            if (generation !== exportGeneration) return
             set({
               status: 'error',
               errorMessage: `保存失败: ${err instanceof Error ? err.message : String(err)}`
@@ -107,6 +113,7 @@ export const useExportStore = create<ExportState>((set, get) => ({
       }
     }
     worker.onerror = () => {
+      if (generation !== exportGeneration) return
       terminateWorker()
       set({ status: 'error', errorMessage: '导出失败: 导出线程异常终止' })
     }
@@ -148,11 +155,13 @@ export const useExportStore = create<ExportState>((set, get) => ({
 
   cancelExport() {
     if (get().status !== 'exporting') return
+    exportGeneration += 1
     terminateWorker()
     set({ status: 'idle', progress: 0 })
   },
 
   reset() {
+    exportGeneration += 1
     terminateWorker()
     set({
       status: 'idle',
