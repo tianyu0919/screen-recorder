@@ -1,5 +1,8 @@
 # Design: 本地实时字幕与字幕编辑
 
+> **历史设计**：第一期实施架构已收敛为录制后离线任务，见
+> [post-recording-captions/design.md](./changes/post-recording-captions/design.md)；本文件的实时 AudioWorklet 与悬浮窗不进入本期。
+
 ## 1. Architecture
 
 ```mermaid

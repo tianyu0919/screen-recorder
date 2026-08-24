@@ -14,6 +14,7 @@
 - [ ] Task 2.3: 集成验证 kr-04 的无光标画面 + 矢量光标重绘接入既有渲染管线（合成顺序：光标层位于视频层之上）
 - [ ] Task 2.4: 集成验证 kr-05 编辑器产出的手动关键帧/片段删除结果同时作用于 kr-02 预览与 kr-03 导出
 - [ ] Task 2.5: 集成验证 kr-06 字幕文档在源时间轴编辑，并同时作用于预览、裁剪后 MP4 与 SRT
+- [ ] Task 2.6: 集成验证 kr-07 派生语音包替代麦克风轨，并复用增益、静音、裁剪和导出混音
 
 ## Phase 3: 整体联调与发布
 - [ ] Task 3.1: 端到端联调：录制 1 分钟含点击/键盘操作 → 自动运镜预览 → 导出 1080p60 mp4，对照 Epic checklist 全量验收
@@ -27,6 +28,7 @@
 - [Task 2.3] depends on kr-04 完成；与 [Task 2.2] 可并行
 - [Task 2.4] depends on [Task 2.2] and kr-05 完成
 - [Task 2.5] depends on [Task 2.2]、[Task 2.4] and kr-06 完成
-- [Task 3.1] depends on [Task 2.2]、[Task 2.3]、[Task 2.4]、[Task 2.5]
+- [Task 2.6] depends on [Task 2.2]、[Task 2.4] and kr-07 完成；可与 [Task 2.5] 并行
+- [Task 3.1] depends on [Task 2.2]、[Task 2.3]、[Task 2.4]、[Task 2.5]、[Task 2.6]
 - [Task 3.2] depends on [Task 3.1]
 - [Task 3.3] depends on [Task 3.2]

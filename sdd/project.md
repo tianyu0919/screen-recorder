@@ -17,7 +17,8 @@
 | kr-03-mp4-export | M3 mp4 导出 | [krs/kr-03-mp4-export/](./specs/screen-recorder/krs/kr-03-mp4-export/spec.md) | in_progress | kr-01（会话格式）、kr-02（渲染管线复用） | Worker 线程离线确定性逐帧渲染；WebCodecs Decoder/Encoder + mp4-muxer；H.264 探测与 VP9+webm / ffmpeg.wasm fallback。macOS 主路径已人工冒烟通过（2026-08-20），双平台/边界项见 checklist。 |
 | kr-04-cursor-beautify | M4 光标美化 | [krs/kr-04-cursor-beautify/](./specs/screen-recorder/krs/kr-04-cursor-beautify/spec.md) | draft | kr-01（`captureCursor` 采集抽象） | 原生采集 helper PoC（macOS ScreenCaptureKit / Windows WGC 无光标采集）；轨迹去抖 + catmull-rom 平滑；矢量光标重绘换肤。 |
 | kr-05-editor | M5 编辑器 | [krs/kr-05-editor/](./specs/screen-recorder/krs/kr-05-editor/spec.md) | in_progress | kr-02、kr-03（编辑结果作用于预览与导出） | 运镜编辑、非破坏式裁剪、按键回显与 edit.json 自动保存已由子 change 交付；父 KR 仍缺 webcam 采集/画中画及完整双平台集成验收。 |
-| kr-06-captions | M6 本地实时字幕与字幕编辑 | [krs/kr-06-captions/](./specs/screen-recorder/krs/kr-06-captions/spec.md) | draft | kr-01、kr-02、kr-03、kr-05 | 麦克风本地 whisper.cpp 双遍识别；录制中不可捕获的临时字幕；停录后最终字幕；字幕轨、全局样式、全局/单段位置；MP4 烧录与 SRT。 |
+| kr-06-captions | M6 录制后离线字幕与编辑 | [krs/kr-06-captions/](./specs/screen-recorder/krs/kr-06-captions/spec.md) | draft | kr-01、kr-02、kr-03、kr-05 | 第一阶段按 change 收敛为编辑页从 `mic.wav` 本地离线生成字幕；后台任务、字幕轨、样式/位置、MP4 烧录与裁剪后 SRT；实时字幕留待后续。 |
+| kr-07-voice-packs | M7 本地语音包与非破坏式变声 | [krs/kr-07-voice-packs/](./specs/screen-recorder/krs/kr-07-voice-packs/spec.md) | draft | kr-01、kr-03、kr-05 | 原声、低沉、清亮、广播、机器人本地 DSP 预设；Worker 等长派生 WAV、缓存、A/B 切换及预览/裁剪/导出一致；AI 音色与 TTS 不在一期。 |
 
 ## Changes
 
@@ -45,6 +46,7 @@
 | kr-05-render-composition-controls | 运镜、静音与背景画布控制 | [kr-05-editor/changes/render-composition-controls/](./specs/screen-recorder/krs/kr-05-editor/changes/render-composition-controls/spec.md) | in_progress | kr-05-interactive-timeline-effects, kr-05-audio-volume, kr-05-custom-audio-track, kr-05-preview-stage-fit, kr-03-mp4-export | 运镜总开关与 1.0x 下限；分轨可恢复静音；移除强制圆角/阴影；可选纯色背景；源尺寸输出及编码能力等比降档。 |
 | kr-05-background-padding | 背景画面边距控制 | [render-composition-controls/changes/background-padding/](./specs/screen-recorder/krs/kr-05-editor/changes/render-composition-controls/changes/background-padding/spec.md) | in_progress | kr-05-render-composition-controls | 0%–20% 统一画面边距与 macOS 预览/导出一致性已验证；Windows 等价冒烟仍待完成。 |
 | kr-05-focus-preview | 跨平台专注预览 | [kr-05-editor/changes/focus-preview/](./specs/screen-recorder/krs/kr-05-editor/changes/focus-preview/spec.md) | in_progress | kr-05-preview-stage-fit, kr-05-render-composition-controls | 在当前 Lenza 窗口内最大化只读最终效果；简化播放控制自动淡出；支持 F、Space、Esc，并无损恢复编辑上下文；实现与自动验证完成，待双平台人工冒烟。 |
+| kr-06-post-recording-captions | 录制后离线字幕生成与编辑 | [kr-06-captions/changes/post-recording-captions/](./specs/screen-recorder/krs/kr-06-captions/changes/post-recording-captions/spec.md) | draft | kr-06-captions, kr-01, kr-02, kr-03, kr-05 | 用录制后按需离线转写替代原实时双遍首期范围；任务按会话隔离，支持编辑、样式/位置、MP4 烧录和裁剪后 SRT。 |
 
 ## 依赖关系总览
 
@@ -52,6 +54,7 @@
 kr-01-capture-foundation ──┬──> kr-02-motion-playback ──> kr-03-mp4-export ──> kr-05-editor
                            └──> kr-04-cursor-beautify（可与 kr-02/kr-03 并行）
 kr-01/02/03/05 ────────────────────────────────────────────────────────> kr-06-captions
+kr-01/03/05 ───────────────────────────────────────────────────────────> kr-07-voice-packs
 ```
 
-执行顺序建议（见 [Epic tasks.md](./specs/screen-recorder/tasks.md)）：kr-01 → kr-02 → kr-03 为主线；kr-04 在 kr-01 完成后可与主线并行；kr-05 编辑闭环后启动 kr-06 字幕，kr-06 与 kr-04 后续实现可并行。
+执行顺序建议（见 [Epic tasks.md](./specs/screen-recorder/tasks.md)）：kr-01 → kr-02 → kr-03 为主线；kr-04 在 kr-01 完成后可与主线并行；kr-05 编辑闭环后可并行启动 kr-06 录制后字幕与 kr-07 本地语音包。

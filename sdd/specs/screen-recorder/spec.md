@@ -17,6 +17,7 @@ key_results:
   - "kr-04-cursor-beautify"
   - "kr-05-editor"
   - "kr-06-captions"
+  - "kr-07-voice-packs"
 ---
 
 # Specification: screen-recorder（Screen Studio 类录屏软件） (Specification)
@@ -30,4 +31,5 @@ key_results:
 - **[kr-03-mp4-export](./krs/kr-03-mp4-export/spec.md)** — Target: M3 导出；Worker 离线确定性逐帧渲染，输出 1080p60 mp4，与预览一致。
 - **[kr-04-cursor-beautify](./krs/kr-04-cursor-beautify/spec.md)** — Target: M4 光标美化；原生采集 helper PoC 产出无光标画面，矢量光标重绘可放大/换肤，轨迹平滑。
 - **[kr-05-editor](./krs/kr-05-editor/spec.md)** — Target: M5 编辑器；手动关键帧调整、片段删除、webcam 画中画、按键回显，完成完整 MVP 闭环。
-- **[kr-06-captions](./krs/kr-06-captions/spec.md)** — Target: M6 字幕；本地实时临时字幕、停录后最终转写、字幕样式/位置编辑及 MP4/SRT 导出，失败不阻断录屏。
+- **[kr-06-captions](./krs/kr-06-captions/spec.md)** — Target: M6 字幕；按已确认 change 从 `mic.wav` 本地离线生成、编辑字幕，并完成 MP4 烧录与裁剪后 SRT 导出。
+- **[kr-07-voice-packs](./krs/kr-07-voice-packs/spec.md)** — Target: M7 语音包；以本地 DSP 非破坏式生成至少 4 种严格等长的麦克风派生音轨，预览与导出一致。

@@ -1,5 +1,8 @@
 # Verification Checklist: 本地实时字幕与字幕编辑
 
+> **历史验收范围**：第一期验收以
+> [post-recording-captions/checklist.md](./changes/post-recording-captions/checklist.md) 为准；实时字幕条目不作为本期完成条件。
+
 ## Functional Verification
 - [ ] 模型首次启用可查看进度、取消和重试；校验失败不加载损坏文件
 - [ ] 自动检测、中文、英文三种语言选项可用并记住上次选择

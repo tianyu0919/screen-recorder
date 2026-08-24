@@ -22,6 +22,9 @@ dependencies:
 
 # Specification: 本地实时字幕与字幕编辑
 
+> **范围变更（2026-08-24）**：第一期不再实现录制中实时字幕，实施以
+> [录制后离线字幕生成与编辑](./changes/post-recording-captions/spec.md) 为准；本文件保留原始方案和后续实时能力背景。
+
 ## 0. Key Result Statement
 
 Lenza SHALL 在 Windows 和 macOS 上以本地模型完成“录制中临时字幕 → 停录后最终字幕 → 编辑样式/位置 → MP4/SRT 导出”闭环，且字幕失败不得阻断录屏。

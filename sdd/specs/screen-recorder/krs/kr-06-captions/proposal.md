@@ -1,5 +1,8 @@
 # Proposal: 本地实时字幕与字幕编辑
 
+> **已被首期范围覆盖**：2026-08-24 确认先交付录制后离线字幕；当前决策、价值与取舍见
+> [post-recording-captions/proposal.md](./changes/post-recording-captions/proposal.md)。实时字幕保留为后续候选。
+
 ## 1. Context & Problem Statement
 
 - **Current State**: Lenza 已把麦克风录制为 `mic.wav`，编辑器支持运镜、裁剪和多类音轨，但没有语音转写、字幕轨、字幕样式或字幕导出。

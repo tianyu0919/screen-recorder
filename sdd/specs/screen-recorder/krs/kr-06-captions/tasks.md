@@ -1,5 +1,8 @@
 # Task Breakdown & Execution Board: 本地实时字幕与字幕编辑
 
+> **暂停执行**：本任务板属于原实时双遍方案。第一期仅执行
+> [post-recording-captions/tasks.md](./changes/post-recording-captions/tasks.md)，实时字幕任务留待后续独立 change。
+
 ## Phase 1: 契约与纯逻辑
 - [ ] Task 1.1: 在 `shared/` 定义字幕文档、样式、位置、模型状态和 IPC 契约
 - [ ] Task 1.2: 实现字幕校验、时间钳制、分割/合并、裁剪映射与 SRT 序列化纯函数
