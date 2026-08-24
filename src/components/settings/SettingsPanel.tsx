@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowUpCircle, FolderOpen, RefreshCw, Settings, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -18,23 +19,36 @@ interface SettingsPanelProps {
 export function SettingsPanel({ open, onClose }: SettingsPanelProps): React.JSX.Element {
   const { settings, loading, error, update, chooseRecordingsPath, openRecordingsPath } = useSettingsStore()
   const { snapshot, check, setOpen: setUpdateOpen } = useUpdateStore()
+  const isWindows = window.api.platform === 'win32'
   const updateStatus = snapshot?.status
   const hasUpdate = updateStatus?.state === 'available'
     || updateStatus?.state === 'downloading'
     || updateStatus?.state === 'downloaded'
     || (updateStatus?.state === 'error' && Boolean(updateStatus.version))
+
+  useEffect(() => {
+    if (!open) return
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [open, onClose])
+
   return (
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-50 flex justify-end bg-canvas/35"
+          className="app-nodrag fixed inset-0 z-50 flex justify-end bg-canvas/35"
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}
         >
           <motion.aside
             initial={{ x: 36, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 36, opacity: 0 }}
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-            className="flex h-full w-[390px] flex-col border-l border-line bg-surface-1 shadow-float"
+            className="app-nodrag flex h-full w-[390px] flex-col border-l border-line bg-surface-1 shadow-float"
             role="dialog" aria-modal="true" aria-label="应用设置"
           >
             <header className="flex h-16 items-center justify-between border-b border-line px-5">
@@ -76,10 +90,12 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps): React.JSX.
                     </div>
                   </SettingSection>
 
-                  <SettingSection title="关闭应用" description={window.api.platform === 'win32' ? '后台运行时 Lenza 会保留在系统托盘。' : '后台运行时窗口隐藏，Lenza 保留在 Dock。'}>
-                    {settings.closeBehavior === null && <p className="mb-2 rounded-lg bg-surface-2 px-3 py-2 text-[11px] text-ink-3">尚未设置，关闭窗口时会先询问。</p>}
-                    <Segmented options={CLOSE_OPTIONS} value={settings.closeBehavior ?? 'unset'} onChange={(closeBehavior) => void update({ closeBehavior: closeBehavior as 'background' | 'quit' })} className="w-full [&>button]:flex-1" />
-                  </SettingSection>
+                  {isWindows && (
+                    <SettingSection title="关闭应用" description="后台运行时 Lenza 会保留在系统托盘。">
+                      {settings.closeBehavior === null && <p className="mb-2 rounded-lg bg-surface-2 px-3 py-2 text-[11px] text-ink-3">尚未设置，关闭窗口时会先询问。</p>}
+                      <Segmented options={CLOSE_OPTIONS} value={settings.closeBehavior ?? 'unset'} onChange={(closeBehavior) => void update({ closeBehavior: closeBehavior as 'background' | 'quit' })} className="w-full [&>button]:flex-1" />
+                    </SettingSection>
+                  )}
 
                   <SettingSection title="软件更新" description="启动后检查正式版本；发现更新时由你决定是否下载。">
                     <div className="rounded-xl border border-line bg-surface-2 p-3">

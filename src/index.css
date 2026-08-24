@@ -21,6 +21,9 @@
   --on-accent: #ffffff;
   --success: #29965a;
   --warning: #c98218;
+  --permission-bg: #fffaf5;
+  --permission-border: rgba(201, 130, 24, 0.32);
+  --permission-icon-bg: #fff0d8;
   --danger: #cf3f36;
   --canvas: #15171a;
   --canvas-raised: #202328;
@@ -45,6 +48,9 @@
   --on-accent: #ffffff;
   --success: #46b879;
   --warning: #e2a142;
+  --permission-bg: #191714;
+  --permission-border: rgba(226, 161, 66, 0.3);
+  --permission-icon-bg: #2b2115;
   --danger: #f06b62;
   --canvas: #0b0c0e;
   --canvas-raised: #17191d;
@@ -75,6 +81,16 @@ button, input, [role='button'] { -webkit-tap-highlight-color: transparent; }
 .status-dot-danger {
   background: var(--danger);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+.permission-guide {
+  background: var(--permission-bg);
+  border-color: var(--permission-border);
+}
+
+.permission-guide-icon {
+  background: var(--permission-icon-bg);
+  border-color: var(--permission-border);
 }
 
 .selected-badge {

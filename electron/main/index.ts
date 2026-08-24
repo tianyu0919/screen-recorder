@@ -70,6 +70,11 @@ function createWindow(): void {
   win.on('close', (event) => {
     if (quitting) return
     event.preventDefault()
+    // macOS 红色关闭按钮遵循原生语义：仅隐藏窗口，⌘Q / 菜单栏退出才结束进程。
+    if (process.platform === 'darwin') {
+      backgroundWindow(win!, appIcon)
+      return
+    }
     const behavior = appSettings.get().closeBehavior
     if (behavior === 'background') backgroundWindow(win!, appIcon)
     else if (behavior === 'quit') app.quit()
