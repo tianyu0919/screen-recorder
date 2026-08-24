@@ -2,7 +2,7 @@
 id: "kr-02-cursor-follow-camera"
 kind: change
 parent: "kr-02-motion-playback"
-status: in_progress
+status: completed
 impact_radius:
   - "src/timeline/cursorFollow.ts"
   - "src/timeline/derive.ts"

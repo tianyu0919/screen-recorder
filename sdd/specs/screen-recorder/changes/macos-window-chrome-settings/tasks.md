@@ -18,7 +18,7 @@
 ## Phase 4: 文档与验证
 
 - [x] Task 4.1：同步 `docs/TECH_DESIGN.md` 中 macOS/Windows 关闭生命周期与顶栏布局说明。
-- [ ] Task 4.2：运行 typecheck、build、lint，并在 macOS 实际验证设置三种关闭方式、红灯隐藏/Dock 恢复、`⌘Q` 退出、深浅主题与窗口拖拽。
+- [x] Task 4.2：运行 typecheck、build、lint，并在 macOS 实际验证设置三种关闭方式、红灯隐藏/Dock 恢复、`⌘Q` 退出、深浅主题与窗口拖拽。
 
 # Task Dependencies
 

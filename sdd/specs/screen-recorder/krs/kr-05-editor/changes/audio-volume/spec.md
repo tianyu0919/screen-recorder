@@ -2,7 +2,7 @@
 id: "kr-05-audio-volume"
 kind: change
 parent: "kr-05-editor"
-status: in_progress
+status: completed
 impact_radius:
   - "src/components/preview/"
   - "src/store/previewStore.ts"

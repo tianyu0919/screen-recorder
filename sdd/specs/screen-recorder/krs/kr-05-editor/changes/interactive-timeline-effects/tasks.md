@@ -42,8 +42,8 @@
 - [x] Task 7.2: 运行 typecheck、build、timeline/render/export/audio smoke，检查相关文件不超过 300 行
 - [x] Task 7.3: 同步 TECH_DESIGN、kr-02 跟随变更及 edit.json/采集语义文档
 - [x] Task 7.6: 更新即时跟随专项回归并运行 lint、typecheck、build、timeline/render/export/audio/cursor-follow smoke
-- [ ] Task 7.4: Windows 人工冒烟：长会话缩放、播放中虚拟化、运镜手势、右键添加、保存恢复和 MP4 一致性
-- [ ] Task 7.5: macOS 人工冒烟：全局键盘过滤/组合、上下文菜单、保存恢复和 MP4 一致性
+- [x] Task 7.4: Windows 人工冒烟：长会话缩放、播放中虚拟化、运镜手势、右键添加、保存恢复和 MP4 一致性
+- [x] Task 7.5: macOS 人工冒烟：全局键盘过滤/组合、上下文菜单、保存恢复和 MP4 一致性
 
 # Task Dependencies
 - [Task 1.3] depends on [Task 1.1]

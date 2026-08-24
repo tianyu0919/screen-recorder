@@ -21,6 +21,14 @@
 - [x] Task 4.1: 导出与预览一致性自测（同时间点帧比对），对照 checklist.md 逐项验证
 - [x] Task 4.2: 清理调试日志与无用代码
 
+## Phase 5: 剩余边界与双平台验收
+- [ ] Task 5.1: 在性能差异明显的两台机器导出同一会话并核对帧数、时间戳与抽样帧内容。
+- [ ] Task 5.2: 验证导出取消会终止 Worker，并确认目标目录不存在半成品文件。
+- [ ] Task 5.3: 强制 H.264 不可用路径，验证 VP9+webm fallback 与格式变化提示。
+- [ ] Task 5.4: 使用损坏/不支持的源 webm 验证友好错误和残缺文件清理。
+- [ ] Task 5.5: 模拟单帧渲染慢于实时，验证输出时间戳仍均匀且帧率恒定。
+- [ ] Task 5.6: 完成 macOS 与 Windows 真实会话导出冒烟并关闭 checklist。
+
 # Task Dependencies
 - [Task 1.2] depends on [Task 1.1]
 - [Task 1.3] depends on [Task 1.1]，与 [Task 1.2] 可并行
@@ -32,3 +40,5 @@
 - [Task 3.2] depends on [Task 1.1]，与 [Task 3.1] 可并行
 - [Task 4.1] depends on [Task 2.4]、[Task 3.1]、[Task 3.2]
 - [Task 4.2] depends on [Task 4.1]
+- [Task 5.1] through [Task 5.5] depend on [Task 4.2] and can run in parallel
+- [Task 5.6] depends on [Task 5.1] through [Task 5.5]

@@ -28,7 +28,7 @@
 ## Phase 5: 文档与验证
 - [x] Task 5.1: 更新 `docs/TECH_DESIGN.md` 的存储目录、索引、IPC 和平台路径设计。
 - [x] Task 5.2: 运行 lint、typecheck、build，并修复所有新增问题。
-- [ ] Task 5.3: 在 Windows 验证托盘，在 macOS 验证 Dock；冒烟多路径、删除、恢复和到期清理。
+- [x] Task 5.3: 在 Windows 验证托盘，在 macOS 验证 Dock；冒烟多路径、删除、恢复和到期清理。
 
 # Task Dependencies
 - [Task 1.2] and [Task 1.3] depend on [Task 1.1].

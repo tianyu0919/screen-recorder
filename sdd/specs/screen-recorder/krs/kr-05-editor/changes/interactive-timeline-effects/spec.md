@@ -2,7 +2,7 @@
 id: "kr-05-interactive-timeline-effects"
 kind: change
 parent: "kr-05-editor"
-status: in_progress
+status: completed
 impact_radius:
   - "shared/ipc.ts"
   - "electron/input/"

@@ -2,7 +2,7 @@
 id: "macos-window-chrome-settings"
 kind: change
 parent: "screen-recorder"
-status: in_progress
+status: completed
 impact_radius:
   - "electron/main/index.ts"
   - "src/App.tsx"

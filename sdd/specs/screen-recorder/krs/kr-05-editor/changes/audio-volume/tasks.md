@@ -14,7 +14,7 @@
 
 ## Phase 4: 验证
 - [x] Task 4.1: `npm run typecheck` + `npm run build` 通过（2026-08-22）
-- [ ] Task 4.2: 人工冒烟（Windows）：调节音量 → 预览听感变化；导出产物音量一致
+- [x] Task 4.2: 人工冒烟（Windows）：调节音量 → 预览听感变化；导出产物音量一致
 
 # Task Dependencies
 - [Task 1.2] depends on [Task 1.1]

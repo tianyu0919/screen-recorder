@@ -2,7 +2,7 @@
 id: "kr-05-custom-audio-track"
 kind: change
 parent: "kr-05-editor"
-status: in_progress
+status: completed
 impact_radius:
   - "electron/ipc.ts"
   - "electron/preload/index.ts"

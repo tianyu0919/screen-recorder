@@ -18,7 +18,7 @@
 
 ## Phase 5: 验证
 - [x] Task 5.1: `npm run typecheck` + `npm run build` + `tsx scripts/export.smoke.ts` 回归全部通过（2026-08-22）
-- [ ] Task 5.2: 人工冒烟：添加 BGM → 波形出现 → 拖动 → 预览/导出一致
+- [x] Task 5.2: 人工冒烟：添加 BGM → 波形出现 → 拖动 → 预览/导出一致
 
 ## Phase 6: 片尾约束与音轨裁剪
 - [x] Task 6.1: 真实视频时长写回 store，过滤片尾外事件并重新派生运镜/波纹
@@ -39,7 +39,7 @@
 - [x] Task 8.2: RenderInfo 改为变化时更新，播放头逐帧位置改为命令式 DOM 更新
 - [x] Task 8.3: 自定义音轨复用 decodeAudioData 的 AudioBuffer，由单一 Web Audio 上下文调度
 - [x] Task 8.4: 预览尺寸/纹理、音轨裁剪与导出回归通过；typecheck / build / smoke 全部通过（2026-08-22）
-- [ ] Task 8.5 [P2]: Windows 实机仍有轻微卡顿，后续继续采样性能轨迹并优化
+- [x] Task 8.5 [P2]: 基础版结项；多轨布局、裁剪体验与残余卡顿转入 `changes/multi-track-audio-editing/`
 
 ## Phase 9: 音频素材滑移编辑
 - [x] Task 9.1: 增加保持片段长度的音频源窗口滑移纯函数及边界回归

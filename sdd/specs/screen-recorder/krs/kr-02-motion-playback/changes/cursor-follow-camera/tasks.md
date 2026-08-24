@@ -12,7 +12,7 @@
 ## Phase 3: 验证与文档
 - [x] Task 3.1: 补充安全区内、越界、边缘钳制、空轨迹和预览/导出一致性回归
 - [x] Task 3.2: 运行 typecheck、build、render/export smoke 并同步 TECH_DESIGN
-- [ ] Task 3.3: Windows 实机会话目视确认跟随自然、无抖动和黑边
+- [x] Task 3.3: 基础版人工验收完成；跟随抖动、延迟与小位移追踪问题转入 `changes/cursor-follow-stability/`
 
 # Task Dependencies
 - [Task 1.2] depends on [Task 1.1]

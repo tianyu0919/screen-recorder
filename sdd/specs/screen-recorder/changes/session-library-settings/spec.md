@@ -2,7 +2,7 @@
 id: "session-library-settings"
 kind: feature
 parent: ""
-status: in_progress
+status: completed
 impact_radius:
   - "electron/main"
   - "electron/store"

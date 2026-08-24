@@ -2,7 +2,7 @@
 id: "kr-05-preview-stage-fit"
 kind: feature
 parent: "kr-05-editor"
-status: in_progress
+status: completed
 impact_radius:
   - "src/components/preview/PreviewPlayer.tsx"
   - "src/components/preview/PreviewScreen.tsx"

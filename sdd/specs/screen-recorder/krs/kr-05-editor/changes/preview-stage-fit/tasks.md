@@ -15,7 +15,7 @@
 ## Phase 4: 验证
 - [x] Task 4.1: 添加舞台 fit 纯逻辑 smoke 测试
 - [x] Task 4.2: 运行 typecheck、build 和既有回归冒烟
-- [ ] Task 4.3: Windows 手动拖动窗口、切换 100%、收起检查器冒烟
+- [x] Task 4.3: Windows 手动拖动窗口、切换 100%、收起检查器冒烟
 
 # Task Dependencies
 - [Task 1.1] depends on [Task 1.2]

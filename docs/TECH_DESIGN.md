@@ -12,7 +12,7 @@
 | 自动缩放运镜 | 虚拟相机在画布上做 spring/easing 动画 | 鼠标点击事件（时间戳 + 坐标） |
 | 鼠标平滑/放大 | 光标不录进画面，导出时用矢量光标重绘 | 鼠标轨迹（高频坐标序列） |
 | 点击高亮 | 在点击时刻叠加波纹动画 | 点击事件 |
-| 背景构图 | 录制画面居中 + 四周渐变 padding | 录制分辨率 |
+| 背景构图 | 默认按源尺寸输出；可选 1920×1080 纯色背景画布 | 录制分辨率 + edit.json V2 背景设置 |
 | 按键回显 | 键盘事件叠加层 | 键盘事件 |
 | 画中画摄像头 | 第二路采集，合成时叠加 | webcam 视频流 |
 
@@ -50,7 +50,9 @@
 
 ### 3.1 屏幕画面采集
 
-- 源枚举：`desktopCapturer.getSources({ types: ['screen', 'window'] })`
+- 源枚举：`desktopCapturer.getSources({ types: ['screen', 'window'] })`。若系统合成器返回个别空缩略图，Main 等待 250ms 后自动补取一次，只替换失败项并保留首次成功结果。
+- **整屏选中反馈**：Renderer 选择 `screen` 来源后通过 preload 白名单通知 Main；`electron/displaySelectionOutline/` 以 source 的 `display_id` 精确匹配 `screen.Display`，并由 `darwin.ts` / `win32.ts` 创建覆盖目标 bounds 的透明、不可聚焦、鼠标穿透置顶窗口。Windows 辅助窗口显式使用 `skipTaskbar` 隐藏任务栏/Alt+Tab 项；macOS 不调用 `skipTaskbar` 或 `setVisibleOnAllWorkspaces`，只用 `setHiddenInMissionControl` 与窗口菜单排除隐藏辅助层，避免 Electron 为跨 Space 窗口转换整个进程类型而导致 Lenza 从 Dock/Command+Tab 消失。覆盖层只绘制稳定的 Lenza 橙色内边框，窗口来源不显示系统级边框；显示器拔插/缩放、主窗口隐藏、视图切换和来源失败均会清理或更新覆盖层。
+- **录制前清理顺序**：点击开始录制时必须先 `await hideDisplaySelectionOutline()`，等待覆盖窗口销毁及桌面合成器刷新，再启动 Main 录制会话与 Renderer `MediaRecorder`，避免边框进入视频首帧。该提示不写入 `events.json` 或设置数据。
 
 > **窗口源的固有语义（产品决策，2026-08-19 冒烟确认）**：窗口采集锁定的是"选定那一刻的窗口"，目标 App 在录制期间新弹出的窗口录不上。因此产品定为**整屏主模式**，窗口模式仅限单窗口演示场景；App 级采集（SCApplication 粒度，跟随整个 App 的全部窗口）留给原生 helper（kr-04），记 backlog。
 - 采集：**ScreenCaptureKit 路径（已定）** —— Main 进程 `session.setDisplayMediaRequestHandler`（`useSystemPicker: false`，handler 按 Renderer 选好的 sourceId 直接 approve）+ Renderer `navigator.mediaDevices.getDisplayMedia()`。**不再使用 legacy `getUserMedia(chromeMediaSourceId)`**：实测 macOS 15 上 legacy 窗口采集在窗口缩放/移动时帧更新不可靠（画面停滞、黑边错位）；SCK 路径整屏/窗口/遮挡/多屏场景均已实测帧持续更新。
@@ -81,6 +83,8 @@ Screen Studio 能"放大/替换/平滑光标"的前提是：**光标没有被烧
 ### 3.4 音频
 
 - 麦克风：`getUserMedia({ audio: true })`，单独一条轨
+  - macOS 权限由首页麦克风开关主动申请：`unknown` 调用 Main 的 `systemPreferences.askForMediaAccess('microphone')`，`denied` 跳转“隐私与安全性 → 麦克风”；权限非 `granted` 时开关保持关闭。
+  - 麦克风是可选轨。关闭或未授权时允许正常录制且不创建 `mic.wav`；开始录制和 WAV 写入阶段不再触发延迟授权。开始前权限被撤销或 `getUserMedia` 失败时，Renderer 明确提示并降级为无麦克风录制。
 - 编辑器自定义音轨：导入时只执行一次 `decodeAudioData`，缓存 PCM（导出混音）与同一次解码得到的 `AudioBuffer`（预览）；所有自定义 clip 共用一个 `AudioContext`，在播放、seek、速率变化和缓冲恢复边界用 `AudioBufferSourceNode.start(when, offset, duration)` 重建调度，逐帧路径不 seek、不再为 FLAC/MP3 创建额外媒体解码器。波形横向滚动同步平移 `trimStartMs / trimEndMs` 做素材滑移，保持 `offsetMs` 与片段长度；纵向滚动继续沿用时间轴缩放，方向判断兼容鼠标与 macOS 触控板。
 - 系统声音（kr-01 system-audio 已落地）按平台分路径，产物都是 `system.wav`（48kHz/2ch/int16，与 mic.wav 同规格），预览/导出期与 mic.wav 混合：
   - **双轨回声对齐**：音箱外放时 mic 轨会 acoustically 录入系统音，与 system.wav 混合形成回声；两条采集链有固定延迟差（声卡/Voicemeeter 引擎缓冲，逐机不同，实测 ~183ms）。预览（useSyncedAudio 偏移播放）与导出（mixPcm 偏移混合）统一用 `src/lib/audioAlign.ts` 的降采样互相关估计 system 相对 mic 的恒定偏移并对齐；归一化相关度不足（耳机用户 mic 无系统音）→ 偏移 0 不对齐。
@@ -94,7 +98,7 @@ Screen Studio 能"放大/替换/平滑光标"的前提是：**光标没有被烧
 
 新录制默认根目录为 `app.getPath('videos')/Lenza`（Windows「视频/Lenza」、macOS `Movies/Lenza`），用户可在设置中切换；切换仅影响新录制。`electron/store/sessionCatalog.ts` 在 `userData/session-index.json` 维护跨根目录索引，旧 `userData/recordings` 自动登记但不搬迁。Main 负责解析 sessionId 到受信绝对路径，Renderer 不接触任意文件路径。
 
-应用偏好由 `electron/store/appSettings.ts` 写入版本化 `userData/settings.json`，包含主题、当前/历史录制根、回收站周期与关闭策略；新字段通过默认值合并迁移。删除先将完整会话移入 `userData/trash` 并记录原位置和清理时间，到期或二次确认后才永久删除。根目录离线与根可访问但会话缺失必须区分，后者只允许移除失效索引。
+应用偏好由 `electron/store/appSettings.ts` 写入版本化 `userData/settings.json`，包含主题、当前/历史录制根、回收站周期、关闭策略与本机预览清晰度；新字段通过默认值合并迁移。删除先将完整会话移入 `userData/trash` 并记录原位置和清理时间，到期或二次确认后才永久删除。根目录离线与根可访问但会话缺失必须区分，后者只允许移除失效索引。
 
 关闭后台运行按平台拆分在 `electron/windowLifecycle/`：Windows 从 `resourcesPath/tray-icon.ico` 创建系统托盘，且仅在托盘创建成功后隐藏主窗口，并保留“后台运行 / 直接退出”设置与首次确认；macOS 遵循原生生命周期，红色关闭按钮固定隐藏窗口并通过 Dock `activate` 恢复，只有 `⌘Q` / 菜单栏退出结束进程，Renderer 不展示关闭策略设置。共享分发层只选择 `win32.ts` / `darwin.ts`，不混合平台实现。
 
@@ -129,7 +133,7 @@ Main 进程启动时通过 Electron 单实例锁阻止重复实例。再次从�
 
 > 时间戳全部相对录制开始（ms），与视频帧对齐。鼠标轨迹用数组压缩存储（量大，可上万条/分钟）。
 
-`events.json` 和原始音视频只读；运镜片段、隐藏的关联波纹、手动按键提示、裁剪、音量、自定义音频 clip 及按键提示全局位置统一写入 `edit.json`。Renderer 以 revision 守卫协调手势结束即时保存和 500ms 离散操作防抖，Main 采用同目录临时文件 `fsync + rename` 原子替换；失败保留内存脏数据并提供重试。成功保存返回 `updatedAt`，会话列表按最近编辑时间优先排序。
+`events.json` 和原始音视频只读；运镜片段与总开关、隐藏的关联波纹、手动按键提示、裁剪、分轨 gain/mute、自定义音频 clip、背景图层设置及按键提示全局位置统一写入 `edit.json`。当前文档为 V2；读取 V1 时补齐 `motionEnabled=true`、各轨 `muted=false`、`backgroundEnabled=false`、`backgroundColor=#16181D` 与 `backgroundPaddingPercent=6`，读取缺少边距字段的旧 V2 文档时同样补齐 `backgroundPaddingPercent=6`。Renderer 以 revision 守卫协调手势结束即时保存和 500ms 离散操作防抖，Main 采用同目录临时文件 `fsync + rename` 原子替换；失败保留内存脏数据并提供重试。成功保存返回 `updatedAt`，会话列表按最近编辑时间优先排序。
 
 ---
 
@@ -139,7 +143,7 @@ Main 进程启动时通过 Electron 单实例锁阻止重复实例。再次从�
 
 ### 4.1 虚拟相机模型
 
-- 把录制画面视为一张 `(W, H)` 的大画布，输出是 `1920×1080` 的视口
+- 把录制画面视为一张 `(W, H)` 的大画布；背景关闭时输出视口为源尺寸，背景开启时为 `1920×1080`
 - 相机状态：`{ x, y, zoom }`（视口中心点 + 缩放倍率）
 - **可编辑运镜效果**：首次打开旧会话时把点击派生结果物化为稳定 `MotionEffect`。片段支持新增、删除、主体移动和双端拉伸，最短 300ms、100ms 网格及播放头/事件/相邻边界磁吸，且禁止重叠。自动运镜与点击波纹以源点击索引和相对偏移关联；主体移动或左端调整同步移动波纹，右端只改结束，删除仅写覆盖而不改原事件。编辑后焦点与波纹坐标按新的源时间重新采样 `mouseTrack`，手动运镜不生成波纹。
 - **放大鼠标跟随**：仅在 `zoom > 1.05` 的运镜区间消费 `mouseTrack`；不设置视口百分比安全区，任意超过 2px 去抖阈值的有效移动都会按 32ms 有界采样更新相机目标，并经过快速轻量 spring 与画布边缘钳制。回到全景或进入下一运镜焦点时停止当前跟随；预览与导出复用同一组派生关键帧。
@@ -149,10 +153,11 @@ Main 进程启动时通过 Electron 单实例锁阻止重复实例。再次从�
 
 - **WebGL**（自研 shader 或用 PixiJS）：每帧根据相机状态对视频纹理做仿射变换 + 叠加层（光标、点击波纹、按键徽章）
 - 视频解码：导出用 WebCodecs `VideoDecoder` 精确逐帧取帧；预览可用 `<video>` + `requestVideoFrameCallback`
-- 预览性能：导出逻辑视口固定 1920×1080；编辑器 WebGL backing 按舞台显示尺寸分档且最高 1280×720（宽度 64px 桶化，拖动窗口时避免逐像素重建），预览上传纹理限制为 backing 长边的 1.5 倍，2K/4K 源不再逐帧完整上传；圆角/阴影/波纹按比例缩放，导出分辨率与效果不受影响。播放头逐帧位置直接写 DOM，React 时间文本最多 20fps；`RenderInfo` 仅在内容变化时更新。
+- 预览性能：普通编辑模式提供自动、流畅、高清、超清四档本机偏好，分别结合舞台尺寸与 `1x/1.5x/2x` 像素比把 WebGL backing 限制在 720p/1080p/1440p；自动档跟随当前 DPR，Retina 最高 1080p、普通屏最高 720p。专注预览继续独立按 `devicePixelRatio`（最高 2）补足物理像素，且不超过最终输出尺寸与 2560×1440。两种模式均使用 64px 宽度桶化，避免窗口尺寸变化时逐像素重建合成器。普通编辑 rVFC 逐帧路径只在 ref 中统计呈现率：连续播放预热 3 秒后以 2 秒窗口判断，低于源 FPS 70% 时通过顶部居中 Sonner Toast 询问是否切换到流畅；暂停、seek、后台、专注预览和流畅档均重置或停用检测。预览上传纹理限制为 backing 长边的 1.5 倍，2K/4K 源不再逐帧完整上传；波纹按输出比例缩放，导出分辨率与效果不受影响。播放头逐帧位置直接写 DOM，React 时间文本最多 20fps；`RenderInfo` 仅在内容变化时更新。
+- 专注预览：macOS/Windows 共用当前 `PreviewPlayer`、隐藏视频源和 WebGL 合成器，在当前 Lenza 窗口内隐藏编辑工具栏、检查器与完整时间轴，只挂载只读悬浮播放控制；不创建系统全屏或第二套播放器。`F` 进入/退出、`Space` 播放/暂停、`Esc` 退出，模式为 Renderer 临时状态且不写入 `edit.json`。
 - 按键回显：历史普通字符在派生层隐藏，450ms 内的旧修饰键序列可恢复为组合；提示持续 1.5s，新提示替换旧提示并淡入淡出。活动提示用二分查询，文字位图按组合缓存，内容不变时不重复上传 GPU；全局归一化位置可在预览画布拖动，并由同一 WebGL pass 供预览和导出使用。
 - 时间轴事件轨：按像素密度档位把键帽降级为圆点/聚合点，Hover 保留完整名称和时间；DOM 只创建可视区及左右各一屏缓冲内的事件，滚动进入时创建、离开缓冲后卸载。滚轮缩放仅在跨密度档位时重新聚合，播放头逐帧推进不驱动静态事件轨重渲染。
-- 合成顺序：背景渐变 → 视频画面（圆角 + 阴影）→ 光标（矢量，可缩放/替换）→ 点击波纹 → 按键回显 → webcam 画中画
+- 合成顺序：可选纯色背景 → 保持真实矩形边缘的视频画面 → 光标（矢量，可缩放/替换）→ 点击波纹 → 按键回显 → webcam 画中画。背景关闭时 padding 为 0；开启时源画面等比居中，画面边距可在 `0%–20%` 间按 `1%` 调整，默认 `6%`，实际像素以输出画布短边为基准计算。预览和导出统一消费输出计划中的 `paddingRatio`，合成器不得强制添加圆角或阴影。
 
 ### 4.3 光标重绘（方案 B 落地后启用）
 
@@ -177,6 +182,7 @@ events.json + 相机关键帧
 要点：
 - **导出不走实时**：帧时间戳由时间轴驱动，渲染慢没关系，保证输出帧率恒定
 - **非破坏式裁剪**：`src/timeline/cuts.ts` 维护"丢弃区间"列表（源时间轴 ms，仅存内存，不改 events.json/视频）；预览播放 seek 跳过、导出按 输出帧→源帧 映射（`outputToSourceMs`）逐帧渲染，音频 PCM 按同一映射拼接（`cutPcm`），音画不漂移
+- **动态输出尺寸**：背景关闭时优先按源视频偶数宽高编码，背景开启时目标为 1920×1080；`probeVideoEncoder` 按 H.264/VP9 探测，不支持目标尺寸时保持宽高比逐级降档到最大可用偶数尺寸，OffscreenCanvas、VideoEncoder、muxer 与按键覆盖层必须使用同一个最终尺寸，并把实际尺寸回传 UI。
 - `mp4-muxer` 纯 JS 封装 H.264，无需 ffmpeg；AAC 音频用 WebCodecs `AudioEncoder`（mic.wav 缺失/编码不支持则无音轨继续）
 - H.264 全部探测失败时 fallback VP9+webm（mediabunny `Output`/`WebMOutputFormat` 封装；webm 容器不支持 AAC，音轨走 opus）
 - 输出全程在内存（`ArrayBufferTarget`/`BufferTarget`），完成后经 Renderer 弹保存对话框落盘；取消 = `worker.terminate()`，无半成品文件
@@ -206,6 +212,7 @@ events.json + 相机关键帧
 screen-recorder/
 ├── electron/                 # Main 进程
 │   ├── capture/              # 屏幕/音频采集
+│   ├── displaySelectionOutline/ # macOS/Windows 物理显示器选中边框
 │   ├── input/                # 鼠标轨迹轮询、uiohook 事件
 │   └── store/                # 录制会话落盘
 ├── src/                      # Renderer
@@ -257,5 +264,5 @@ screen-recorder/
 - macOS 当前没有 Developer ID 签名与 notarization，因此只检查版本并打开精确 GitHub Release，禁止应用内下载/替换；ad-hoc/self-signed 不视为正式更新签名。取得证书后才能开放应用内安装。
 - `electron-builder.yml` 的 GitHub provider 生成 `app-update.yml`；Release 发布 Windows 安装包、`latest.yml`、blockmap，以及 macOS DMG、ZIP、`latest-mac.yml`、blockmap。tag 的 `vX.Y.Z` 必须与 `package.json` 版本一致。
 - Windows 首次安装使用 electron-builder 默认 assisted NSIS 脚本，`build/installer.nsh` 只通过官方 include 宏增加 Lenza 欢迎页；用户可选择安装范围和目录。不得用完整自定义 script 替换默认安装器，以免破坏 `electron-updater` 的覆盖安装参数。
-- 应用设置 schema 为 V2，在原主题、录制根、回收站和关闭策略之外增加 `autoCheckUpdates`；读取 V1 时默认补 `true` 并保留原字段。
+- 应用设置 schema 为 V2，在原主题、录制根、回收站和关闭策略之外包含 `autoCheckUpdates` 与 `previewQuality`；旧设置缺字段时分别默认补 `true` 和 `auto`，非法预览档位同样回退 `auto` 并保留其他字段。
 - 本机直连 GitHub 受限时（electron-builder 下载 NSIS/winCodeSign 超时），设 `ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/` 再跑 `npm run dist`；CI runner 无需此设置。

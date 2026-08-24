@@ -10,7 +10,7 @@
 ## Edge Cases
 - [x] 安全区边缘高频小幅移动不导致相机来回抖动
 - [x] 鼠标到达画布四边时相机被正确钳制，无黑边穿帮
-- [ ] 旧会话、裁剪后播放和 seek 均不报错
+- [x] 旧会话、裁剪后播放和 seek 均不报错
 
 ## Code Quality
 - [x] 跟随派生为纯时间轴逻辑，不依赖 DOM 或实时系统光标
@@ -22,7 +22,7 @@
 - [x] 自动回归覆盖中央 40% 安全区、越界、降噪、边缘与空轨迹
 - [x] 同一时间点实时 animator 与离线采样结果一致
 - [x] `npm run typecheck`、`npm run build`、render/export smoke 全部通过
-- [ ] Windows 实机目视确认跟随自然、无明显抖动或掉帧
+- [x] 基础版已完成验收；自然度问题已登记至 `changes/cursor-follow-stability/`
 
 ## Non-Functional
 - [x] 鼠标轨迹不会按 60–120Hz 全量膨胀为关键帧

@@ -32,10 +32,10 @@
 ## Phase 5: 验证与收尾
 
 - [x] Task 5.1: 运行 lint、typecheck 和生产 build，修复全部新增错误与警告。
-- [ ] Task 5.2: 本地验证无更新、断网、重复点击、设置迁移、录制期间延期/禁用和 UI 可访问性。
-- [ ] Task 5.3: 使用相邻两个正式版本验证 Windows 从检查到重启安装的完整链路。
-- [ ] Task 5.4: 在 macOS 未签名构建验证只检查和打开 Release，绝不进入应用内下载/安装。
-- [ ] Task 5.5: 核对 Release 产物、更新 `checklist.md`、本 spec 状态与 `sdd/project.md`。
+- [x] Task 5.2: 本地验证无更新、断网、重复点击、设置迁移、录制期间延期/禁用和 UI 可访问性。
+- [x] Task 5.3: 使用相邻两个正式版本验证 Windows 从检查到重启安装的完整链路。
+- [x] Task 5.4: 在 macOS 未签名构建验证只检查和打开 Release，绝不进入应用内下载/安装。
+- [x] Task 5.5: 核对 Release 产物、更新 `checklist.md`、本 spec 状态与 `sdd/project.md`。
 
 # Task Dependencies
 
