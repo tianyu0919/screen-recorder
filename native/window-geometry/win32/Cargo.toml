@@ -1,0 +1,20 @@
+[package]
+name = "window-geometry"
+version = "0.1.0"
+edition = "2021"
+description = "Windows 窗口几何采样 helper（DWM 扩展框架 bounds → JSON Lines）"
+
+[[bin]]
+name = "window-geometry"
+path = "src/main.rs"
+
+[dependencies]
+windows = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Dwm",
+    "Win32_UI_HiDpi",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[profile.release]
+opt-level = 2

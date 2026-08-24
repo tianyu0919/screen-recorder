@@ -40,7 +40,7 @@
 - [ ] Task 6.2：完成中文文案、图标、aria-label/aria 状态、键盘操作、焦点顺序、对比度和 reduced-motion 审计。
 - [ ] Task 6.3：搜索并清理受影响 UI 中的 `text-white`、`bg-white`、`bg-black`、直接品牌色、紫色渐变与无意义装饰；合理的深色视频画布也必须由 token 表达。
 - [ ] Task 6.4：运行 lint、`npm run typecheck`、`npm run build`，修复全部编译错误和 lint 问题。
-- [ ] Task 6.5：使用浏览器或 Electron 完成录制页、历史页、编辑页视觉冒烟，并验证视图切换、录制、播放、滑杆、开关、主题与导出反馈。
+- [x] Task 6.5：使用浏览器或 Electron 完成录制页、历史页、编辑页视觉冒烟，并验证视图切换、录制、播放、滑杆、开关、主题与导出反馈。
 - [ ] Task 6.6：执行至少 1 分钟真实录制回归，检查事件/视频时间轴对齐及会话进入预览；记录 Windows 实测结果与 macOS 待人工项。
 - [ ] Task 6.7：复核所有受影响文件与 `checklist.md`，同步必要的 `docs/TECH_DESIGN.md` 视觉/目录说明并更新 SDD 状态。
 

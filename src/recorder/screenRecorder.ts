@@ -1,4 +1,6 @@
 import type { RecordingError, StartRecordingResult } from '@shared/types'
+import { createFixedCanvasTrack, type FixedCanvasTrackHandle } from './fixedCanvas'
+import { createMainThreadFixedCanvasTrack } from './fixedCanvasMainThread'
 import { micBlobToWav } from './wav'
 
 /** 录制码率（spec: 12–20 Mbps，取 16 Mbps） */
@@ -16,9 +18,9 @@ type RecorderStartResult = StartRecordingResult & { microphoneAvailable: boolean
 
 /**
  * Renderer 侧录制编排（Task 2.2 / 2.3）：
- * getUserMedia(chromeMediaSourceId) 采集画面 → MediaRecorder 高码率 webm 分片 → IPC 写盘；
- * 麦克风单独一条 MediaRecorder，停止时转 WAV 落盘（可选轨）。
- * 录制期不做任何渲染处理，保证低 CPU 占用。
+ * getDisplayMedia 采集画面 → MediaRecorder 高码率 webm 分片 → IPC 写盘；
+ * 麦克风单独一条 MediaRecorder，停止时转 WAV 落盘（可选轨）。窗口源仅做
+ * 固定画布归一化；运镜、波纹等编辑效果仍在预览/导出期合成。
  */
 export class ScreenRecorder {
   private stream: MediaStream | null = null
@@ -29,6 +31,8 @@ export class ScreenRecorder {
   private micChunks: Blob[] = []
   private systemRecorder: MediaRecorder | null = null
   private systemChunks: Blob[] = []
+  private fixedCanvas: FixedCanvasTrackHandle | null = null
+  private pendingChunkWrites = new Set<Promise<void>>()
   private stopping = false
 
   constructor(private cb: RecorderCallbacks) {}
@@ -54,12 +58,12 @@ export class ScreenRecorder {
     return stream
   }
 
-  /** 开始录制：先通知 Main（建立会话 + 启动轨迹轮询/输入钩子），再启动 MediaRecorder */
+  /** 开始录制：先准备会话与编码器，MediaRecorder 启动后再激活 Main 事件时间轴。 */
   async start(withMic: boolean): Promise<RecorderStartResult> {
     if (!this.stream) throw new Error('尚未建立采集流')
     const track = this.stream.getVideoTracks()[0]
     const settings = track.getSettings()
-    const result = await window.api.startRecording({
+    const prepared = await window.api.startRecording({
       sourceId: this.sourceId,
       video: {
         width: settings.width ?? 1920,
@@ -68,63 +72,102 @@ export class ScreenRecorder {
       }
     })
 
-    // 画面录制：只用 video track 建新流——系统音频不能混进 screen.webm（保持纯视频轨）
-    const mimeType = MediaRecorder.isTypeSupported(VIDEO_MIME) ? VIDEO_MIME : 'video/webm'
-    this.recorder = new MediaRecorder(new MediaStream(this.stream.getVideoTracks()), {
-      mimeType,
-      videoBitsPerSecond: VIDEO_BITS_PER_SECOND
-    })
-    this.recorder.ondataavailable = (e) => {
-      if (e.data.size === 0) return
-      void e.data.arrayBuffer().then((buf) => window.api.writeChunk(buf))
-    }
-    this.recorder.onerror = () => {
-      this.cb.onFatalError({ code: 'RECORDER_FAILED', message: '画面编码器异常，录制已停止' })
-    }
-    this.recorder.start(TIMESLICE_MS)
-
-    // 系统音频 loopback（可选轨，仅其他平台兜底）：macOS 上 loopback 轨出生即 ended
-    // （electron#52738），Windows 上 loopback + MediaRecorder 低码率 Opus 有杂音；
-    // 两个平台均由 Main 侧原生 helper 采集（electron/capture/systemAudio/），这里跳过，
-    // 避免白跑 MediaRecorder 失败路径 / 与 helper 双写 system.wav
-    const systemTracks =
-      window.api.platform === 'darwin' || window.api.platform === 'win32'
-        ? []
-        : this.stream.getAudioTracks().filter((t) => t.readyState === 'live')
-    if (systemTracks.length > 0) {
-      try {
-        const audioMime = MediaRecorder.isTypeSupported(AUDIO_MIME) ? AUDIO_MIME : 'audio/webm'
-        this.systemRecorder = new MediaRecorder(new MediaStream(systemTracks), {
-          mimeType: audioMime
-        })
-        this.systemChunks = []
-        this.systemRecorder.ondataavailable = (e) => {
-          if (e.data.size > 0) this.systemChunks.push(e.data)
+    try {
+      // 窗口原始帧等比归一化到冻结画布；整屏录制继续使用原始轨。
+      let recordingTrack: MediaStreamTrack = track
+      if (prepared.source.type === 'window') {
+        try {
+          if (!prepared.fixedCanvas) throw new Error('Main 未返回固定画布尺寸')
+          try {
+            this.fixedCanvas = await createFixedCanvasTrack(track, prepared.fixedCanvas)
+          } catch (workerErr) {
+            // Chromium 可能不允许 MediaStreamTrack 进入 Worker：降级主线程 canvas 管线
+            console.warn(
+              '[fixed-canvas] Worker 管线不可用，降级主线程:',
+              workerErr instanceof Error ? workerErr.message : workerErr
+            )
+            this.fixedCanvas = await createMainThreadFixedCanvasTrack(track, prepared.fixedCanvas)
+          }
+        } catch (error) {
+          throw new Error(
+            `窗口固定画布不可用: ${error instanceof Error ? error.message : String(error)}`
+          )
         }
-        this.systemRecorder.start(TIMESLICE_MS)
-      } catch {
-        this.systemRecorder = null
+        recordingTrack = this.fixedCanvas.track
       }
-    }
 
-    // 麦克风（可选轨；采集失败不阻断录制）
-    if (withMic) {
-      try {
-        this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        const audioMime = MediaRecorder.isTypeSupported(AUDIO_MIME) ? AUDIO_MIME : 'audio/webm'
-        this.micRecorder = new MediaRecorder(this.micStream, { mimeType: audioMime })
-        this.micChunks = []
-        this.micRecorder.ondataavailable = (e) => {
-          if (e.data.size > 0) this.micChunks.push(e.data)
-        }
-        this.micRecorder.start(TIMESLICE_MS)
-      } catch {
-        this.micStream = null
-        this.micRecorder = null
+      // 只用 video track 建新流，保持 screen.webm 为纯视频轨。
+      const mimeType = MediaRecorder.isTypeSupported(VIDEO_MIME) ? VIDEO_MIME : 'video/webm'
+      this.recorder = new MediaRecorder(new MediaStream([recordingTrack]), {
+        mimeType,
+        videoBitsPerSecond: VIDEO_BITS_PER_SECOND
+      })
+      this.recorder.ondataavailable = (e) => {
+        if (e.data.size === 0) return
+        const write = e.data
+          .arrayBuffer()
+          .then((buf) => window.api.writeChunk(buf))
+          .finally(() => this.pendingChunkWrites.delete(write))
+        this.pendingChunkWrites.add(write)
       }
+      this.recorder.onerror = () => {
+        this.cb.onFatalError({ code: 'RECORDER_FAILED', message: '画面编码器异常，录制已停止' })
+      }
+
+      // macOS / Windows 均由 Main 原生 helper 采集系统音频；其他平台使用 loopback 兜底。
+      const systemTracks =
+        window.api.platform === 'darwin' || window.api.platform === 'win32'
+          ? []
+          : this.stream.getAudioTracks().filter((t) => t.readyState === 'live')
+      if (systemTracks.length > 0) {
+        try {
+          const audioMime = MediaRecorder.isTypeSupported(AUDIO_MIME) ? AUDIO_MIME : 'audio/webm'
+          this.systemRecorder = new MediaRecorder(new MediaStream(systemTracks), {
+            mimeType: audioMime
+          })
+          this.systemChunks = []
+          this.systemRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) this.systemChunks.push(e.data)
+          }
+        } catch {
+          this.systemRecorder = null
+        }
+      }
+
+      // 麦克风权限/设备请求也在正式计时前完成，失败只降级本次录制。
+      if (withMic) {
+        try {
+          this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+          const audioMime = MediaRecorder.isTypeSupported(AUDIO_MIME) ? AUDIO_MIME : 'audio/webm'
+          this.micRecorder = new MediaRecorder(this.micStream, { mimeType: audioMime })
+          this.micChunks = []
+          this.micRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) this.micChunks.push(e.data)
+          }
+        } catch {
+          this.micStream = null
+          this.micRecorder = null
+        }
+      }
+
+      this.stopping = false
+      this.recorder.start(TIMESLICE_MS)
+      this.systemRecorder?.start(TIMESLICE_MS)
+      this.micRecorder?.start(TIMESLICE_MS)
+      const activated = await window.api.activateRecording()
+      return {
+        ...prepared,
+        ...activated,
+        microphoneAvailable: !withMic || this.micRecorder !== null
+      }
+    } catch (err) {
+      try {
+        await this.abort()
+      } catch {
+        // 保留最初的启动失败原因
+      }
+      throw err
     }
-    this.stopping = false
-    return { ...result, microphoneAvailable: !withMic || this.micRecorder !== null }
   }
 
   get hasMic(): boolean {
@@ -141,6 +184,8 @@ export class ScreenRecorder {
     this.stopping = true
     await this.stopRecorder(this.recorder)
     this.recorder = null
+    await this.flushChunkWrites()
+    this.disposeFixedCanvas()
 
     if (this.micRecorder) {
       await this.stopRecorder(this.micRecorder)
@@ -171,6 +216,8 @@ export class ScreenRecorder {
     this.stopping = true
     await this.stopRecorder(this.recorder)
     this.recorder = null
+    await this.flushChunkWrites()
+    this.disposeFixedCanvas()
     if (this.micRecorder) {
       await this.stopRecorder(this.micRecorder)
       this.micRecorder = null
@@ -188,8 +235,14 @@ export class ScreenRecorder {
   }
 
   releaseStream(): void {
+    this.disposeFixedCanvas()
     this.stream?.getTracks().forEach((t) => t.stop())
     this.stream = null
+  }
+
+  private disposeFixedCanvas(): void {
+    this.fixedCanvas?.dispose()
+    this.fixedCanvas = null
   }
 
   private stopRecorder(recorder: MediaRecorder | null): Promise<void> {
@@ -198,5 +251,10 @@ export class ScreenRecorder {
       recorder.onstop = () => resolve()
       recorder.stop()
     })
+  }
+
+  private async flushChunkWrites(): Promise<void> {
+    await Promise.allSettled([...this.pendingChunkWrites])
+    this.pendingChunkWrites.clear()
   }
 }

@@ -1,21 +1,16 @@
-import { app, ipcMain, screen, desktopCapturer, dialog, shell, type BrowserWindow } from 'electron'
+import { app, ipcMain, dialog, shell, type BrowserWindow } from 'electron'
 import { readFile, writeFile } from 'node:fs/promises'
-import { join, basename } from 'node:path'
+import { basename } from 'node:path'
 import { IPC } from '../shared/ipc'
 import type { SessionEditSaveResult } from '../shared/edit'
 import type {
   ExportFormat,
   ExportSaveResult,
-  RecordingEvents,
-  RecordingError,
   StartRecordingPayload,
   StartRecordingResult
 } from '../shared/types'
 import { listCaptureSources, setPendingCaptureSource } from './capture/sources'
-import { startSystemAudioCapture, type StopSystemAudio } from './capture/systemAudio'
-import { CursorPoller } from './input/cursorPoller'
 import { InputHook } from './input/uiohook'
-import { SessionStore } from './store/sessionStore'
 import { listSessions, loadSession, revealSession } from './store/sessionReader'
 import {
   deleteAudioAsset,
@@ -30,40 +25,28 @@ import type { AppSettingsPatch, CloseDecision } from '../shared/types'
 import { backgroundWindow } from './windowLifecycle'
 import { updateService } from './updater'
 import { displaySelectionOutline } from './displaySelectionOutline'
-
-/** 鼠标轨迹轮询频率（spec: 60–120Hz，取 90Hz） */
-const POLL_HZ = 90
+import { registerRecordingIpc } from './capture/recordingIpc'
 
 export type { StartRecordingPayload, StartRecordingResult }
 
 export function registerIpc(getWindow: () => BrowserWindow | null, appIcon?: Electron.NativeImage): {
   inputHook: InputHook
 } {
-  const poller = new CursorPoller()
-  const inputHook = new InputHook()
-
-  const sendError = (code: RecordingError['code'], message: string): void => {
-    getWindow()?.webContents.send(IPC.RecordingError, { code, message } satisfies RecordingError)
-  }
-
-  const store = new SessionStore((code, message) => {
-    // 写盘失败（如 ENOSPC）：上报 Renderer，由 UI 终止录制并保留片段
-    sendError(code, message)
-  })
-
-  let t0 = 0
-  let videoMeta: StartRecordingPayload['video'] | null = null
-  let displayInfo: RecordingEvents['display'] | null = null
-  let stopSystemAudio: StopSystemAudio | null = null
-
   ipcMain.handle(IPC.GetSources, () => listCaptureSources())
   ipcMain.handle(IPC.ShowDisplaySelectionOutline, (_e, sourceId: string) =>
     displaySelectionOutline.showForSource(sourceId).catch(() => false)
   )
   ipcMain.handle(IPC.HideDisplaySelectionOutline, () => displaySelectionOutline.hide())
 
-  // 窗口控制（Windows 自绘标题栏按钮；macOS 用系统红绿灯，不会触发）
+  // 窗口控制（Windows 自绘标题栏按钮；专注预览在双平台复用最大化能力）
   ipcMain.handle(IPC.WindowMinimize, () => getWindow()?.minimize())
+  ipcMain.handle(IPC.WindowIsMaximized, () => getWindow()?.isMaximized() ?? false)
+  ipcMain.handle(IPC.WindowSetMaximized, (_event, maximized: boolean) => {
+    const w = getWindow()
+    if (!w || w.isMaximized() === maximized) return
+    if (maximized) w.maximize()
+    else w.unmaximize()
+  })
   ipcMain.handle(IPC.WindowToggleMaximize, () => {
     const w = getWindow()
     if (!w) return
@@ -187,104 +170,6 @@ export function registerIpc(getWindow: () => BrowserWindow | null, appIcon?: Ele
     openSystemSettings(kind)
   )
 
-  ipcMain.handle(IPC.RecordingStart, async (_e, payload: StartRecordingPayload) => {
-    if (store.hasActiveSession()) throw new Error('已有进行中的录制会话')
-    await inputHook.init()
-
-    const session = store.startSession()
-    t0 = Date.now()
-    videoMeta = payload.video
-    // macOS 原生系统音频（ScreenCaptureKit helper）；不可用（Windows/无 helper）返回 null 静默降级
-    stopSystemAudio = startSystemAudioCapture(join(session.dir, 'system.wav'))
-
-    // 记录"被录制源所在"的显示器信息，供多屏/scaleFactor 换算：
-    // screen 源按 desktopCapturer 的 display_id 精确匹配；
-    // window 源无 display_id，回退到光标所在显示器的近似值
-    let disp = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
-    if (payload.sourceId.startsWith('screen')) {
-      const screenSources = await desktopCapturer.getSources({
-        types: ['screen'],
-        thumbnailSize: { width: 0, height: 0 }
-      })
-      const matched = screenSources.find((s) => s.id === payload.sourceId)
-      const byDisplayId = screen
-        .getAllDisplays()
-        .find((d) => matched !== undefined && String(d.id) === matched.display_id)
-      if (byDisplayId) disp = byDisplayId
-    }
-    displayInfo = {
-      id: disp.id,
-      bounds: [disp.bounds.x, disp.bounds.y, disp.bounds.width, disp.bounds.height],
-      scaleFactor: disp.scaleFactor
-    }
-
-    poller.start(POLL_HZ, t0)
-    inputHook.startRecording(t0)
-
-    if (!inputHook.available) {
-      // 降级路径：画面 + 鼠标轨迹仍可录，明确提示点击/键盘事件未采集
-      sendError(
-        'INPUT_HOOK_UNAVAILABLE',
-        '全局输入钩子不可用（macOS 需辅助功能权限）：点击/键盘事件未采集，自动运镜不可用'
-      )
-    }
-
-    updateService.setRecording(true)
-    return {
-      sessionId: session.sessionId,
-      startTime: t0,
-      display: displayInfo,
-      inputHookAvailable: inputHook.available,
-      inputHookError: inputHook.available ? undefined : inputHook.unavailableReason
-    } satisfies StartRecordingResult
-  })
-
-  ipcMain.handle(IPC.RecordingWriteChunk, (_e, chunk: ArrayBuffer) => {
-    store.writeChunk(Buffer.from(chunk))
-  })
-
-  ipcMain.handle(
-    IPC.RecordingWriteMic,
-    (_e, wav: ArrayBuffer) => store.writeMic(Buffer.from(wav))
-  )
-
-  ipcMain.handle(IPC.RecordingWriteSystemAudio, (_e, wav: ArrayBuffer) => {
-    store.writeSystemAudio(Buffer.from(wav))
-  })
-
-  ipcMain.handle(IPC.RecordingStop, async () => {
-    poller.stop()
-    inputHook.stopRecording()
-    // 先停系统音频 helper（stdin EOF 后 patch WAV header），再判断会话有效性，避免残留
-    await stopSystemAudio?.()
-    stopSystemAudio = null
-    updateService.setRecording(false)
-    if (!store.hasActiveSession() || !videoMeta || !displayInfo) {
-      return null
-    }
-    const events: RecordingEvents = {
-      version: 1,
-      startTime: t0,
-      display: displayInfo,
-      video: { ...videoMeta, file: 'screen.webm' },
-      mouseTrack: poller.getTrack(),
-      clicks: inputHook.getClicks(),
-      keys: inputHook.getKeys()
-    }
-    const result = await store.finalize(events)
-    getWindow()?.webContents.send(IPC.RecordingStopped, result)
-    return result
-  })
-
-  /** 异常终止（源断开/磁盘不足）：保留已落盘片段 */
-  ipcMain.handle('recording:abort', async () => {
-    poller.stop()
-    inputHook.stopRecording()
-    await stopSystemAudio?.()
-    stopSystemAudio = null
-    await store.abort()
-    updateService.setRecording(false)
-  })
-
+  const inputHook = registerRecordingIpc(getWindow)
   return { inputHook }
 }

@@ -49,7 +49,7 @@
 - [ ] lint 命令存在并通过，无新增 warning。
 - [ ] `npm run typecheck` 通过。
 - [ ] `npm run build` 生产构建通过。
-- [ ] Windows Electron 冒烟通过：录制页、历史页、编辑页、主题切换、录制、播放、滑杆、开关、文件位置和导出。
+- [x] Windows Electron 冒烟通过：录制页、历史页、编辑页、主题切换、录制、播放、滑杆、开关、文件位置和导出（2026-08-25 用户实机确认）。
 - [ ] 真实录制至少 1 分钟，事件与视频时间轴对齐未出现可见回归。
 - [ ] macOS hiddenInset、权限引导、录制和导出人工回归项已执行或明确保留为未完成项。
 - [ ] 所有受影响文件已复核，必要的 `docs/TECH_DESIGN.md` 与 `sdd/project.md` 同步完成。

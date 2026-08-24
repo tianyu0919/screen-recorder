@@ -55,6 +55,7 @@
 - **录制前清理顺序**：点击开始录制时必须先 `await hideDisplaySelectionOutline()`，等待覆盖窗口销毁及桌面合成器刷新，再启动 Main 录制会话与 Renderer `MediaRecorder`，避免边框进入视频首帧。该提示不写入 `events.json` 或设置数据。
 
 > **窗口源的固有语义（产品决策，2026-08-19 冒烟确认）**：窗口采集锁定的是"选定那一刻的窗口"，目标 App 在录制期间新弹出的窗口录不上。因此产品定为**整屏主模式**，窗口模式仅限单窗口演示场景；App 级采集（SCApplication 粒度，跟随整个 App 的全部窗口）留给原生 helper（kr-04），记 backlog。
+- **窗口录制固定画布与动态几何（kr-01 window-capture-fixed-canvas）**：窗口来源开始录制时，Main 以窗口所在显示器（由几何 helper 探测首样本定位，回退光标显示器）的物理分辨率偶数化后冻结为恒定视频画布；Renderer 把克隆视频轨移交归一化 Worker（`MediaStreamTrackProcessor` → OffscreenCanvas 等比居中 → `VideoTrackGenerator`），MediaRecorder 只录恒定尺寸生成轨，窗口移动/缩放/最大化不再改变录制分辨率。准备阶段只探测画布并创建各 MediaRecorder；编码器启动后通过独立 activate IPC 同时建立正式 `t0`、窗口几何、输入与系统音频时间轴，避免 Worker/麦克风准备耗时造成事件偏移。窗口 bounds 由原生 helper 以 ~60Hz 采样并随 events.json V2 落盘：macOS 为 `native/window-geometry/darwin`（Swift + CGWindowList，按 CGWindowID 查询）；Windows 为 `native/window-geometry/win32`（Rust + DWM 输出物理 bounds，Main 用 Electron `screenToDipRect` 转换为与 uiohook 一致的全局 DIP，正确处理混合 DPI 多屏原点）；helper 经 `electron/capture/windowGeometry/{darwin,win32}.ts` 平台分发，打包后放入 `resourcesPath` 根（`window-geometry` / `window-geometry.exe`，构建见 `native/build.mjs`）。波纹、自动运镜与鼠标跟随统一走 `src/timeline/windowGeometry.ts` 的 `screenPointToCanvas`（按时间插值几何 + 等比 placement），当时刻窗口外的点击不产生波纹/运镜目标。helper 缺失或短时无 bounds 时沿用最近有效样本并退回 V1 显示器换算，不阻断录制；最小化/零尺寸帧时 Worker 重复最后画面保持时间轴连续。归一化管线降级：Chromium 的 `MediaStreamTrackProcessor`/`VideoTrackGenerator` 仅暴露于 DedicatedWorker，且采集轨可能不允许 transfer/clone 进 Worker（Windows 实机已遇到）；此时自动降级为主线程隐藏 `<video>` + 固定 `<canvas>` + `captureStream(0)` 手动帧归一化（`src/recorder/fixedCanvasMainThread.ts`），功能等价。
 - 采集：**ScreenCaptureKit 路径（已定）** —— Main 进程 `session.setDisplayMediaRequestHandler`（`useSystemPicker: false`，handler 按 Renderer 选好的 sourceId 直接 approve）+ Renderer `navigator.mediaDevices.getDisplayMedia()`。**不再使用 legacy `getUserMedia(chromeMediaSourceId)`**：实测 macOS 15 上 legacy 窗口采集在窗口缩放/移动时帧更新不可靠（画面停滞、黑边错位）；SCK 路径整屏/窗口/遮挡/多屏场景均已实测帧持续更新。
 - 编码：录制期直接用 `MediaRecorder`（vp9/webm 或 h264/mp4，高码率，如 12–20 Mbps）—— 先把画面存下来，质量损失对演示视频够用
 - 进阶（v2）：用 `MediaStreamTrackProcessor` + `VideoFrame` 拿原始帧，WebCodecs 编码，可控关键帧和码率
@@ -133,6 +134,28 @@ Main 进程启动时通过 Electron 单实例锁阻止重复实例。再次从�
 
 > 时间戳全部相对录制开始（ms），与视频帧对齐。鼠标轨迹用数组压缩存储（量大，可上万条/分钟）。
 
+窗口录制会话升级为 V2（整屏录制仍为 V1；读取端经 `normalizeRecordingEvents` 归一化为内存 V2 模型，V1 原文件不被修改）：
+
+```json
+{
+  "version": 2,
+  "startTime": 1723987200000,
+  "display": { "id": 1, "bounds": [0, 0, 2560, 1440], "scaleFactor": 2 },
+  "source": {
+    "type": "window",
+    "id": "window:12345:0",
+    "fixedCanvas": { "width": 2560, "height": 1440 },
+    "windowGeometry": [[0, 100, 80, 1280, 720], [1520, 240, 120, 1600, 900]]
+  },
+  "video": { "width": 2560, "height": 1440, "fps": 60, "file": "screen.webm" },
+  "mouseTrack": [[0, 320, 240], ...],
+  "clicks": [{ "t": 1200, "x": 512, "y": 300, "button": 1 }],
+  "keys": [{ "t": 3400, "key": "Enter" }]
+}
+```
+
+> `fixedCanvas` 为录制期冻结的恒定画布（窗口所在显示器物理分辨率，偶数化），`video` 尺寸与之相等；`windowGeometry` 样本为 `[t, x, y, w, h]`，屏幕 DIP 坐标（与 mouseTrack/clicks 同坐标系）。几何变化时会在新样本前补旧 bounds 保持点，静止窗口不产生逐帧重复数组；渲染期仅在真实变化的短区间内线性插值，窗口外的点击不生成波纹/运镜。
+
 `events.json` 和原始音视频只读；运镜片段与总开关、隐藏的关联波纹、手动按键提示、裁剪、分轨 gain/mute、自定义音频 clip、背景图层设置及按键提示全局位置统一写入 `edit.json`。当前文档为 V2；读取 V1 时补齐 `motionEnabled=true`、各轨 `muted=false`、`backgroundEnabled=false`、`backgroundColor=#16181D` 与 `backgroundPaddingPercent=6`，读取缺少边距字段的旧 V2 文档时同样补齐 `backgroundPaddingPercent=6`。Renderer 以 revision 守卫协调手势结束即时保存和 500ms 离散操作防抖，Main 采用同目录临时文件 `fsync + rename` 原子替换；失败保留内存脏数据并提供重试。成功保存返回 `updatedAt`，会话列表按最近编辑时间优先排序。
 
 ---
@@ -154,10 +177,10 @@ Main 进程启动时通过 Electron 单实例锁阻止重复实例。再次从�
 - **WebGL**（自研 shader 或用 PixiJS）：每帧根据相机状态对视频纹理做仿射变换 + 叠加层（光标、点击波纹、按键徽章）
 - 视频解码：导出用 WebCodecs `VideoDecoder` 精确逐帧取帧；预览可用 `<video>` + `requestVideoFrameCallback`
 - 预览性能：普通编辑模式提供自动、流畅、高清、超清四档本机偏好，分别结合舞台尺寸与 `1x/1.5x/2x` 像素比把 WebGL backing 限制在 720p/1080p/1440p；自动档跟随当前 DPR，Retina 最高 1080p、普通屏最高 720p。专注预览继续独立按 `devicePixelRatio`（最高 2）补足物理像素，且不超过最终输出尺寸与 2560×1440。两种模式均使用 64px 宽度桶化，避免窗口尺寸变化时逐像素重建合成器。普通编辑 rVFC 逐帧路径只在 ref 中统计呈现率：连续播放预热 3 秒后以 2 秒窗口判断，低于源 FPS 70% 时通过顶部居中 Sonner Toast 询问是否切换到流畅；暂停、seek、后台、专注预览和流畅档均重置或停用检测。预览上传纹理限制为 backing 长边的 1.5 倍，2K/4K 源不再逐帧完整上传；波纹按输出比例缩放，导出分辨率与效果不受影响。播放头逐帧位置直接写 DOM，React 时间文本最多 20fps；`RenderInfo` 仅在内容变化时更新。
-- 专注预览：macOS/Windows 共用当前 `PreviewPlayer`、隐藏视频源和 WebGL 合成器，在当前 Lenza 窗口内隐藏编辑工具栏、检查器与完整时间轴，只挂载只读悬浮播放控制；不创建系统全屏或第二套播放器。`F` 进入/退出、`Space` 播放/暂停、`Esc` 退出，模式为 Renderer 临时状态且不写入 `edit.json`。
+- 专注预览：macOS/Windows 共用当前 `PreviewPlayer`、隐藏视频源和 WebGL 合成器，在当前 Lenza 窗口内隐藏编辑工具栏、检查器与完整时间轴，只挂载只读悬浮播放控制；强制使用 fit 容器语义，不继承普通编辑的 `100%` 滚动状态。控制栏可通过白名单 IPC 查询、订阅并切换 BrowserWindow 最大化状态：Windows 铺满任务栏外工作区，macOS 铺满菜单栏/Dock 外工作区，均不进入原生全屏或创建新 Space；还原由 BrowserWindow 恢复此前窗口边界。进入专注预览时记录窗口最大化状态，所有退出路径先通过幂等 IPC 恢复该状态再显示编辑器，防止临时最大化泄漏。`F` 进入/退出、`Space` 播放/暂停、`Esc` 退出，模式为 Renderer 临时状态且不写入 `edit.json`。
 - 按键回显：历史普通字符在派生层隐藏，450ms 内的旧修饰键序列可恢复为组合；提示持续 1.5s，新提示替换旧提示并淡入淡出。活动提示用二分查询，文字位图按组合缓存，内容不变时不重复上传 GPU；全局归一化位置可在预览画布拖动，并由同一 WebGL pass 供预览和导出使用。
 - 时间轴事件轨：按像素密度档位把键帽降级为圆点/聚合点，Hover 保留完整名称和时间；DOM 只创建可视区及左右各一屏缓冲内的事件，滚动进入时创建、离开缓冲后卸载。滚轮缩放仅在跨密度档位时重新聚合，播放头逐帧推进不驱动静态事件轨重渲染。
-- 合成顺序：可选纯色背景 → 保持真实矩形边缘的视频画面 → 光标（矢量，可缩放/替换）→ 点击波纹 → 按键回显 → webcam 画中画。背景关闭时 padding 为 0；开启时源画面等比居中，画面边距可在 `0%–20%` 间按 `1%` 调整，默认 `6%`，实际像素以输出画布短边为基准计算。预览和导出统一消费输出计划中的 `paddingRatio`，合成器不得强制添加圆角或阴影。
+- 合成顺序：可选纯色背景 → 保持真实矩形边缘的视频画面 → 光标（矢量，可缩放/替换）→ 点击波纹 → 按键回显 → webcam 画中画。背景关闭时 padding 为 0；开启时源画面等比居中，画面边距可在 `0%–20%` 间按 `1%` 调整，默认 `6%`，实际像素以输出画布短边为基准计算。该基准摆放矩形同时作为固定内容裁剪窗口，运镜缩放和平移不得覆盖窗口外背景。预览和导出统一消费输出计划中的 `paddingRatio`，合成器不得强制添加圆角或阴影。
 
 ### 4.3 光标重绘（方案 B 落地后启用）
 

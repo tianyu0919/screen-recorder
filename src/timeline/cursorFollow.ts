@@ -1,7 +1,9 @@
-import type { CameraKeyframe, RecordingEvents } from '@shared/types'
-import { clampCameraToCanvas, displayToCanvas } from './coords'
+import type { CameraKeyframe } from '@shared/types'
+import type { RecordingEventsV2 } from '@shared/eventsV2'
+import { clampCameraToCanvas } from './coords'
 import { buildZoomSegments } from './segments'
 import type { CanvasSize } from './types'
+import { screenPointToCanvas } from './windowGeometry'
 
 export interface CursorFollowOptions {
   sampleIntervalMs: number
@@ -30,7 +32,7 @@ function frameAt(keyframes: CameraKeyframe[], tMs: number): CameraKeyframe | nul
  */
 export function addCursorFollowKeyframes(
   keyframes: CameraKeyframe[],
-  events: RecordingEvents,
+  events: RecordingEventsV2,
   canvas: CanvasSize,
   options: CursorFollowOptions = DEFAULT_CURSOR_FOLLOW
 ): CameraKeyframe[] {
@@ -53,7 +55,9 @@ export function addCursorFollowKeyframes(
       if (tMs < segment.startMs || tMs >= segment.endMs) continue
       if (tMs - lastSampleAt < options.sampleIntervalMs) continue
       lastSampleAt = tMs
-      const cursor = displayToCanvas(events.display, displayX, displayY)
+      // 窗口录制：当时刻窗口外的轨迹点不跟随（坐标与波纹/运镜共用同一映射）
+      const cursor = screenPointToCanvas(events, tMs, displayX, displayY)
+      if (!cursor) continue
       if (cursor.x < 0 || cursor.x > canvas.width || cursor.y < 0 || cursor.y > canvas.height) {
         continue
       }

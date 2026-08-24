@@ -2,7 +2,7 @@
 id: "kr-01-display-selection-outline"
 kind: change
 parent: "kr-01-capture-foundation"
-status: in_progress
+status: completed
 impact_radius:
   - "electron/displaySelectionOutline/"
   - "electron/ipc.ts"

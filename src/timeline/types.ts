@@ -1,4 +1,5 @@
-import type { RecordingEvents } from '@shared/types'
+import type { RecordingEventsV2 } from '@shared/eventsV2'
+import { normalizeRecordingEvents } from '@shared/eventsV2'
 import { validateRecordingEvents } from '@shared/types'
 
 /**
@@ -15,7 +16,8 @@ export interface CanvasSize {
 
 /** 内存时间线模型 */
 export interface Timeline {
-  events: RecordingEvents
+  /** 内部统一 V2 模型（V1 会话加载时归一化升级，原文件不变） */
+  events: RecordingEventsV2
   canvas: CanvasSize
   /**
    * 事件时间轴长度估计（ms）。
@@ -32,13 +34,13 @@ export class TimelineParseError extends Error {
   }
 }
 
-/** 校验 events.json 数据并构建时间线模型；失败抛 TimelineParseError */
+/** 校验 events.json 数据并构建时间线模型（V1 归一化为 V2）；失败抛 TimelineParseError */
 export function buildTimeline(data: unknown): Timeline {
   const errors = validateRecordingEvents(data)
   if (errors.length > 0) {
     throw new TimelineParseError(`会话数据损坏或不兼容: ${errors.join('；')}`)
   }
-  const events = data as RecordingEvents
+  const events = normalizeRecordingEvents(data as Parameters<typeof normalizeRecordingEvents>[0])
   return {
     events,
     canvas: { width: events.video.width, height: events.video.height },
@@ -58,7 +60,7 @@ export function parseEventsJson(json: string): Timeline {
 }
 
 /** 以最后一条事件的时间戳估计时间轴长度 */
-function estimateDuration(events: RecordingEvents): number {
+function estimateDuration(events: RecordingEventsV2): number {
   let max = 0
   const track = events.mouseTrack
   if (track.length > 0) max = Math.max(max, track[track.length - 1][0])

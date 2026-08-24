@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { Minimize2, Pause, Play } from 'lucide-react'
+import { Maximize2, Minimize2, Pause, Play, X } from 'lucide-react'
 import type { CutRange } from '@/timeline/cuts'
 import { effectiveDurationMs, outputToSourceMs, sourceToOutputMs } from '@/timeline/cuts'
 import { formatMs } from '@/timeline/ticks'
 import { cn } from '@/lib/utils'
+import { useWindowMaximized } from '@/hooks/useWindowMaximized'
 
 interface FocusPreviewControlsProps {
   playing: boolean
@@ -19,6 +20,7 @@ const AUTO_HIDE_MS = 2000
 
 /** 专注预览的只读媒体控制；播放时无操作 2 秒自动隐藏。 */
 export function FocusPreviewControls(props: FocusPreviewControlsProps): React.JSX.Element {
+  const { maximized, toggleMaximized } = useWindowMaximized()
   const [visible, setVisible] = useState(true)
   const visibleRef = useRef(true)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -78,7 +80,7 @@ export function FocusPreviewControls(props: FocusPreviewControlsProps): React.JS
         if (!event.currentTarget.contains(event.relatedTarget)) leaveControls()
       }}
       className={cn(
-        'app-nodrag absolute bottom-6 left-1/2 z-20 flex w-[min(680px,calc(100%-32px))] -translate-x-1/2 items-center gap-3 rounded-2xl border border-white/10 bg-canvas-raised/95 p-2.5 text-on-accent shadow-float backdrop-blur-xl transition-[opacity,transform] duration-200',
+        'app-nodrag absolute bottom-6 left-1/2 z-20 flex w-[min(680px,calc(100%-32px))] -translate-x-1/2 items-center gap-3 rounded-2xl border border-white/10 bg-canvas-raised p-2.5 text-on-accent shadow-float transition-[opacity,transform] duration-200',
         visible
           ? 'translate-y-0 opacity-100'
           : 'pointer-events-none translate-y-2 opacity-0'
@@ -115,12 +117,22 @@ export function FocusPreviewControls(props: FocusPreviewControlsProps): React.JS
 
       <button
         type="button"
+        onClick={toggleMaximized}
+        aria-label={maximized ? '还原窗口' : '最大化窗口'}
+        title={maximized ? '还原窗口' : '最大化到屏幕工作区'}
+        className="grid h-11 w-11 flex-none place-items-center rounded-xl bg-white/10 text-on-accent transition-[transform,background-color] hover:bg-white/15 active:scale-95"
+      >
+        {maximized ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+      </button>
+
+      <button
+        type="button"
         onClick={props.onExit}
         aria-label="退出专注预览"
         title="退出专注预览 (Esc)"
         className="grid h-11 w-11 flex-none place-items-center rounded-xl bg-white/10 text-on-accent transition-[transform,background-color] hover:bg-white/15 active:scale-95"
       >
-        <Minimize2 size={18} />
+        <X size={18} />
       </button>
     </div>
   )

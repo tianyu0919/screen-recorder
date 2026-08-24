@@ -38,15 +38,21 @@ uniform sampler2D u_tex;
 uniform vec2 u_canvasSize;
 uniform float u_scale;
 uniform vec2 u_offset;
+uniform vec4 u_clipRect;
 varying vec2 v_px;
 varying vec2 v_uv;
 
 void main() {
   vec2 canvasPos = (v_px - u_offset) / u_scale;
   vec2 uv = canvasPos / u_canvasSize;
-  float inside = step(0.0, uv.x) * step(0.0, uv.y) * step(uv.x, 1.0) * step(uv.y, 1.0);
+  float insideTexture = step(0.0, uv.x) * step(0.0, uv.y) * step(uv.x, 1.0) * step(uv.y, 1.0);
+  vec2 clipMin = u_clipRect.xy;
+  vec2 clipMax = clipMin + u_clipRect.zw;
+  float insideClip = step(clipMin.x, v_px.x) * step(clipMin.y, v_px.y)
+    * step(v_px.x, clipMax.x) * step(v_px.y, clipMax.y);
   vec4 texel = texture2D(u_tex, uv);
-  gl_FragColor = vec4(texel.rgb, inside);
+  // 保留帧源 alpha（窗口录制固定画布的透明留白区），叠加到背景色之上
+  gl_FragColor = vec4(texel.rgb, texel.a * insideTexture * insideClip);
 }
 `
 

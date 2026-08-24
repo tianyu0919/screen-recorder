@@ -2,7 +2,7 @@
 id: "kr-05-background-padding"
 kind: change
 parent: "kr-05-render-composition-controls"
-status: in_progress
+status: completed
 impact_radius:
   - "shared/edit.ts"
   - "src/timeline/editDocument.ts"
@@ -26,7 +26,7 @@ dependencies:
 ### ADDED
 
 #### Requirement: 可调画面边距
-The system SHALL 在背景图层开启时提供“画面边距”百分比滑块，并将录制画面等比居中放置在背景画布内。
+The system SHALL 在背景图层开启时提供“画面边距”百分比滑块，并将录制画面等比居中放置在固定内容窗口内；运镜缩放和平移不得覆盖该窗口外的背景边距。
 
 ##### Scenario: 调整边距
 - **WHEN** 用户在背景图层开启时把画面边距从 `6%` 调整为 `12%`
@@ -35,6 +35,10 @@ The system SHALL 在背景图层开启时提供“画面边距”百分比滑块
 ##### Scenario: 零边距
 - **WHEN** 用户把画面边距设为 `0%`
 - **THEN** 系统不增加额外留白，但源比例与输出比例不同产生的必要 letterbox 仍被保留
+
+##### Scenario: 运镜期间保持背景边距固定
+- **WHEN** Windows 或 macOS 录制画面在普通预览、专注预览或导出中发生缩放和平移
+- **THEN** 视频仅在居中的固定内容窗口内呈现，四边背景不会随相机目标发生偏移
 
 ##### Scenario: 背景关闭
 - **WHEN** 用户关闭背景图层

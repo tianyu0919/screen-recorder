@@ -2,6 +2,7 @@
  * 录制会话数据契约 —— 与 sdd/specs/screen-recorder/design.md §2 完全一致。
  * kr-02 / kr-03 依赖本文件，改动需同步更新 design.md。
  */
+import { validateRecordingSource } from './eventsV2'
 
 /** events.json 顶层结构，version 用于后续格式演进 */
 export interface RecordingEvents {
@@ -169,7 +170,8 @@ export interface ExportSaveResult {
   path: string
 }
 
-/** 权限状态（macOS 引导页用；Windows 上全部视为 granted） */export interface PermissionStatus {
+/** 权限状态（macOS 引导页用；Windows 上全部视为 granted） */
+export interface PermissionStatus {
   screen: 'granted' | 'denied' | 'unknown'
   accessibility: 'granted' | 'denied' | 'unknown'
   microphone: 'granted' | 'denied' | 'unknown'
@@ -196,23 +198,40 @@ export interface StartRecordingPayload {
   video: { width: number; height: number; fps: number }
 }
 
-/** RecordingStart IPC 返回 */
-export interface StartRecordingResult {
+/** RecordingStart IPC 返回：仅完成会话与固定画布准备，尚未启动事件时间轴。 */
+export interface PrepareRecordingResult {
   sessionId: string
+  display: RecordingEvents['display']
+  /** 本次录制的来源类型与 id（窗口录制为 window） */
+  source: { type: 'screen' | 'window'; id: string }
+  /** 窗口录制冻结的固定画布（物理像素）；screen 来源缺省 */
+  fixedCanvas?: { width: number; height: number }
+}
+
+/** RecordingActivate IPC 返回：MediaRecorder 就绪后启动事件、音频和几何时间轴。 */
+export interface ActivateRecordingResult {
   /** 录制开始 Unix 时间戳（ms），事件时间轴原点 */
   startTime: number
-  display: RecordingEvents['display']
   /** false = 输入钩子降级（无点击/键盘事件） */
   inputHookAvailable: boolean
   inputHookError?: string
 }
 
-/** events.json 落盘前的 schema 校验，返回错误信息列表（空数组 = 通过） */
+/** Renderer 对外返回的完整录制启动信息。 */
+export type StartRecordingResult = PrepareRecordingResult & ActivateRecordingResult
+
+/** events.json 落盘前的 schema 校验（V1/V2 均接受），返回错误信息列表（空数组 = 通过） */
 export function validateRecordingEvents(data: unknown): string[] {
   const errors: string[] = []
-  const d = data as Partial<RecordingEvents> | null
+  const d = data as (Omit<Partial<RecordingEvents>, 'version'> & {
+    version?: unknown
+    source?: unknown
+  }) | null
   if (d === null || typeof d !== 'object') return ['events.json 不是对象']
-  if (d.version !== 1) errors.push('version 必须为 1')
+  if (d.version !== 1 && d.version !== 2) errors.push('version 必须为 1 或 2')
+  if (d.version === 2) {
+    errors.push(...validateRecordingSource(d.source))
+  }
   if (typeof d.startTime !== 'number') errors.push('startTime 缺失或类型错误')
   const disp = d.display
   if (

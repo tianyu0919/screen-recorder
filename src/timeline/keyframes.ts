@@ -1,6 +1,8 @@
-import type { CameraKeyframe, CameraState, RecordingEvents } from '@shared/types'
-import { clampCameraToCanvas, displayToCanvas } from './coords'
+import type { CameraKeyframe, CameraState } from '@shared/types'
+import type { RecordingEventsV2 } from '@shared/eventsV2'
+import { clampCameraToCanvas } from './coords'
 import type { CanvasSize } from './types'
+import { screenPointToCanvas } from './windowGeometry'
 
 /**
  * 自动关键帧生成器（Task 1.3）：
@@ -38,17 +40,23 @@ export function fullViewState(canvas: CanvasSize): CameraState {
  * clicks 为空时仅返回全景帧 —— 钩子降级会话相机全程 1.0x。
  */
 export function generateCameraKeyframes(
-  events: RecordingEvents,
+  events: RecordingEventsV2,
   canvas: CanvasSize,
   params: MotionParams = DEFAULT_MOTION_PARAMS
 ): CameraKeyframe[] {
   const full = fullViewState(canvas)
   const keyframes: CameraKeyframe[] = [{ t: 0, target: full }]
-  const clicks = [...events.clicks].sort((a, b) => a.t - b.t)
+  // 窗口录制：当时刻窗口 bounds 之外的点击不产生运镜目标（screenPointToCanvas 返回 null）
+  const clicks = [...events.clicks]
+    .sort((a, b) => a.t - b.t)
+    .flatMap((click) => {
+      const point = screenPointToCanvas(events, click.t, click.x, click.y)
+      return point ? [{ ...click, canvasPoint: point }] : []
+    })
 
   for (let i = 0; i < clicks.length; i++) {
     const click = clicks[i]
-    const point = displayToCanvas(events.display, click.x, click.y)
+    const point = click.canvasPoint
     const target = clampCameraToCanvas({ x: point.x, y: point.y, zoom: params.targetZoom }, canvas)
     keyframes.push({ t: Math.max(0, click.t - params.leadMs), target })
 

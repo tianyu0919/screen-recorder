@@ -1,18 +1,20 @@
-import type { CameraKeyframe, RecordingEvents } from '@shared/types'
+import type { CameraKeyframe } from '@shared/types'
+import type { RecordingEventsV2 } from '@shared/eventsV2'
 import type { MotionEffect } from '@shared/edit'
-import { clampCameraToCanvas, displayToCanvas } from './coords'
+import { clampCameraToCanvas } from './coords'
 import { generateCameraKeyframes, type MotionParams } from './keyframes'
 import { buildZoomSegments } from './segments'
 import type { Timeline } from './types'
 import type { RipplePoint } from '@/render/types'
 import { addCursorFollowKeyframes } from './cursorFollow'
 import { keyframesFromMotionEffects, ripplesFromMotionEffects } from './motionEffects'
+import { screenPointToCanvas } from './windowGeometry'
 
 /** 只在内存中裁掉真实视频片尾外的采集事件；events.json 原文件保持不变。 */
 export function eventsWithinDuration(
-  events: RecordingEvents,
+  events: RecordingEventsV2,
   durationMs: number
-): RecordingEvents {
+): RecordingEventsV2 {
   if (!Number.isFinite(durationMs)) return events
   const within = (t: number): boolean => t <= durationMs
   return {
@@ -66,9 +68,10 @@ export function deriveTimelineEffects(
     keyframes,
     ripples: effects
       ? ripplesFromMotionEffects(effects, events, timeline.canvas)
-      : events.clicks.map((click) => ({
-          t: click.t,
-          ...displayToCanvas(events.display, click.x, click.y)
-        }))
+      : events.clicks.flatMap((click) => {
+          // 窗口录制：当时刻窗口外的点击不生成波纹
+          const point = screenPointToCanvas(events, click.t, click.x, click.y)
+          return point ? [{ t: click.t, ...point }] : []
+        })
   }
 }

@@ -1,6 +1,7 @@
 import { createWriteStream, mkdirSync, writeFileSync, existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import type { RecordingEvents, RecordingSession } from '../../shared/types'
+import type { AnyRecordingEvents } from '../../shared/eventsV2'
+import type { RecordingSession } from '../../shared/types'
 import { validateRecordingEvents } from '../../shared/types'
 import { appSettings } from './appSettings'
 import { sessionCatalog } from './sessionCatalog'
@@ -75,8 +76,8 @@ export class SessionStore {
     }
   }
 
-  /** 关闭视频流 → 校验并写入 events.json；返回会话目录 */
-  async finalize(events: RecordingEvents): Promise<{ dir: string; sessionId: string }> {
+  /** 关闭视频流 → 校验并写入 events.json（V1/V2）；返回会话目录 */
+  async finalize(events: AnyRecordingEvents): Promise<{ dir: string; sessionId: string }> {
     if (!this.session) throw new Error('无进行中的录制会话')
     // 先关流再校验：createWriteStream 异步建文件，必须等 flush 完成后才能确认视频存在
     await this.closeStream()

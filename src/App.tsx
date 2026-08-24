@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useAppStore, type AppView } from '@/store/appStore'
 import { SourcePicker } from '@/components/SourcePicker'
 import { PermissionGuide } from '@/components/PermissionGuide'
@@ -33,6 +33,8 @@ export default function App(): React.JSX.Element {
   const { view, setView, permissions, refreshPermissions, status } = useAppStore()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [focusPreview, setFocusPreview] = useState(false)
+  const focusEntryMaximizedRef = useRef<boolean | null>(null)
+  const focusTransitionRef = useRef(0)
   const loadSettings = useSettingsStore((state) => state.load)
   const initializeUpdates = useUpdateStore((state) => state.initialize)
   const theme = useThemeStore((state) => state.mode)
@@ -43,9 +45,31 @@ export default function App(): React.JSX.Element {
     void initializeUpdates()
   }, [refreshPermissions, loadSettings, initializeUpdates])
 
+  const changeFocusPreview = useCallback((active: boolean): void => {
+    const transition = ++focusTransitionRef.current
+    if (active) {
+      void window.api.windowIsMaximized().then((maximized) => {
+        if (focusTransitionRef.current !== transition) return
+        focusEntryMaximizedRef.current = maximized
+        setFocusPreview(true)
+      })
+      return
+    }
+
+    const entryMaximized = focusEntryMaximizedRef.current
+    focusEntryMaximizedRef.current = null
+    if (entryMaximized === null) {
+      setFocusPreview(false)
+      return
+    }
+    void window.api.windowSetMaximized(entryMaximized).finally(() => {
+      if (focusTransitionRef.current === transition) setFocusPreview(false)
+    })
+  }, [])
+
   useEffect(() => {
-    if (view !== 'preview') setFocusPreview(false)
-  }, [view])
+    if (view !== 'preview') changeFocusPreview(false)
+  }, [changeFocusPreview, view])
 
   const hasMissingPermission =
     permissions !== null &&
@@ -78,7 +102,7 @@ export default function App(): React.JSX.Element {
         <motion.div key="preview" variants={viewTransition} initial="initial" animate="enter" exit="exit" className="flex min-h-0 flex-1 flex-col">
           <PreviewLoadBoundary onBack={() => setView('record')} onRetry={() => window.location.reload()} canReload={status === 'idle'}>
             <Suspense fallback={<PreviewLoadingState />}>
-              <PreviewScreen focusMode={focusPreview} onFocusModeChange={setFocusPreview} />
+              <PreviewScreen focusMode={focusPreview} onFocusModeChange={changeFocusPreview} />
             </Suspense>
           </PreviewLoadBoundary>
         </motion.div>

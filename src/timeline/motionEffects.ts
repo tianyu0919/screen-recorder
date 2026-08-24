@@ -1,10 +1,12 @@
-import type { CameraKeyframe, RecordingEvents } from '@shared/types'
+import type { CameraKeyframe } from '@shared/types'
+import type { RecordingEventsV2 } from '@shared/eventsV2'
 import type { MotionEffect } from '@shared/edit'
-import { clampCameraToCanvas, displayToCanvas } from './coords'
+import { clampCameraToCanvas } from './coords'
 import { generateCameraKeyframes, type MotionParams } from './keyframes'
 import { buildZoomSegments } from './segments'
 import type { CanvasSize } from './types'
 import type { RipplePoint } from '@/render/types'
+import { screenPointToCanvas } from './windowGeometry'
 
 export const MIN_MOTION_MS = 300
 export const MOTION_SNAP_MS = 100
@@ -26,7 +28,7 @@ function snapMs(value: number, anchors: number[] = []): number {
 
 /** 源时间点最近的鼠标位置；轨迹缺失时回退画布中心。 */
 export function mouseCanvasPointAt(
-  events: RecordingEvents,
+  events: RecordingEventsV2,
   tMs: number,
   canvas: CanvasSize
 ): { x: number; y: number } {
@@ -42,12 +44,16 @@ export function mouseCanvasPointAt(
   const after = track[lo]
   const before = track[Math.max(0, lo - 1)]
   const point = Math.abs(after[0] - tMs) < Math.abs(before[0] - tMs) ? after : before
-  return displayToCanvas(events.display, point[1], point[2])
+  // 窗口录制：窗口外的轨迹点无画布映射，回退画布中心（不产生跳动目标）
+  return screenPointToCanvas(events, point[0], point[1], point[2]) ?? {
+    x: canvas.width / 2,
+    y: canvas.height / 2
+  }
 }
 
 /** 旧会话首次打开：把既有自动关键帧片段物化为可编辑效果。 */
 export function createDefaultMotionEffects(
-  events: RecordingEvents,
+  events: RecordingEventsV2,
   canvas: CanvasSize,
   params: MotionParams,
   durationMs: number
@@ -141,7 +147,7 @@ export function resizeMotionEffect(
 
 export function keyframesFromMotionEffects(
   effects: MotionEffect[],
-  events: RecordingEvents,
+  events: RecordingEventsV2,
   canvas: CanvasSize
 ): CameraKeyframe[] {
   const full = { x: canvas.width / 2, y: canvas.height / 2, zoom: 1 }
@@ -165,7 +171,7 @@ export function keyframesFromMotionEffects(
 
 export function ripplesFromMotionEffects(
   effects: MotionEffect[],
-  events: RecordingEvents,
+  events: RecordingEventsV2,
   canvas: CanvasSize
 ): RipplePoint[] {
   return effects.flatMap((effect) =>

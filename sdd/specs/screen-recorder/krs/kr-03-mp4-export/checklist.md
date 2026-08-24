@@ -20,4 +20,4 @@
 - [x] 无新增 TypeScript 类型错误与 lint 告警；生产路径无调试残留
 - [x] 导出管线与预览复用同一合成器/相机求值代码路径（无复制粘贴的第二份实现）
 - [x] 导出期间 Renderer UI 不卡死（重活在 Worker 线程）
-- [ ] macOS 与 Windows 双平台导出冒烟通过
+- [x] macOS 与 Windows 双平台正常会话导出冒烟通过（Windows 于 2026-08-25 用户实机确认）

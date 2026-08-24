@@ -3,14 +3,15 @@ import { IPC } from '../../shared/ipc'
 import type { SessionEditSaveResult } from '../../shared/edit'
 import type {
   CaptureSource,
+  ActivateRecordingResult,
   ExportFormat,
   ExportSaveResult,
   PermissionStatus,
   RecordingError,
   RecordingSession,
   SessionLoadResult,
-  StartRecordingPayload,
-  StartRecordingResult
+  PrepareRecordingResult,
+  StartRecordingPayload
 } from '../../shared/types'
 import type {
   AppSettings,
@@ -30,7 +31,8 @@ export interface RecorderApi {
   getPermissions(): Promise<PermissionStatus>
   requestMicrophoneAccess(): Promise<PermissionStatus['microphone']>
   openSystemSettings(kind: 'screen' | 'accessibility' | 'microphone'): Promise<void>
-  startRecording(payload: StartRecordingPayload): Promise<StartRecordingResult>
+  startRecording(payload: StartRecordingPayload): Promise<PrepareRecordingResult>
+  activateRecording(): Promise<ActivateRecordingResult>
   writeChunk(chunk: ArrayBuffer): Promise<void>
   writeMic(wav: ArrayBuffer): Promise<void>
   /** 系统音频 WAV 落盘（kr-01 system-audio，可选轨） */
@@ -77,6 +79,8 @@ export interface RecorderApi {
   pickAudioFile(): Promise<{ name: string; path: string; data: ArrayBuffer } | null>
   /** 窗口控制（Windows 自绘标题栏按钮） */
   windowMinimize(): Promise<void>
+  windowIsMaximized(): Promise<boolean>
+  windowSetMaximized(maximized: boolean): Promise<void>
   windowToggleMaximize(): Promise<void>
   windowClose(): Promise<void>
   resolveWindowClose(decision: CloseDecision): Promise<void>
@@ -98,6 +102,7 @@ const api: RecorderApi = {
   requestMicrophoneAccess: () => ipcRenderer.invoke(IPC.RequestMicrophoneAccess),
   openSystemSettings: (kind) => ipcRenderer.invoke(IPC.OpenSystemSettings, kind),
   startRecording: (payload) => ipcRenderer.invoke(IPC.RecordingStart, payload),
+  activateRecording: () => ipcRenderer.invoke(IPC.RecordingActivate),
   writeChunk: (chunk) => ipcRenderer.invoke(IPC.RecordingWriteChunk, chunk),
   writeMic: (wav) => ipcRenderer.invoke(IPC.RecordingWriteMic, wav),
   writeSystemAudio: (wav) => ipcRenderer.invoke(IPC.RecordingWriteSystemAudio, wav),
@@ -137,6 +142,8 @@ const api: RecorderApi = {
     ipcRenderer.invoke(IPC.ExportSave, sessionId, data, format),
   pickAudioFile: () => ipcRenderer.invoke(IPC.PickAudioFile),
   windowMinimize: () => ipcRenderer.invoke(IPC.WindowMinimize),
+  windowIsMaximized: () => ipcRenderer.invoke(IPC.WindowIsMaximized),
+  windowSetMaximized: (maximized) => ipcRenderer.invoke(IPC.WindowSetMaximized, maximized),
   windowToggleMaximize: () => ipcRenderer.invoke(IPC.WindowToggleMaximize),
   windowClose: () => ipcRenderer.invoke(IPC.WindowClose),
   resolveWindowClose: (decision) => ipcRenderer.invoke(IPC.WindowResolveClose, decision),

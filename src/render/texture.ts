@@ -88,6 +88,9 @@ export class VideoTexture {
     }
     const ctx = this.scratch.getContext('2d')
     if (!ctx) throw new Error('OffscreenCanvas 2d 上下文不可用')
+    // 帧源可能带透明区（窗口录制固定画布的留白）：复用画布前必须清除，
+    // 否则 source-over 会把上一帧内容留在透明区里（预览残影）
+    ctx.clearRect(0, 0, w, h)
     // TexImageSource 含 ImageData（非 CanvasImageSource），实际帧源不会是它
     ctx.drawImage(source as CanvasImageSource, 0, 0, w, h)
     return this.scratch

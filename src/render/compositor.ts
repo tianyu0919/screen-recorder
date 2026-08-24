@@ -89,7 +89,8 @@ export class Compositor {
       'u_output',
       'u_canvasSize',
       'u_scale',
-      'u_offset'
+      'u_offset',
+      'u_clipRect'
     ])
     this.ripple = makeSlots(gl, RIPPLE_FRAG_SRC, [
       'u_output',
@@ -153,6 +154,14 @@ export class Compositor {
     gl.uniform2f(this.u(this.video, 'u_canvasSize'), this.canvasSize.width, this.canvasSize.height)
     gl.uniform1f(this.u(this.video, 'u_scale'), transform.scale)
     gl.uniform2f(this.u(this.video, 'u_offset'), transform.offsetX, transform.offsetY)
+    // 运镜只在固定内容窗口内显示，避免放大/平移后的纹理覆盖某一侧背景边距。
+    gl.uniform4f(
+      this.u(this.video, 'u_clipRect'),
+      placement.x,
+      placement.y,
+      placement.width,
+      placement.height
+    )
     gl.drawArrays(gl.TRIANGLES, 0, 3)
 
     // 3) 点击波纹叠加（options.maxRipples 为配置上限，MAX_RIPPLES 为 shader 容量硬顶）

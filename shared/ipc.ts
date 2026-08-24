@@ -9,6 +9,7 @@ export const IPC = {
   RequestMicrophoneAccess: 'system:request-microphone-access',
   OpenSystemSettings: 'system:open-settings',
   RecordingStart: 'recording:start',
+  RecordingActivate: 'recording:activate',
   RecordingStop: 'recording:stop',
   RecordingWriteChunk: 'recording:write-chunk',
   RecordingWriteMic: 'recording:write-mic',
@@ -41,6 +42,8 @@ export const IPC = {
   PickAudioFile: 'audio:pick-file',
   // 窗口控制（Windows 自绘标题栏按钮）
   WindowMinimize: 'window:minimize',
+  WindowIsMaximized: 'window:is-maximized',
+  WindowSetMaximized: 'window:set-maximized',
   WindowToggleMaximize: 'window:toggle-maximize',
   WindowClose: 'window:close',
   WindowResolveClose: 'window:resolve-close',

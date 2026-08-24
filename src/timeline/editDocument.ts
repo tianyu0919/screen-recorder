@@ -10,7 +10,7 @@ import {
   DEFAULT_BACKGROUND_PADDING_PERCENT,
   normalizeBackgroundPaddingPercent
 } from '@shared/edit'
-import type { RecordingEvents } from '@shared/types'
+import type { RecordingEventsV2 } from '@shared/eventsV2'
 import { normalizeCuts } from './cuts'
 import type { MotionParams } from './keyframes'
 import { createDefaultMotionEffects } from './motionEffects'
@@ -148,7 +148,7 @@ export function parseEditDocument(json: string): EditDocument {
 }
 
 export function createDefaultEditDocument(
-  events: RecordingEvents,
+  events: RecordingEventsV2,
   canvas: CanvasSize,
   motionParams: MotionParams,
   durationMs: number

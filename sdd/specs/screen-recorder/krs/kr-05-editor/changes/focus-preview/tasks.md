@@ -12,6 +12,9 @@
 - [x] Task 2.3：实现跨平台 `F` 进入/退出、`Space` 播放/暂停与 `Esc` 退出，并避免在输入控件中拦截按键。
 - [x] Task 2.4：确保进入/退出保持播放位置、播放状态、缩放模式与检查器布局，且专注模式不写入 `edit.json`。
 - [x] Task 2.5：专注预览按最高 2 倍设备像素比提升 backing，1080p 输出使用完整分辨率，2K/4K 输出最高限制为 2560×1440。
+- [x] Task 2.6：专注预览强制使用 fit 容器语义，隔离外部 `100%` 的滚动与固定尺寸样式。
+- [x] Task 2.7：复用窗口最大化 IPC 并补充初始状态查询，在控制栏增加独立最大化/还原按钮且保持专注预览状态。
+- [x] Task 2.8：进入专注预览时记录窗口最大化状态，退出时恢复该状态，避免专注模式内最大化泄漏到编辑模式。
 
 ## Phase 3: 验证与文档
 
@@ -24,6 +27,7 @@
 - [Task 1.2] depends on [Task 1.1]
 - [Task 2.1] depends on [Task 1.2]
 - [Task 2.2], [Task 2.3] and [Task 2.4] depend on [Task 2.1] and can run in parallel
+- [Task 2.6] and [Task 2.7] depend on [Task 2.1] and can run in parallel
 - [Task 3.1] depends on [Task 1.2] and [Task 2.3]
 - [Task 3.2] depends on [Task 2.2], [Task 2.3], [Task 2.4] and [Task 3.1]
 - [Task 3.3] depends on [Task 3.2]

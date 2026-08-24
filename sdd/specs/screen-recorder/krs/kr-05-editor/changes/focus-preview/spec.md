@@ -8,6 +8,9 @@ impact_radius:
   - "src/components/preview/PreviewPlayer.tsx"
   - "src/components/preview/PreviewLayoutControls.tsx"
   - "src/components/preview/"
+  - "shared/ipc.ts"
+  - "electron/ipc.ts"
+  - "electron/preload/index.ts"
 dependencies:
   - "kr-05-preview-stage-fit"
   - "kr-05-render-composition-controls"
@@ -17,8 +20,8 @@ dependencies:
 
 ## 1. Scope
 
-- **In Scope**: macOS/Windows 编辑器内的专注预览；占满当前 Lenza 窗口；只读最终效果；简化悬浮播放控制；自动隐藏；跨平台键盘操作；进入与退出时恢复编辑上下文。
-- **Out of Scope**: 操作系统原生全屏或独立预览窗口；修改导出分辨率；在专注预览中编辑裁剪、运镜、音频或背景；持久化专注预览状态。
+- **In Scope**: macOS/Windows 编辑器内的专注预览；占满当前 Lenza 窗口；只读最终效果；简化悬浮播放控制；自动隐藏；跨平台键盘操作；窗口工作区最大化/还原；进入与退出时恢复编辑上下文。
+- **Out of Scope**: 隐藏 Windows 任务栏或 macOS 菜单栏/Dock 的原生全屏、独立预览窗口；修改导出分辨率；在专注预览中编辑裁剪、运镜、音频或背景；持久化专注预览状态。
 
 ## 2. Functional Requirements
 
@@ -31,9 +34,35 @@ dependencies:
 - **WHEN** 用户点击“专注预览”或按下 `F`
 - **THEN** 系统隐藏顶部工具栏、右侧检查器和完整时间轴，并使合成画面在剩余窗口中按输出宽高比尽可能放大且完整可见
 
+##### Scenario: 外部处于 100% 模式
+- **WHEN** 用户在编辑器选择 `100%` 后进入专注预览
+- **THEN** 专注预览强制按可用区域适应且不显示滚动条，退出后编辑器仍恢复为 `100%`
+
 ##### Scenario: 不改变系统窗口模式
 - **WHEN** 用户进入专注预览
 - **THEN** macOS 不创建新的全屏 Space，Windows 不隐藏系统任务栏，Lenza 窗口层级与尺寸保持由用户当前窗口状态决定
+
+#### Requirement: 工作区最大化与还原
+系统 SHALL 在专注预览控制栏提供独立的窗口最大化/还原按钮，并以 Main 进程的真实窗口状态驱动按钮语义。
+
+##### Scenario: 最大化专注预览
+- **WHEN** 当前窗口未最大化且用户点击最大化按钮
+- **THEN** Windows 窗口铺满任务栏以外的工作区，macOS 窗口铺满菜单栏与 Dock 以外的工作区，专注预览保持活动
+
+##### Scenario: 还原专注预览
+- **WHEN** 当前窗口已最大化且用户点击还原按钮
+- **THEN** 窗口恢复最大化前的尺寸与位置，专注预览保持活动且播放上下文连续
+
+##### Scenario: 退出时恢复进入前窗口状态
+- **WHEN** 用户在普通窗口进入专注预览、于专注预览内最大化窗口后直接退出
+- **THEN** 系统先恢复进入专注预览前的普通窗口尺寸与位置，再显示编辑器
+
+- **WHEN** 用户从已最大化窗口进入专注预览后退出
+- **THEN** 系统保持窗口最大化，不错误还原为普通窗口
+
+##### Scenario: 外部窗口状态变化
+- **WHEN** 用户通过系统窗口控件最大化或还原窗口
+- **THEN** 专注预览按钮图标和可访问名称同步反映真实窗口状态
 
 #### Requirement: 只读最终效果
 系统 SHALL 在专注预览中只展示与导出一致的最终合成效果，不展示或启用编辑辅助元素。
@@ -73,7 +102,7 @@ dependencies:
 
 ##### Scenario: 返回编辑器
 - **WHEN** 用户按下 `Esc`、再次按下 `F` 或点击退出按钮
-- **THEN** 系统恢复进入前的工具栏、检查器、缩放模式和时间轴布局，播放位置保持连续
+- **THEN** 系统恢复进入前的工具栏、检查器、缩放模式、时间轴布局与窗口最大化状态，播放位置保持连续
 
 ##### Scenario: 会话或视图切换
 - **WHEN** 专注预览期间当前会话关闭、被删除或切换到非预览视图

@@ -66,7 +66,8 @@ export function PreviewPlayer({
     [renderSettings, timeline.canvas]
   )
   const outputSize = outputPlan.output
-  const { stageRef, canvasSize } = useStageFit(focusMode ? 'fit' : scaleMode, outputSize)
+  const effectiveScaleMode = focusMode ? 'fit' : scaleMode
+  const { stageRef, canvasSize } = useStageFit(effectiveScaleMode, outputSize)
   const renderOutputSize = useMemo(() => {
     const profile = previewQualityProfile(quality, window.devicePixelRatio || 1)
     const pixelRatio = focusMode ? Math.min(2, window.devicePixelRatio || 1) : profile.pixelRatio
@@ -169,13 +170,13 @@ export function PreviewPlayer({
           ref={stageRef}
           className={cn(
             'h-full w-full',
-            scaleMode === 'actual' ? 'overflow-auto' : 'overflow-hidden'
+            effectiveScaleMode === 'actual' ? 'overflow-auto' : 'overflow-hidden'
           )}
         >
           <div
             className="grid min-h-full min-w-full place-items-center"
             style={
-              scaleMode === 'actual'
+              effectiveScaleMode === 'actual'
                 ? { width: outputSize.width, height: outputSize.height }
                 : undefined
             }
