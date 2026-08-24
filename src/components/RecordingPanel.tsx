@@ -22,6 +22,8 @@ export function RecordingPanel(): React.JSX.Element {
     status,
     recordingStartedAt,
     withMic,
+    permissions,
+    microphonePermissionPending,
     setWithMic,
     startRecording,
     stopRecording,
@@ -72,12 +74,18 @@ export function RecordingPanel(): React.JSX.Element {
           <div className="flex items-center gap-2.5 text-[12.5px] text-ink-1">
             <Switch
               checked={withMic}
-              onChange={setWithMic}
-              disabled={status !== 'idle'}
+              onChange={(checked) => void setWithMic(checked)}
+              disabled={status !== 'idle' || microphonePermissionPending}
               label="录制麦克风"
             />
             <MicIcon size={14} className="text-ink-2" />
-            <span className="whitespace-nowrap">麦克风</span>
+            <span className="whitespace-nowrap">
+              {microphonePermissionPending
+                ? '正在申请麦克风…'
+                : permissions?.microphone === 'granted'
+                  ? '麦克风'
+                  : '麦克风未授权'}
+            </span>
           </div>
           <div className="flex items-center gap-2.5 text-[12.5px] text-ink-1">
             <Switch checked onChange={() => {}} disabled label="系统音频（自动采集）" />

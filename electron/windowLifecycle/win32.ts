@@ -2,6 +2,12 @@ import { Menu, Tray, type BrowserWindow, type NativeImage } from 'electron'
 
 let tray: Tray | null = null
 
+export function configureAboutPanel(
+  _applicationName: string,
+  _applicationVersion: string,
+  _website: string
+): void {}
+
 export function backgroundWindow(win: BrowserWindow, icon?: NativeImage): void {
   if (tray) {
     win.hide()

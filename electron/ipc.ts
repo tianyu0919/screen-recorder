@@ -26,9 +26,10 @@ import {
 import { getPermissionStatus, openSystemSettings, requestMicrophoneAccess } from './permissions'
 import { appSettings } from './store/appSettings'
 import { sessionCatalog } from './store/sessionCatalog'
-import type { AppSettings, CloseDecision } from '../shared/types'
+import type { AppSettingsPatch, CloseDecision } from '../shared/types'
 import { backgroundWindow } from './windowLifecycle'
 import { updateService } from './updater'
+import { displaySelectionOutline } from './displaySelectionOutline'
 
 /** 鼠标轨迹轮询频率（spec: 60–120Hz，取 90Hz） */
 const POLL_HZ = 90
@@ -56,6 +57,10 @@ export function registerIpc(getWindow: () => BrowserWindow | null, appIcon?: Ele
   let stopSystemAudio: StopSystemAudio | null = null
 
   ipcMain.handle(IPC.GetSources, () => listCaptureSources())
+  ipcMain.handle(IPC.ShowDisplaySelectionOutline, (_e, sourceId: string) =>
+    displaySelectionOutline.showForSource(sourceId).catch(() => false)
+  )
+  ipcMain.handle(IPC.HideDisplaySelectionOutline, () => displaySelectionOutline.hide())
 
   // 窗口控制（Windows 自绘标题栏按钮；macOS 用系统红绿灯，不会触发）
   ipcMain.handle(IPC.WindowMinimize, () => getWindow()?.minimize())
@@ -84,7 +89,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null, appIcon?: Ele
   ipcMain.handle(IPC.SessionEmptyTrash, () => sessionCatalog.emptyTrash())
   ipcMain.handle(IPC.SessionRemoveMissing, (_e, sessionId: string) => sessionCatalog.removeMissing(sessionId))
   ipcMain.handle(IPC.SettingsGet, () => appSettings.get())
-  ipcMain.handle(IPC.SettingsUpdate, async (_e, patch: Partial<AppSettings>) => {
+  ipcMain.handle(IPC.SettingsUpdate, async (_e, patch: AppSettingsPatch) => {
     const settings = appSettings.update(patch)
     await sessionCatalog.updateRetention()
     return settings
@@ -176,6 +181,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null, appIcon?: Ele
 
   ipcMain.handle(IPC.GetPermissions, () => getPermissionStatus())
 
+  ipcMain.handle(IPC.RequestMicrophoneAccess, () => requestMicrophoneAccess())
+
   ipcMain.handle(IPC.OpenSystemSettings, (_e, kind: 'screen' | 'accessibility' | 'microphone') =>
     openSystemSettings(kind)
   )
@@ -238,11 +245,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null, appIcon?: Ele
 
   ipcMain.handle(
     IPC.RecordingWriteMic,
-    async (_e, wav: ArrayBuffer) => {
-      // 写 mic.wav 前先确保麦克风权限（macOS 触发系统弹窗）
-      await requestMicrophoneAccess()
-      store.writeMic(Buffer.from(wav))
-    }
+    (_e, wav: ArrayBuffer) => store.writeMic(Buffer.from(wav))
   )
 
   ipcMain.handle(IPC.RecordingWriteSystemAudio, (_e, wav: ArrayBuffer) => {

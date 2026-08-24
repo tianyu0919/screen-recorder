@@ -12,7 +12,12 @@ import type {
   StartRecordingPayload,
   StartRecordingResult
 } from '../../shared/types'
-import type { AppSettings, CloseDecision, UpdateSnapshot } from '../../shared/types'
+import type {
+  AppSettings,
+  AppSettingsPatch,
+  CloseDecision,
+  UpdateSnapshot
+} from '../../shared/types'
 
 export interface RecorderApi {
   /** 运行平台（Renderer 侧平台分支统一以此判断，禁直接用 navigator.userAgent） */
@@ -20,7 +25,10 @@ export interface RecorderApi {
   getSources(): Promise<CaptureSource[]>
   /** 调 getDisplayMedia 前先告知 Main 选中的源（SCK handler 据此 approve） */
   prepareCaptureSource(sourceId: string): Promise<void>
+  showDisplaySelectionOutline(sourceId: string): Promise<boolean>
+  hideDisplaySelectionOutline(): Promise<void>
   getPermissions(): Promise<PermissionStatus>
+  requestMicrophoneAccess(): Promise<PermissionStatus['microphone']>
   openSystemSettings(kind: 'screen' | 'accessibility' | 'microphone'): Promise<void>
   startRecording(payload: StartRecordingPayload): Promise<StartRecordingResult>
   writeChunk(chunk: ArrayBuffer): Promise<void>
@@ -50,7 +58,7 @@ export interface RecorderApi {
   emptyTrash(): Promise<void>
   removeMissingSession(sessionId: string): Promise<void>
   getSettings(): Promise<AppSettings>
-  updateSettings(patch: Partial<Pick<AppSettings, 'theme' | 'trashRetentionDays' | 'closeBehavior' | 'autoCheckUpdates'>>): Promise<AppSettings>
+  updateSettings(patch: AppSettingsPatch): Promise<AppSettings>
   chooseRecordingsPath(): Promise<AppSettings | null>
   openRecordingsPath(): Promise<void>
   getUpdateState(): Promise<UpdateSnapshot>
@@ -83,7 +91,11 @@ const api: RecorderApi = {
   platform: process.platform,
   getSources: () => ipcRenderer.invoke(IPC.GetSources),
   prepareCaptureSource: (sourceId) => ipcRenderer.invoke(IPC.PrepareCaptureSource, sourceId),
+  showDisplaySelectionOutline: (sourceId) =>
+    ipcRenderer.invoke(IPC.ShowDisplaySelectionOutline, sourceId),
+  hideDisplaySelectionOutline: () => ipcRenderer.invoke(IPC.HideDisplaySelectionOutline),
   getPermissions: () => ipcRenderer.invoke(IPC.GetPermissions),
+  requestMicrophoneAccess: () => ipcRenderer.invoke(IPC.RequestMicrophoneAccess),
   openSystemSettings: (kind) => ipcRenderer.invoke(IPC.OpenSystemSettings, kind),
   startRecording: (payload) => ipcRenderer.invoke(IPC.RecordingStart, payload),
   writeChunk: (chunk) => ipcRenderer.invoke(IPC.RecordingWriteChunk, chunk),

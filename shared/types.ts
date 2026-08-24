@@ -91,6 +91,14 @@ export interface RecordingSession {
 export type ThemeMode = 'system' | 'light' | 'dark'
 export type CloseBehavior = 'background' | 'quit'
 export type TrashRetentionDays = 1 | 3 | 7 | 30 | null
+export const PREVIEW_QUALITY_MODES = ['auto', 'smooth', 'high', 'ultra'] as const
+export type PreviewQualityMode = (typeof PREVIEW_QUALITY_MODES)[number]
+
+export function normalizePreviewQuality(value: unknown): PreviewQualityMode {
+  return PREVIEW_QUALITY_MODES.includes(value as PreviewQualityMode)
+    ? value as PreviewQualityMode
+    : 'auto'
+}
 
 export interface AppSettings {
   version: 2
@@ -102,7 +110,14 @@ export interface AppSettings {
   closeBehavior: CloseBehavior | null
   /** 启动后延迟检查正式版本更新。 */
   autoCheckUpdates: boolean
+  /** 本机普通编辑预览清晰度；不影响专注预览和导出。 */
+  previewQuality: PreviewQualityMode
 }
+
+export type AppSettingsPatch = Partial<Pick<
+  AppSettings,
+  'theme' | 'trashRetentionDays' | 'closeBehavior' | 'autoCheckUpdates' | 'previewQuality'
+>>
 
 export interface UpdateCapabilities {
   canDownloadInApp: boolean

@@ -3,7 +3,10 @@ export const IPC = {
   // Renderer → Main（invoke）
   GetSources: 'capture:get-sources',
   PrepareCaptureSource: 'capture:prepare-source',
+  ShowDisplaySelectionOutline: 'capture:show-display-selection-outline',
+  HideDisplaySelectionOutline: 'capture:hide-display-selection-outline',
   GetPermissions: 'system:get-permissions',
+  RequestMicrophoneAccess: 'system:request-microphone-access',
   OpenSystemSettings: 'system:open-settings',
   RecordingStart: 'recording:start',
   RecordingStop: 'recording:stop',

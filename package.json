@@ -2,6 +2,7 @@
   "name": "screen-recorder",
   "version": "0.3.6",
   "private": true,
+  "homepage": "https://github.com/tianyu0919/screen-recorder",
   "type": "module",
   "description": "Screen Studio-like screen recorder: record data, apply auto camera motion at export time",
   "main": "dist-electron/main/index.js",
@@ -28,6 +29,7 @@
     "mp4-muxer": "^5.2.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "sonner": "^2.0.7",
     "tailwind-merge": "^2.5.2",
     "uiohook-napi": "^1.5.5",
     "zustand": "^4.5.5"

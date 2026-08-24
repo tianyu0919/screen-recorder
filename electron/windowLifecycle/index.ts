@@ -4,6 +4,14 @@ import * as win32 from './win32'
 
 const platform = process.platform === 'win32' ? win32 : darwin
 
+export function configureAboutPanel(
+  applicationName: string,
+  applicationVersion: string,
+  website: string
+): void {
+  platform.configureAboutPanel(applicationName, applicationVersion, website)
+}
+
 export function backgroundWindow(win: BrowserWindow, icon?: NativeImage): void {
   platform.backgroundWindow(win, icon)
 }

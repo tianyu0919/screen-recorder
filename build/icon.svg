@@ -17,21 +17,27 @@
       <stop offset="0" stop-color="#ff8f6d"/>
       <stop offset="1" stop-color="#e83e1a"/>
     </radialGradient>
+    <clipPath id="icon-clip">
+      <rect x="32" y="32" width="960" height="960" rx="216"/>
+    </clipPath>
   </defs>
 
-  <!-- macOS 风格 squircle 底板 -->
-  <rect x="32" y="32" width="960" height="960" rx="216" fill="url(#bg)"/>
-  <rect x="34" y="34" width="956" height="956" rx="214" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="3"/>
-  <ellipse cx="512" cy="160" rx="440" ry="240" fill="#ffffff" opacity="0.05"/>
+  <!-- macOS 图标安全区：主体收至约 79% 画布，避免遮住 Cmd+Tab 的系统选中底板。 -->
+  <g transform="translate(81.92 81.92) scale(0.84)">
+    <!-- macOS 风格 squircle 底板 -->
+    <rect x="32" y="32" width="960" height="960" rx="216" fill="url(#bg)"/>
+    <rect x="34" y="34" width="956" height="956" rx="214" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="3"/>
+    <ellipse cx="512" cy="160" rx="440" ry="240" fill="#ffffff" opacity="0.05" clip-path="url(#icon-clip)"/>
 
-  <!-- 屏幕外框 -->
-  <rect x="252" y="296" width="520" height="360" rx="84" fill="none" stroke="url(#og)" stroke-width="52"/>
+    <!-- 屏幕外框 -->
+    <rect x="252" y="296" width="520" height="360" rx="84" fill="none" stroke="url(#og)" stroke-width="52"/>
 
-  <!-- 镜头 / 录制点 -->
-  <circle cx="512" cy="476" r="86" fill="url(#lens)"/>
-  <circle cx="482" cy="444" r="20" fill="#ffffff" opacity="0.55"/>
+    <!-- 镜头 / 录制点 -->
+    <circle cx="512" cy="476" r="86" fill="url(#lens)"/>
+    <circle cx="482" cy="444" r="20" fill="#ffffff" opacity="0.55"/>
 
-  <!-- 支架 -->
-  <path d="M512 656v52" stroke="url(#ogu)" stroke-width="44" stroke-linecap="round"/>
-  <path d="M414 732h196" stroke="url(#ogu)" stroke-width="44" stroke-linecap="round"/>
+    <!-- 支架 -->
+    <path d="M512 656v52" stroke="url(#ogu)" stroke-width="44" stroke-linecap="round"/>
+    <path d="M414 732h196" stroke="url(#ogu)" stroke-width="44" stroke-linecap="round"/>
+  </g>
 </svg>

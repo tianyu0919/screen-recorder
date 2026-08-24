@@ -21,10 +21,11 @@ export function getPermissionStatus(): PermissionStatus {
   }
 }
 
-/** 请求麦克风权限（macOS 上会触发系统弹窗） */
-export async function requestMicrophoneAccess(): Promise<boolean> {
-  if (process.platform !== 'darwin') return true
-  return systemPreferences.askForMediaAccess('microphone')
+/** 请求麦克风权限（macOS 上会触发系统弹窗），返回请求后的真实状态。 */
+export async function requestMicrophoneAccess(): Promise<Level> {
+  if (process.platform !== 'darwin') return 'granted'
+  await systemPreferences.askForMediaAccess('microphone')
+  return getPermissionStatus().microphone
 }
 
 /** 跳转系统设置对应面板 */

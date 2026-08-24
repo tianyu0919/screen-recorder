@@ -12,6 +12,8 @@ export interface RecorderCallbacks {
   onFatalError: (err: RecordingError) => void
 }
 
+type RecorderStartResult = StartRecordingResult & { microphoneAvailable: boolean }
+
 /**
  * Renderer 侧录制编排（Task 2.2 / 2.3）：
  * getUserMedia(chromeMediaSourceId) 采集画面 → MediaRecorder 高码率 webm 分片 → IPC 写盘；
@@ -53,7 +55,7 @@ export class ScreenRecorder {
   }
 
   /** 开始录制：先通知 Main（建立会话 + 启动轨迹轮询/输入钩子），再启动 MediaRecorder */
-  async start(withMic: boolean): Promise<StartRecordingResult> {
+  async start(withMic: boolean): Promise<RecorderStartResult> {
     if (!this.stream) throw new Error('尚未建立采集流')
     const track = this.stream.getVideoTracks()[0]
     const settings = track.getSettings()
@@ -122,7 +124,7 @@ export class ScreenRecorder {
       }
     }
     this.stopping = false
-    return result
+    return { ...result, microphoneAvailable: !withMic || this.micRecorder !== null }
   }
 
   get hasMic(): boolean {

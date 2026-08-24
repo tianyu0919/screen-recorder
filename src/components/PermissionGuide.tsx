@@ -4,7 +4,7 @@ import { CheckCircle2, CircleAlert, ExternalLink, RefreshCw, ShieldAlert } from 
 
 /** macOS 权限引导页（Task 2.4）：屏幕录制 / 辅助功能 / 麦克风 */
 export function PermissionGuide(): React.JSX.Element {
-  const { permissions, refreshPermissions } = useAppStore()
+  const { permissions, refreshPermissions, setWithMic, microphonePermissionPending } = useAppStore()
   if (!permissions) return <></>
 
   const items: Array<{
@@ -34,7 +34,7 @@ export function PermissionGuide(): React.JSX.Element {
               完成权限设置
             </h2>
             <p className="mt-0.5 max-w-[760px] text-[12.5px] leading-5 text-ink-2">
-              授权后重新检查。缺少辅助功能权限仍可录制，但不会采集点击和键盘事件，自动运镜也将不可用。
+              授权后重新检查。麦克风是可选项；关闭麦克风仍可正常录制。缺少辅助功能权限时不会采集点击和键盘事件。
             </p>
           </div>
         </div>
@@ -74,9 +74,17 @@ export function PermissionGuide(): React.JSX.Element {
                   variant="outline"
                   size="sm"
                   className="mt-auto self-start"
-                  onClick={() => void window.api.openSystemSettings(item.key)}
+                  disabled={item.key === 'microphone' && microphonePermissionPending}
+                  onClick={() => {
+                    if (item.key === 'microphone') void setWithMic(true)
+                    else void window.api.openSystemSettings(item.key)
+                  }}
                 >
-                  打开系统设置
+                  {item.key === 'microphone' && permissions.microphone === 'unknown'
+                    ? microphonePermissionPending
+                      ? '正在申请…'
+                      : '授权麦克风'
+                    : '打开系统设置'}
                   <ExternalLink size={12} aria-hidden="true" />
                 </Button>
               )}
