@@ -1,6 +1,6 @@
 {
   "name": "screen-recorder",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "private": true,
   "homepage": "https://github.com/tianyu0919/screen-recorder",
   "type": "module",
