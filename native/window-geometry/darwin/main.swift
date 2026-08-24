@@ -39,7 +39,14 @@ func poll() {
         return
     }
     let rect = (Int(x.rounded()), Int(y.rounded()), Int(w.rounded()), Int(h.rounded()))
-    guard rect.2 > 0, rect.3 > 0, rect != last else { return }
+    guard rect.2 > 0, rect.3 > 0 else { return }
+    if let previous = last,
+       previous.0 == rect.0,
+       previous.1 == rect.1,
+       previous.2 == rect.2,
+       previous.3 == rect.3 {
+        return
+    }
     last = rect
     let t = nowMs() - t0
     let line = "{\"t\":\(t),\"x\":\(rect.0),\"y\":\(rect.1),\"w\":\(rect.2),\"h\":\(rect.3)}\n"
