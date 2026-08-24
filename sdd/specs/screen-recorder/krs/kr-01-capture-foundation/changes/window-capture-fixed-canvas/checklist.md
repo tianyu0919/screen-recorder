@@ -25,7 +25,7 @@
 
 ## Build & Code Quality
 
-- [ ] macOS Swift 与 Windows Rust helper 可由 `npm run build:native` 在对应平台构建。
+- [x] macOS Swift 与 Windows Rust helper 可由 `npm run build:native` 在对应平台构建（v0.3.8 Release 双平台 CI 通过）。
 - [x] electron-builder 与 release workflow 将对应 helper 放入运行时查找路径。
 - [x] 平台实现拆分为 darwin/win32，分发层不包含平台业务实现。
 - [x] 所有受影响文件不超过 300 行，跨模块契约只在 `shared/` 定义。
