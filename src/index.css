@@ -203,6 +203,74 @@ button.bg-accent,
   box-shadow: 0 0 0 2px var(--surface-1);
 }
 
+/* 专注预览运输条：稳定覆盖任意画面的半透明深色表面。 */
+.focus-preview-controls {
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  background: rgba(16, 18, 21, 0.82);
+  box-shadow:
+    0 18px 54px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(22px) saturate(125%);
+}
+
+.focus-preview-slider {
+  --focus-progress: 0%;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 24px;
+  border: 0;
+  background: transparent;
+  outline: none;
+  cursor: pointer;
+}
+.focus-preview-slider::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--accent) 0 var(--focus-progress),
+    rgba(255, 255, 255, 0.17) var(--focus-progress) 100%
+  );
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+.focus-preview-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  margin-top: -5px;
+  border: 2px solid var(--accent);
+  border-radius: 999px;
+  background: var(--on-accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.42);
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+.focus-preview-slider:hover::-webkit-slider-thumb,
+.focus-preview-slider:focus-visible::-webkit-slider-thumb {
+  transform: scale(1.12);
+  box-shadow: 0 0 0 4px var(--accent-soft), 0 2px 8px rgba(0, 0, 0, 0.42);
+}
+.focus-preview-slider:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+.focus-preview-slider:disabled::-webkit-slider-thumb {
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .focus-preview-slider::-webkit-slider-thumb {
+    transition: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .focus-preview-controls {
+    background: rgb(16, 18, 21);
+    backdrop-filter: none;
+  }
+}
+
 /* 全局细滚动条（深色主题）；自绘滚动区用 .no-scrollbar 完全隐藏 */
 ::-webkit-scrollbar {
   width: 8px;
