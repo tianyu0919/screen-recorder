@@ -2,6 +2,10 @@ import { Menu, Tray, type BrowserWindow, type NativeImage } from 'electron'
 
 let tray: Tray | null = null
 
+export function configureApplicationMenu(): void {
+  Menu.setApplicationMenu(null)
+}
+
 export function configureAboutPanel(
   _applicationName: string,
   _applicationVersion: string,

@@ -1,4 +1,31 @@
-import { app, type BrowserWindow } from 'electron'
+import {
+  app,
+  Menu,
+  type BrowserWindow,
+  type MenuItemConstructorOptions
+} from 'electron'
+
+/** 一次性创建不含 Reload/Force Reload 的原生菜单，避免运行时修改 AppKit 菜单对象。 */
+export function configureApplicationMenu(): void {
+  const viewItems: MenuItemConstructorOptions[] = [
+    ...(!app.isPackaged
+      ? [{ role: 'toggleDevTools' as const }, { type: 'separator' as const }]
+      : []),
+    { role: 'resetZoom' },
+    { role: 'zoomIn' },
+    { role: 'zoomOut' },
+    { type: 'separator' },
+    { role: 'togglefullscreen' }
+  ]
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    { role: 'appMenu' },
+    { role: 'fileMenu' },
+    { role: 'editMenu' },
+    { label: 'View', submenu: viewItems },
+    { role: 'windowMenu' },
+    { role: 'help', submenu: [] }
+  ]))
+}
 
 export function configureAboutPanel(
   applicationName: string,

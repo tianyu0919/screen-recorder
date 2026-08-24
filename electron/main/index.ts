@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, nativeImage, nativeTheme, protocol } from 'electron'
+import { app, BrowserWindow, nativeImage, nativeTheme, protocol } from 'electron'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { registerIpc } from '../ipc'
@@ -9,16 +9,14 @@ import { appSettings } from '../store/appSettings'
 import { sessionCatalog } from '../store/sessionCatalog'
 import {
   backgroundWindow,
+  configureApplicationMenu,
   configureAboutPanel,
   disposeTray,
   showWindow
 } from '../windowLifecycle'
 import { updateService } from '../updater'
 import { displaySelectionOutline } from '../displaySelectionOutline'
-import {
-  disableApplicationMenuReload,
-  installReloadShortcutGuard
-} from '../windowLifecycle/reloadGuard'
+import { installReloadShortcutGuard } from '../windowLifecycle/reloadGuard'
 import packageMetadata from '../../package.json'
 
 /**
@@ -119,14 +117,12 @@ if (!hasSingleInstanceLock) {
   ])
 
   app.whenReady().then(() => {
-    // Windows/Linux 去掉默认应用菜单（File/Edit/View...），macOS 保留以维持系统级快捷键与 Dock 菜单
-    if (process.platform !== 'darwin') Menu.setApplicationMenu(null)
-    else disableApplicationMenuReload()
+    configureAboutPanel(APP_NAME, packageMetadata.version, packageMetadata.homepage)
+    configureApplicationMenu()
     // 仅开发期覆盖 Dock 图标；打包后 .app 自带 icns，无需也不应覆盖
     if (process.platform === 'darwin' && appIcon && !app.isPackaged) {
       app.dock?.setIcon(appIcon)
     }
-    configureAboutPanel(APP_NAME, packageMetadata.version, packageMetadata.homepage)
     registerDisplayMediaHandler()
     displaySelectionOutline.initialize()
     registerMediaProtocol()

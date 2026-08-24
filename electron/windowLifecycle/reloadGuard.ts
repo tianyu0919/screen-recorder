@@ -1,4 +1,4 @@
-import { Menu, type BrowserWindow, type MenuItem } from 'electron'
+import type { BrowserWindow } from 'electron'
 
 function isReloadInput(input: Electron.Input): boolean {
   const key = input.key.toLowerCase()
@@ -10,20 +10,4 @@ export function installReloadShortcutGuard(win: BrowserWindow): void {
   win.webContents.on('before-input-event', (event, input) => {
     if (isReloadInput(input)) event.preventDefault()
   })
-}
-
-function disableReloadItems(items: readonly MenuItem[]): void {
-  for (const item of items) {
-    if (item.role === 'reload' || item.role === 'forceReload') {
-      item.enabled = false
-      item.visible = false
-    }
-    if (item.submenu) disableReloadItems(item.submenu.items)
-  }
-}
-
-/** macOS 保留原生应用菜单，但移除菜单中的普通刷新和强制刷新入口。 */
-export function disableApplicationMenuReload(): void {
-  const menu = Menu.getApplicationMenu()
-  if (menu) disableReloadItems(menu.items)
 }

@@ -100,7 +100,7 @@ Screen Studio 能"放大/替换/平滑光标"的前提是：**光标没有被烧
 
 应用偏好由 `electron/store/appSettings.ts` 写入版本化 `userData/settings.json`，包含主题、当前/历史录制根、回收站周期、关闭策略与本机预览清晰度；新字段通过默认值合并迁移。删除先将完整会话移入 `userData/trash` 并记录原位置和清理时间，到期或二次确认后才永久删除。根目录离线与根可访问但会话缺失必须区分，后者只允许移除失效索引。
 
-关闭后台运行按平台拆分在 `electron/windowLifecycle/`：Windows 从 `resourcesPath/tray-icon.ico` 创建系统托盘，且仅在托盘创建成功后隐藏主窗口，并保留“后台运行 / 直接退出”设置与首次确认；macOS 遵循原生生命周期，红色关闭按钮固定隐藏窗口并通过 Dock `activate` 恢复，只有 `⌘Q` / 菜单栏退出结束进程，Renderer 不展示关闭策略设置。共享分发层只选择 `win32.ts` / `darwin.ts`，不混合平台实现。
+关闭后台运行按平台拆分在 `electron/windowLifecycle/`：Windows 从 `resourcesPath/tray-icon.ico` 创建系统托盘，且仅在托盘创建成功后隐藏主窗口，并保留“后台运行 / 直接退出”设置与首次确认；macOS 遵循原生生命周期，红色关闭按钮固定隐藏窗口并通过 Dock `activate` 恢复，只有 `⌘Q` / 菜单栏退出结束进程，Renderer 不展示关闭策略设置。macOS 原生应用菜单在 ready 后一次性构建且不创建 Reload/Force Reload 项，禁止运行时修改默认 AppKit 菜单对象；Main 的 `before-input-event` 同时拦截 `⌘R`/`Ctrl+R`/F5。Windows 不创建应用菜单。共享分发层只选择 `win32.ts` / `darwin.ts`，不混合平台实现。
 
 macOS 窗口使用 `hiddenInset`：Renderer 在红绿灯同行保留左侧安全区与中间拖拽区，右侧集中放置软件更新、主题切换和应用设置；交互按钮与设置抽屉必须显式标记 `app-nodrag`。Windows 继续使用 Renderer 自绘标题栏与最小化/最大化/关闭按钮，平台布局集中在 `src/components/AppHeader.tsx` 分发。
 

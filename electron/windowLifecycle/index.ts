@@ -4,6 +4,10 @@ import * as win32 from './win32'
 
 const platform = process.platform === 'win32' ? win32 : darwin
 
+export function configureApplicationMenu(): void {
+  platform.configureApplicationMenu()
+}
+
 export function configureAboutPanel(
   applicationName: string,
   applicationVersion: string,
