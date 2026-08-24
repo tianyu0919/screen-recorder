@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import type { CutRange } from '@/timeline/cuts'
 import { CheckIcon, CloseIcon } from '@/components/icons'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 type DragMode = 'create' | 'move' | 'resize-l' | 'resize-r'
 type DragHandler = (e: React.PointerEvent<HTMLElement>) => void
@@ -92,6 +93,7 @@ export function useCutRangeSelection(
 interface CutsLayerProps {
   cuts: CutRange[]
   duration: number
+  scrollRef: RefObject<HTMLDivElement | null>
   rangeSel: CutRange | null
   sel: RangeSelection
   onCommit(): void
@@ -104,6 +106,7 @@ interface CutsLayerProps {
 export function CutsLayer({
   cuts,
   duration,
+  scrollRef,
   rangeSel,
   sel,
   onCommit,
@@ -111,6 +114,38 @@ export function CutsLayer({
   onEditCut
 }: CutsLayerProps): React.JSX.Element {
   const [activeCut, setActiveCut] = useState<number | null>(null)
+  const selectionActionsRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    const viewport = scrollRef.current
+    const actions = selectionActionsRef.current
+    if (!viewport || !actions || !rangeSel) return
+    let frame = 0
+    const position = (): void => {
+      frame = 0
+      const halfWidth = actions.offsetWidth / 2
+      const viewportCenter = viewport.scrollLeft + viewport.clientWidth / 2
+      const preferred = ((rangeSel.startMs + rangeSel.endMs) / 2 / duration) * viewport.scrollWidth
+      const inset = 8
+      const min = viewport.scrollLeft + halfWidth + inset
+      const max = viewport.scrollLeft + viewport.clientWidth - halfWidth - inset
+      const left = min <= max ? Math.min(max, Math.max(min, preferred)) : viewportCenter
+      actions.style.left = `${left}px`
+    }
+    const schedulePosition = (): void => {
+      if (!frame) frame = requestAnimationFrame(position)
+    }
+    const observer = new ResizeObserver(schedulePosition)
+    position()
+    observer.observe(viewport)
+    observer.observe(actions)
+    viewport.addEventListener('scroll', schedulePosition, { passive: true })
+    return () => {
+      if (frame) cancelAnimationFrame(frame)
+      observer.disconnect()
+      viewport.removeEventListener('scroll', schedulePosition)
+    }
+  }, [duration, rangeSel, scrollRef])
 
   // 点击气泡以外区域收起「编辑此段」
   useEffect(() => {
@@ -128,20 +163,27 @@ export function CutsLayer({
     <>
       {cuts.map((c, i) => (
         <div key={`${c.startMs}-${c.endMs}`}>
-          <button
-            title="已裁掉 · 点击编辑"
-            onPointerDown={(e) => {
-              e.stopPropagation()
-              setActiveCut(i)
-            }}
-            className="absolute bottom-0 top-0 z-10 border-x border-[rgba(255,92,56,0.35)]"
-            style={{
-              left: pct(c.startMs),
-              width: pct(c.endMs - c.startMs),
-              background:
-                'repeating-linear-gradient(45deg, rgba(255,92,56,0.16) 0 6px, rgba(255,92,56,0.05) 6px 12px)'
-            }}
-          />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                aria-label="已裁掉 · 点击编辑"
+                onPointerDown={(e) => {
+                  e.stopPropagation()
+                  setActiveCut(i)
+                }}
+                className="absolute bottom-0 top-0 z-10 border-x border-[rgba(255,92,56,0.35)]"
+                style={{
+                  left: pct(c.startMs),
+                  width: pct(c.endMs - c.startMs),
+                  background:
+                    'repeating-linear-gradient(45deg, rgba(255,92,56,0.16) 0 6px, rgba(255,92,56,0.05) 6px 12px)'
+                }}
+              />
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={8} collisionPadding={12}>
+              已裁掉 · 点击编辑
+            </TooltipContent>
+          </Tooltip>
           {activeCut === i && (
             <div
               data-cut-popover
@@ -164,7 +206,7 @@ export function CutsLayer({
         </div>
       ))}
 
-      {rangeSel && rangeSel.endMs > rangeSel.startMs && (
+      {rangeSel && rangeSel.endMs > rangeSel.startMs && <>
         <div
           className="absolute bottom-0 top-0 z-[15] border-x border-accent bg-accent-soft"
           style={{ left: pct(rangeSel.startMs), width: pct(rangeSel.endMs - rangeSel.startMs) }}
@@ -189,27 +231,31 @@ export function CutsLayer({
             onPointerMove={sel.onDragMove}
             onPointerUp={sel.onDragEnd}
           />
-          {/* 确认 / 放弃 */}
-          <div className="absolute bottom-[5px] left-1/2 z-20 flex -translate-x-1/2 gap-1.5 whitespace-nowrap">
-            <button
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={onCommit}
-              className="flex items-center gap-1 rounded-md bg-accent px-2.5 py-1 text-[11.5px] font-semibold text-on-accent shadow-lg hover:bg-accent-hover"
-            >
-              <CheckIcon size={11} />
-              裁掉这段
-            </button>
-            <button
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={onDiscard}
-              aria-label="放弃选区"
-              className="grid w-6 place-items-center rounded-md border border-line bg-surface-2 text-ink-2 shadow-lg hover:text-ink-1"
-            >
-              <CloseIcon size={11} />
-            </button>
-          </div>
         </div>
-      )}
+        {/* 确认 / 放弃：相对当前可视区碰撞避让，不随窄选区被裁切。 */}
+        <div
+          ref={selectionActionsRef}
+          className="absolute bottom-[5px] z-20 flex -translate-x-1/2 gap-1.5 whitespace-nowrap"
+          style={{ left: pct((rangeSel.startMs + rangeSel.endMs) / 2) }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={onCommit}
+            className="flex h-7 items-center gap-1 rounded-md bg-accent px-2.5 text-[11.5px] font-semibold text-on-accent shadow-lg hover:bg-accent-hover"
+          >
+            <CheckIcon size={11} />
+            裁掉这段
+          </button>
+          <button
+            onClick={onDiscard}
+            aria-label="取消裁剪选区"
+            title="取消"
+            className="grid h-7 w-7 place-items-center rounded-md border border-line bg-surface-2 text-ink-2 shadow-lg hover:bg-surface-3 hover:text-ink-1"
+          >
+            <CloseIcon size={11} />
+          </button>
+        </div>
+      </>}
     </>
   )
 }

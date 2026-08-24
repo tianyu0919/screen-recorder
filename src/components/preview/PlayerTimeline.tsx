@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Play, Pause } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { usePreviewStore } from '@/store/previewStore'
-import { effectiveDurationMs, sourceToOutputMs } from '@/timeline/cuts'
+import { cutAt, effectiveDurationMs, normalizeCuts, sourceToOutputMs } from '@/timeline/cuts'
 import { bufferedTimeWindow } from '@/timeline/eventDisplay'
 import { CutsLayer, useCutRangeSelection } from './CutsLayer'
 import { TimelineTracks } from './TimelineTracks'
@@ -143,8 +143,12 @@ export function PlayerTimeline({
     if (!state || state.panned || durationMs === 0) return
     cutSel.setRangeSel(null)
     const rect = event.currentTarget.getBoundingClientRect()
+    const offsetX = event.clientX - rect.left
+    const ratio = offsetX <= 6 ? 0 : offsetX >= rect.width - 6 ? 1 : offsetX / rect.width
+    const targetMs = Math.round(Math.min(1, Math.max(0, ratio)) * durationMs)
+    if (cutAt(targetMs, normalizeCuts(store.cuts, durationMs))) return
     store.selectMotionEffect(null)
-    onSeek(Math.round(Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)) * durationMs))
+    onSeek(targetMs)
   }
 
   const openMenu = useCallback(
@@ -204,7 +208,7 @@ export function PlayerTimeline({
             onContextMenu={(event) => openMenu(event)}
           >
             <TimelineRuler duration={duration} contentWidth={contentWpx} pxPerSec={pxPerSec} onPointerDown={cutSel.beginDrag('create')} onPointerMove={cutSel.onDragMove} onPointerUp={cutSel.onDragEnd} />
-            <CutsLayer cuts={store.cuts} duration={duration} rangeSel={cutSel.rangeSel} sel={cutSel} onCommit={() => { if (cutSel.rangeSel) store.addCut(cutSel.rangeSel); cutSel.setRangeSel(null) }} onDiscard={() => cutSel.setRangeSel(null)} onEditCut={(range, index) => { store.removeCut(index); cutSel.setRangeSel(range) }} />
+            <CutsLayer cuts={store.cuts} duration={duration} scrollRef={scrollRef} rangeSel={cutSel.rangeSel} sel={cutSel} onCommit={() => { if (cutSel.rangeSel) store.addCut(cutSel.rangeSel); cutSel.setRangeSel(null) }} onDiscard={() => cutSel.setRangeSel(null)} onEditCut={(range, index) => { store.removeCut(index); cutSel.setRangeSel(range) }} />
             <TimelineTracks
               motionEffects={store.motionEffects} motionEnabled={store.motionEnabled}
               selectedMotionId={store.selectedMotionId}
@@ -216,7 +220,7 @@ export function PlayerTimeline({
               onCommitEdit={store.commitEdit} onOffsetChange={store.setClipOffset}
               onTrimChange={store.setClipTrim} onContextMenu={openMenu}
             />
-            <TimelinePlayhead currentMs={currentMs} duration={duration} playing={playing} zoom={zoom} scrollRef={scrollRef} followHoldUntil={followHoldUntil} subscribeCurrentMs={subscribeCurrentMs} />
+            <TimelinePlayhead currentMs={currentMs} duration={duration} playing={playing} zoom={zoom} cuts={store.cuts} scrollRef={scrollRef} followHoldUntil={followHoldUntil} subscribeCurrentMs={subscribeCurrentMs} onSeek={onSeek} onTogglePlay={onTogglePlay} />
           </div>
         </div>
       </div>

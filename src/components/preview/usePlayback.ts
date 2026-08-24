@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { createCameraAnimator } from '@/timeline/spring'
 import { Compositor } from '@/render/compositor'
 import type { RenderInfo } from '@/render/types'
-import { cutAt, normalizeCuts } from '@/timeline/cuts'
+import { cutAt, isPlaybackAtCutEnd, normalizeCuts, snapSeekTimeToCuts } from '@/timeline/cuts'
 import { previewCompositorConfig, sameRenderInfo } from './playbackRender'
 import type { Playback, PlaybackOptions } from './playbackTypes'
 import { attachPlaybackVideoEvents } from './playbackVideoEvents'
@@ -220,13 +220,13 @@ export function usePlayback(
     if (!video) return
     if (video.paused) {
       // 播完再播从头开始
-      if (video.ended) video.currentTime = 0
+      const rawEnd = Number.isFinite(video.duration) ? video.duration * 1000 : fallbackDurationMs
+      if (video.ended || isPlaybackAtCutEnd(video.currentTime * 1000, rawEnd, cutsRef.current)) {
+        video.currentTime = 0
+      }
       // 当前位置落在裁剪区时先跳走；裁剪区直达片尾（已在有效结尾）则从头再播
       const cut = cutAt(video.currentTime * 1000, cutsRef.current)
       if (cut !== null) {
-        const rawEnd = Number.isFinite(video.duration)
-          ? video.duration * 1000
-          : fallbackDurationMs
         video.currentTime = (cut.endMs >= rawEnd - 50 ? 0 : cut.endMs) / 1000
       }
       lastMsRef.current = video.currentTime * 1000
@@ -260,8 +260,7 @@ export function usePlayback(
         : fallbackDurationMs
       const tMs = Math.max(0, durMs > 0 ? Math.min(ms, durMs) : ms)
       // 目标落在裁剪区时吸附：中间段跳到保留段起点；直达片尾的尾部段回到其起点（有效结尾）
-      const cut = cutAt(tMs, cutsRef.current)
-      const target = cut ? (cut.endMs >= durMs - 50 ? cut.startMs : cut.endMs) : tMs
+      const target = snapSeekTimeToCuts(tMs, durMs, cutsRef.current)
       video.currentTime = target / 1000
       lastMsRef.current = target
       animatorRef.current?.reset(target)

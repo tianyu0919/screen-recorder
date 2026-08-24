@@ -46,6 +46,43 @@ export function cutAt(tMs: number, cuts: CutRange[]): CutRange | null {
   return null
 }
 
+/** 拖动播放线进入裁剪区时吸附到有效内容边界。 */
+export function snapDraggedTimeToCuts(
+  tMs: number,
+  durationMs: number,
+  cuts: CutRange[]
+): number {
+  const target = Math.min(durationMs, Math.max(0, tMs))
+  const normalized = normalizeCuts(cuts, durationMs)
+  const tail = normalized[normalized.length - 1]
+  if (tail && tail.endMs >= durationMs - 0.5 && target >= tail.startMs) return tail.startMs
+  const cut = cutAt(target, normalized)
+  if (!cut) return target
+  if (cut.startMs <= 0) return cut.endMs
+  if (Math.abs(target - cut.startMs) < 0.5 || cut.endMs >= durationMs) return cut.startMs
+  return target - cut.startMs <= cut.endMs - target ? cut.startMs : cut.endMs
+}
+
+/** 普通 seek 允许停在裁剪左边界；区间内部继续沿用既有吸附语义。 */
+export function snapSeekTimeToCuts(tMs: number, durationMs: number, cuts: CutRange[]): number {
+  const cut = cutAt(tMs, cuts)
+  if (!cut || (cut.startMs > 0 && Math.abs(tMs - cut.startMs) < 0.5)) return tMs
+  return cut.endMs >= durationMs - 50 ? cut.startMs : cut.endMs
+}
+
+/** 当前源时间是否已经到达直达源片尾的尾部裁剪边界。 */
+export function isPlaybackAtCutEnd(
+  tMs: number,
+  durationMs: number,
+  cuts: CutRange[],
+  toleranceMs = 50
+): boolean {
+  const normalized = normalizeCuts(cuts, durationMs)
+  const tail = normalized[normalized.length - 1]
+  if (!tail || tail.endMs < durationMs - toleranceMs) return false
+  return tMs >= tail.startMs - toleranceMs
+}
+
 /** 输出时长 = 源时长 - 裁剪区间总长（至少 1ms） */
 export function effectiveDurationMs(durationMs: number, cuts: CutRange[]): number {
   const removed = cuts.reduce((acc, c) => acc + (c.endMs - c.startMs), 0)

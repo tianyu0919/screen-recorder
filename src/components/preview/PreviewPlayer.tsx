@@ -143,7 +143,6 @@ export function PreviewPlayer({
   }, [videoUrl])
 
   useEffect(() => {
-    if (!focusMode) return
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (event.repeat || blocksGlobalShortcut(event.target)) return
       if (event.code === 'Space') {
@@ -153,7 +152,7 @@ export function PreviewPlayer({
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [focusMode, togglePlay])
+  }, [togglePlay])
 
   return (
     <div className={cn('relative flex min-h-0 min-w-0 flex-1 flex-col', focusMode && 'bg-canvas')}>
