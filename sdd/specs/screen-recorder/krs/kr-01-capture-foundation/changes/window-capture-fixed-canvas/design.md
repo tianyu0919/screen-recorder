@@ -59,7 +59,7 @@ interface RecordingEventsV2 {
 
 1. 用户选中窗口并建立捕获流；Main 根据 source id 查询窗口所在显示器和原生窗口句柄/窗口号。
 2. prepare 阶段探测窗口显示器并冻结 `fixedCanvas`；Renderer 把原始视频轨交给归一化 Worker，同时准备视频、麦克风与兜底系统音频 MediaRecorder。
-3. Worker 对每个 VideoFrame 清空固定画布，按当前帧宽高比等比居中绘制，保持原时间戳并写入生成轨；MediaRecorder 只接收该恒定尺寸轨。
+3. Worker 对每个 VideoFrame 清空固定画布，按当前帧宽高比等比居中绘制；macOS 窗口帧额外按系统窗口圆角执行 alpha 遮罩，避免 ScreenCaptureKit 把透明角编码成黑色。随后保持原时间戳并写入生成轨；MediaRecorder 只接收该恒定尺寸轨。主线程降级路径使用同一遮罩函数。
 4. 各 MediaRecorder 启动后调用 activate IPC；Main 此时才建立统一 `t0`，启动正式 geometry helper、输入轮询/钩子及原生系统音频。helper 按相对时间输出窗口 bounds，Main 去重并在停止时写入 `events.json` V2。
 5. 会话加载时，V2 的点击/轨迹通过 `geometryAt(t)` 和固定画布 placement 映射；关键帧、跟随与波纹共用同一纯函数。
 6. 窗口跨显示器移动时画布仍保持开始显示器物理尺寸；仅 geometry 与来源 placement 更新。
@@ -67,6 +67,7 @@ interface RecordingEventsV2 {
 ## 4. Error Handling
 
 - **helper 不存在/启动失败**：记录可诊断警告，窗口录制继续；V2 标记无 geometry，渲染安全退回旧显示器换算。
+- **开发环境 helper 未构建**：`npm run dev` 的 predev 阶段先执行当前平台原生构建，避免窗口录制静默缺失 geometry 后产生错误的交互坐标。
 - **窗口临时无 bounds**：短时沿用最近有效样本；持续失效且捕获轨结束时复用现有 `SOURCE_LOST` 流程。
 - **窗口最小化或尺寸为 0**：Worker 重复最后有效画面或绘制背景，不产生非法尺寸和 NaN 坐标。
 - **MediaStreamTrack 无法进入 Worker**：Chromium 不允许采集轨 transfer/clone 时（实机已遇到 `Value does not have a transferable type`），降级为主线程隐藏 `<video>` + 固定 `<canvas>` + `captureStream(0)` 手动帧管线（`src/recorder/fixedCanvasMainThread.ts`），功能等价；`MediaStreamTrackProcessor`/`VideoTrackGenerator` 仅暴露于 DedicatedWorker，主线程预检不可依赖。

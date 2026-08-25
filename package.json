@@ -8,6 +8,7 @@
   "main": "dist-electron/main/index.js",
   "scripts": {
     "postinstall": "node scripts/patch-electron-name.mjs",
+    "predev": "node native/build.mjs --geometry-only",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "build:native": "node native/build.mjs",

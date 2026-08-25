@@ -1,4 +1,5 @@
 import { fitRectCentered } from '@/lib/aspectFit'
+import { maskWindowFrameCorners } from './windowFrameMask'
 
 /**
  * 窗口录制固定画布归一化 Worker（kr-01 window-capture-fixed-canvas，Task 3.1）：
@@ -15,6 +16,7 @@ export interface FixedCanvasStartMessage {
   track: MediaStreamTrack
   width: number
   height: number
+  cornerRadiusPx: number
 }
 
 export type FixedCanvasWorkerOut =
@@ -124,6 +126,7 @@ async function run(msg: FixedCanvasStartMessage): Promise<void> {
           // 留白区透明（VP9 alpha），预览/导出时透出编辑器背景色而不是黑边
           ctx.clearRect(0, 0, canvas.width, canvas.height)
           ctx.drawImage(frame, placement.x, placement.y, placement.width, placement.height)
+          maskWindowFrameCorners(ctx, placement, msg.cornerRadiusPx)
           hasContent = true
         }
         await emit(timestamp)

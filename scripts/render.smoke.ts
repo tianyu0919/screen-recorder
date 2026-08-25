@@ -141,9 +141,10 @@ check(
 )
 const sourcePlan = resolveOutputPlan(
   { width: 3456, height: 2234 },
-  { backgroundEnabled: false, backgroundColor: '#16181D', backgroundPaddingPercent: 6 }
+  { backgroundEnabled: false, backgroundColor: '#F4F0E8', backgroundPaddingPercent: 6 }
 )
 check('2.2 背景关闭按源尺寸输出', sourcePlan.output.width === 3456 && sourcePlan.output.height === 2234 && sourcePlan.paddingRatio === 0)
+check('2.2 背景关闭不继续使用已选颜色', sourcePlan.backgroundColor === '#16181D')
 const backgroundPlan = resolveOutputPlan(
   { width: 3456, height: 2234 },
   { backgroundEnabled: true, backgroundColor: '#ffffff', backgroundPaddingPercent: 6 }

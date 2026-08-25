@@ -25,6 +25,7 @@
 - [x] Task 5.2: 运行 `npm run typecheck`、`npm run build` 及相关 export/audio smoke
 - [ ] Task 5.3: 人工冒烟运镜切换、三类静音、非 16:9 源、背景色、超限降档与预览/导出一致性
 - [x] Task 5.4: 同步 `docs/TECH_DESIGN.md` 的 edit.json、渲染管线与动态导出尺寸说明
+- [x] Task 5.5: 修复背景选色后关闭仍残留该颜色：统一由 `resolveOutputPlan` 返回关闭状态的默认有效底色，预览与导出共用，并补 render smoke。
 
 # Task Dependencies
 - [Task 1.3] depends on [Task 1.1] and [Task 1.2]
@@ -38,3 +39,4 @@
 - [Task 3.x] and [Task 4.x] can run in parallel after their Phase 1/2 dependencies
 - [Task 5.1] depends on [Task 1.x] through [Task 3.x]
 - [Task 5.2], [Task 5.3] and [Task 5.4] depend on all implementation tasks
+- [Task 5.5] depends on [Task 3.1] and the macOS background toggle verification feedback

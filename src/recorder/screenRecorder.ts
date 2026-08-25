@@ -2,6 +2,7 @@ import type { RecordingError, StartRecordingResult } from '@shared/types'
 import { createFixedCanvasTrack, type FixedCanvasTrackHandle } from './fixedCanvas'
 import { createMainThreadFixedCanvasTrack } from './fixedCanvasMainThread'
 import { micBlobToWav } from './wav'
+import { windowFrameCornerRadiusPx } from './windowFrameMask'
 
 /** 录制码率（spec: 12–20 Mbps，取 16 Mbps） */
 const VIDEO_BITS_PER_SECOND = 16_000_000
@@ -78,15 +79,27 @@ export class ScreenRecorder {
       if (prepared.source.type === 'window') {
         try {
           if (!prepared.fixedCanvas) throw new Error('Main 未返回固定画布尺寸')
+          const cornerRadiusPx = windowFrameCornerRadiusPx(
+            window.api.platform,
+            prepared.display.scaleFactor
+          )
           try {
-            this.fixedCanvas = await createFixedCanvasTrack(track, prepared.fixedCanvas)
+            this.fixedCanvas = await createFixedCanvasTrack(
+              track,
+              prepared.fixedCanvas,
+              cornerRadiusPx
+            )
           } catch (workerErr) {
             // Chromium 可能不允许 MediaStreamTrack 进入 Worker：降级主线程 canvas 管线
             console.warn(
               '[fixed-canvas] Worker 管线不可用，降级主线程:',
               workerErr instanceof Error ? workerErr.message : workerErr
             )
-            this.fixedCanvas = await createMainThreadFixedCanvasTrack(track, prepared.fixedCanvas)
+            this.fixedCanvas = await createMainThreadFixedCanvasTrack(
+              track,
+              prepared.fixedCanvas,
+              cornerRadiusPx
+            )
           }
         } catch (error) {
           throw new Error(

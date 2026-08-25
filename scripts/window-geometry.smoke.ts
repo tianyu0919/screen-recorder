@@ -3,6 +3,10 @@ import { normalizeRecordingEvents, type RecordingEventsV2 } from '../shared/even
 import { validateRecordingEvents, type RecordingEvents } from '../shared/types'
 import { fitRectCentered } from '../src/lib/aspectFit'
 import { geometryAt, screenPointToCanvas } from '../src/timeline/windowGeometry'
+import { windowFrameCornerRadiusPx } from '../src/recorder/windowFrameMask'
+
+assert.equal(windowFrameCornerRadiusPx('darwin', 2), 64)
+assert.equal(windowFrameCornerRadiusPx('win32', 2), 0)
 
 const placement = fitRectCentered(2560, 1440, 800, 800)
 assert.deepEqual(placement, { x: 560, y: 0, width: 1440, height: 1440 })

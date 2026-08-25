@@ -21,7 +21,8 @@ export function fixedCanvasSupported(): boolean {
 
 export function createFixedCanvasTrack(
   sourceTrack: MediaStreamTrack,
-  size: { width: number; height: number }
+  size: { width: number; height: number },
+  cornerRadiusPx = 0
 ): Promise<FixedCanvasTrackHandle> {
   if (!fixedCanvasSupported()) {
     return Promise.reject(
@@ -77,7 +78,8 @@ export function createFixedCanvasTrack(
       type: 'start',
       track: clone,
       width: size.width,
-      height: size.height
+      height: size.height,
+      cornerRadiusPx
     }
     // MediaStreamTrack 不可 transferable（Chromium 直接拒绝），先试 transfer，
     // 失败后退回结构化克隆（按值发送，Worker 内得到克隆轨）

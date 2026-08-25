@@ -51,7 +51,10 @@ export function resolveOutputPlan(
   return {
     output,
     backgroundEnabled: settings.backgroundEnabled,
-    backgroundColor: normalizeHexColor(settings.backgroundColor) ?? DEFAULT_BACKGROUND_COLOR,
+    // 关闭时保留用户选色供下次恢复，但不得继续用该颜色填充透明留白。
+    backgroundColor: settings.backgroundEnabled
+      ? normalizeHexColor(settings.backgroundColor) ?? DEFAULT_BACKGROUND_COLOR
+      : DEFAULT_BACKGROUND_COLOR,
     paddingRatio: settings.backgroundEnabled
       ? normalizeBackgroundPaddingPercent(settings.backgroundPaddingPercent) / 100
       : 0,

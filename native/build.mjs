@@ -12,6 +12,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
+const geometryOnly = process.argv.includes('--geometry-only')
 
 function buildCargoCrate(crateDir, exeName) {
   execFileSync('cargo', ['build', '--release'], { cwd: crateDir, stdio: 'inherit' })
@@ -24,10 +25,14 @@ function buildCargoCrate(crateDir, exeName) {
 }
 
 if (process.platform === 'darwin') {
-  execFileSync('bash', [join(root, 'native/sck-audio/build.sh')], { stdio: 'inherit' })
+  if (!geometryOnly) {
+    execFileSync('bash', [join(root, 'native/sck-audio/build.sh')], { stdio: 'inherit' })
+  }
   execFileSync('bash', [join(root, 'native/window-geometry/darwin/build.sh')], { stdio: 'inherit' })
 } else if (process.platform === 'win32') {
-  buildCargoCrate(join(root, 'native/wasapi-audio'), 'wasapi-audio')
+  if (!geometryOnly) {
+    buildCargoCrate(join(root, 'native/wasapi-audio'), 'wasapi-audio')
+  }
   buildCargoCrate(join(root, 'native/window-geometry/win32'), 'window-geometry')
 } else {
   console.log(`build:native: ${process.platform} 无原生 helper，跳过`)

@@ -6,7 +6,7 @@
 ## 常用命令
 
 ```bash
-npm run dev         # 开发（electron-vite dev）
+npm run dev         # 开发（先构建当前平台 window-geometry helper，再启动 electron-vite dev）
 npm run build       # 构建
 npm run build:native # 构建系统音频原生 helper（darwin→native/sck-audio Swift；win32→native/wasapi-audio Rust，按当前平台分发）
 npm run dist         # 本地打包（electron-builder，配置在 electron-builder.yml，产物在 release/）

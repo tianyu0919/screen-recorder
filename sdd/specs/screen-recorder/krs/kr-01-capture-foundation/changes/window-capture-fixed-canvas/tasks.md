@@ -32,6 +32,8 @@
 - [x] Task 5.2: 运行 typecheck、lint、build、native build 与既有 render/export/capture smoke。
 - [ ] Task 5.3: macOS/Windows 实机各录制：移动、缩放、最大化、还原、跨屏、最小化、来源关闭；核对波纹/运镜/跟随及预览导出一致性。
 - [ ] Task 5.4: 在 2K 显示器验证 screen.webm 与 MP4 全程恒定分辨率、60fps、内存稳定和无明显录制掉帧。
+- [x] Task 5.5: 修复 macOS 实机验收发现的圆角黑边与波纹偏移：固定画布写入前统一裁出窗口 alpha 圆角，开发启动前构建 geometry helper，并增加对应自动回归。
+- [x] Task 5.6: 根据新 macOS Retina 会话 `rec-1787631927800-bcakk3` 的实机复验，将仅 darwin 生效的捕获圆角遮罩扩大到覆盖 ScreenCaptureKit 阴影过渡区；Windows 保持 0 半径直角。
 
 # Task Dependencies
 
@@ -49,3 +51,5 @@
 - [Task 5.1] depends on [Task 1.3] and [Task 3.4]
 - [Task 5.2] depends on [Task 4.1], [Task 4.2] and [Task 5.1]
 - [Task 5.3] and [Task 5.4] depend on [Task 5.2] and can run in parallel
+- [Task 5.5] depends on [Task 5.3] 的 macOS 首轮失败反馈；完成后重新执行 [Task 5.3]
+- [Task 5.6] depends on [Task 5.5] 的新会话圆角复验；完成后再次执行 [Task 5.3] 的背景角检查

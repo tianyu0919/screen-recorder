@@ -102,7 +102,7 @@ export function usePlayback(
     try {
       const outputPlan = resolveOutputPlan(canvasSize, renderSettings)
       const comp = new Compositor(canvas, previewCompositorConfig(renderOutputSize, {
-        background: { color: hexToRgba(renderSettings.backgroundColor) },
+        background: { color: hexToRgba(outputPlan.backgroundColor) },
         videoStyle: { paddingRatio: outputPlan.paddingRatio }
       }))
       comp.setCanvasSize(canvasSize)

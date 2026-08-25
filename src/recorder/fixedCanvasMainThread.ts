@@ -1,5 +1,6 @@
 import { fitRectCentered } from '@/lib/aspectFit'
 import type { FixedCanvasTrackHandle } from './fixedCanvas'
+import { maskWindowFrameCorners } from './windowFrameMask'
 
 /**
  * 固定画布归一化的主线程降级路径（kr-01 window-capture-fixed-canvas）：
@@ -11,7 +12,8 @@ import type { FixedCanvasTrackHandle } from './fixedCanvas'
  */
 export async function createMainThreadFixedCanvasTrack(
   sourceTrack: MediaStreamTrack,
-  size: { width: number; height: number }
+  size: { width: number; height: number },
+  cornerRadiusPx = 0
 ): Promise<FixedCanvasTrackHandle> {
   if (typeof document === 'undefined' || !HTMLCanvasElement.prototype.captureStream) {
     throw new Error('当前环境不支持主线程固定画布（缺少 canvas.captureStream）')
@@ -41,6 +43,7 @@ export async function createMainThreadFixedCanvasTrack(
       // 留白区透明（VP9 alpha），预览/导出时透出编辑器背景色而不是黑边
       ctx.clearRect(0, 0, canvas.width, canvas.height)
       ctx.drawImage(video, placement.x, placement.y, placement.width, placement.height)
+      maskWindowFrameCorners(ctx, placement, cornerRadiusPx)
       hasContent = true
     }
     if (hasContent) {
