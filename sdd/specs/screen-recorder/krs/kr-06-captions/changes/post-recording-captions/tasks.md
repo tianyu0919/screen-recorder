@@ -32,7 +32,7 @@
 ## Phase 6: 验证与文档
 - [x] Task 6.1: 增加字幕区间、裁剪映射、SRT、模型校验和 helper 协议 smoke
 - [x] Task 6.2: 运行 typecheck、lint、build 及既有 render/export/audio 回归
-- [ ] Task 6.3: Windows/macOS 人工冒烟：下载、生成、切换页面、编辑、烧录和 SRT
+- [ ] Task 6.3: Windows/macOS 人工冒烟：生成、切换页面、编辑、烧录和 SRT
 - [x] Task 6.4: 更新 `docs/TECH_DESIGN.md` 的会话格式、Main 任务、渲染、导出和 helper 打包路径
 
 ## Phase 7: 字幕增强
@@ -45,6 +45,16 @@
 - [x] Task 7.7: 中文识别默认使用高精度模型与明确语言提示，并用 OpenCC 将中文结果统一为简体
 - [ ] Task 7.8: 补齐 caption/transcription smoke、typecheck/build、双平台人工冒烟并同步技术设计
 
+## Phase 8: 内置 Small 与可持久化自定义模型
+- [x] Task 8.1: 将固定档位契约改为稳定模型 ID 清单，并为 `captions.json` 增加可选生成模型元数据与历史迁移
+- [x] Task 8.2: 在 Main 实现跨平台内置 Small/VAD 路径解析、自定义模型原子导入、格式/摘要/helper 探测、注册表和安全删除
+- [x] Task 8.3: 增加模型导入/删除白名单 IPC，确保 Renderer 不传递或持久化任意可执行路径
+- [x] Task 8.4: 更新字幕面板模型下拉、导入入口、删除确认、缺失模型回显及会话重入选择恢复
+- [x] Task 8.5: 更新 electron-builder、开发/Release 构建与双平台资源校验，将 Small/VAD 放入 Windows/macOS `resourcesPath/whisper-models/`
+- [x] Task 8.6: 移除 Base 下载与档位入口（未上线，连同旧缓存兼容一并移除），并更新 `docs/TECH_DESIGN.md`
+- [x] Task 8.7: 补充注册表、导入失败、删除、历史文档、缺失模型与路径安全 smoke，运行 typecheck/lint/build
+- [ ] Task 8.8: Windows/macOS 人工冒烟：离线首次生成、导入、重入回显、删除、缺失降级和重新生成
+
 # Task Dependencies
 - [Task 2.x] depends on [Task 1.1] and [Task 1.3]
 - [Task 3.1] depends on [Task 1.1]、[Task 1.3] and [Task 2.3]
@@ -54,3 +64,8 @@
 - [Task 5.1] and [Task 5.4] depend on [Task 1.2]；可与 [Task 4.x] 并行
 - [Task 5.2] depends on [Task 5.1]；[Task 5.3] depends on [Task 5.2]
 - [Task 6.x] depends on [Task 2.x] through [Task 5.x]
+- [Task 8.2] depends on [Task 8.1]；[Task 8.3] depends on [Task 8.2]
+- [Task 8.4] depends on [Task 8.1] and [Task 8.3]
+- [Task 8.5] and [Task 8.4] can run in parallel
+- [Task 8.6] depends on [Task 8.2]、[Task 8.4] and [Task 8.5]
+- [Task 8.7] depends on [Task 8.1] through [Task 8.6]；[Task 8.8] depends on [Task 8.7]

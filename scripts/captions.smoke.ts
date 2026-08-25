@@ -4,6 +4,13 @@
  */
 import { DEFAULT_CAPTION_STYLE, validateCaptionsDocument, type CaptionsDocument } from '../shared/captions'
 import {
+  BUILTIN_CAPTION_MODEL,
+  BUILTIN_VAD_MODEL,
+  customCaptionModelId,
+  parseCaptionModelRegistry,
+  sanitizeCaptionModelFileName
+} from '../shared/captionModels'
+import {
   groupCaptionWordsIntoSentences,
   parseWhisperProgress,
   parseWhisperSrt
@@ -66,6 +73,39 @@ const grouped = groupCaptionWordsIntoSentences([
   { id: 'w3', startMs: 1100, endMs: 1300, text: '下一句' }
 ])
 check('词级时间戳按标点和停顿重组为句', grouped.length === 2 && grouped[0].text === '你好世界。' && grouped[1].startMs === 1100)
+
+// 内置 Small + VAD 与自定义模型注册表（kr-06 Phase 8）
+const withModel = {
+  ...document,
+  transcriptionModel: { id: BUILTIN_CAPTION_MODEL.id, name: BUILTIN_CAPTION_MODEL.name }
+}
+check('带生成模型元数据的文档通过 schema', validateCaptionsDocument(withModel, 8000).length === 0)
+check('非法 transcriptionModel 被 schema 拒绝', validateCaptionsDocument({
+  ...document, transcriptionModel: { id: '', name: '' }
+}, 8000).some((error) => error.includes('transcriptionModel')))
+check('内置清单包含 Small 主模型与 VAD', BUILTIN_CAPTION_MODEL.file === 'ggml-small.bin'
+  && BUILTIN_CAPTION_MODEL.size > 100_000_000 && BUILTIN_VAD_MODEL.file.includes('silero'))
+
+const sha1 = 'a'.repeat(40)
+check('自定义模型 ID 由摘要派生且稳定', customCaptionModelId(sha1) === `custom-${'a'.repeat(12)}`
+  && customCaptionModelId(sha1) === customCaptionModelId(sha1))
+const sanitized = sanitizeCaptionModelFileName('../../evil/ggml-medium.bin')
+check('模型文件名清理路径穿越', sanitized === 'ggml-medium.bin')
+check('模型文件名补全 .bin 后缀', sanitizeCaptionModelFileName('my model') === 'my_model.bin')
+
+const registry = parseCaptionModelRegistry({
+  version: 1,
+  models: [
+    { id: customCaptionModelId(sha1), name: 'Medium', file: 'custom-aaaaaaaaaaaa-ggml-medium.bin', size: 1, sha1, importedAt: '2026-08-26T00:00:00.000Z' },
+    { id: 'builtin-small', name: '非法内置', file: 'x.bin', size: 1, sha1, importedAt: '2026-08-26T00:00:00.000Z' },
+    { id: 'custom-bad', name: '路径穿越', file: '../evil.bin', size: 1, sha1, importedAt: '2026-08-26T00:00:00.000Z' },
+    { id: 'custom-nosha', name: '坏摘要', file: 'a.bin', size: 1, sha1: 'zz', importedAt: '2026-08-26T00:00:00.000Z' }
+  ]
+})
+check('注册表解析保留合法条目', registry.models.length === 1 && registry.models[0].name === 'Medium')
+check('注册表解析丢弃内置伪装/路径穿越/坏摘要', !registry.models.some((m) =>
+  m.id === 'builtin-small' || m.file.includes('..') || m.sha1 === 'zz'))
+check('注册表整体非法时回退为空', parseCaptionModelRegistry('garbage').models.length === 0)
 
 console.log(failures === 0 ? '\n全部通过' : `\n${failures} 项失败`)
 process.exit(failures === 0 ? 0 : 1)

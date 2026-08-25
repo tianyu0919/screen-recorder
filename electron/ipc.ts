@@ -174,6 +174,19 @@ export function registerIpc(getWindow: () => BrowserWindow | null, appIcon?: Ele
   ipcMain.handle(IPC.TranscriptionCancel, (_e, sessionId: string) =>
     transcriptionService.cancel(sessionId)
   )
+  ipcMain.handle(IPC.TranscriptionImportModel, async () => {
+    const win = getWindow()
+    if (!win) return null
+    const result = await dialog.showOpenDialog(win, {
+      properties: ['openFile'], filters: [{ name: 'Whisper 模型', extensions: ['bin'] }]
+    })
+    const path = result.filePaths[0]
+    if (result.canceled || !path) return null
+    return transcriptionService.importModel(path)
+  })
+  ipcMain.handle(IPC.TranscriptionDeleteModel, (_e, modelId: string) =>
+    transcriptionService.deleteModel(modelId)
+  )
   transcriptionService.onStatus((snapshot) => {
     const win = getWindow()
     if (win && !win.isDestroyed()) win.webContents.send(IPC.TranscriptionStatusChanged, snapshot)

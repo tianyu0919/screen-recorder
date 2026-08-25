@@ -56,7 +56,7 @@
 | kr-05-render-composition-controls | 运镜、静音与背景画布控制 | [kr-05-editor/changes/render-composition-controls/](./specs/screen-recorder/krs/kr-05-editor/changes/render-composition-controls/spec.md) | in_progress | kr-05-interactive-timeline-effects, kr-05-audio-volume, kr-05-custom-audio-track, kr-05-preview-stage-fit, kr-03-mp4-export | 运镜总开关与 1.0x 下限；分轨可恢复静音；移除强制圆角/阴影；可选纯色背景；源尺寸输出及编码能力等比降档。macOS 选色后关闭背景的预览残留已修复并实机确认（2026-08-25），待 MP4 与完整双平台综合验收。 |
 | kr-05-background-padding | 背景画面边距控制 | [render-composition-controls/changes/background-padding/](./specs/screen-recorder/krs/kr-05-editor/changes/render-composition-controls/changes/background-padding/spec.md) | completed | kr-05-render-composition-controls | 0%–20% 统一画面边距；运镜保持固定内容窗口；macOS 与 Windows 预览一致性已完成实机验证。 |
 | kr-05-focus-preview | 跨平台专注预览 | [kr-05-editor/changes/focus-preview/](./specs/screen-recorder/krs/kr-05-editor/changes/focus-preview/spec.md) | in_progress | kr-05-preview-stage-fit, kr-05-render-composition-controls | 当前窗口只读最终效果；专注模式强制适应且可最大化/还原到屏幕工作区；退出恢复进入前窗口状态。Windows 实机冒烟通过（2026-08-25），待 macOS 等价验收。 |
-| kr-06-post-recording-captions | 录制后离线字幕生成与编辑 | [kr-06-captions/changes/post-recording-captions/](./specs/screen-recorder/krs/kr-06-captions/changes/post-recording-captions/spec.md) | in_progress | kr-06-captions, kr-01, kr-02, kr-03, kr-05 | 会话字幕默认关闭并持久化；首次开启自动下载 Whisper/VAD，以词级时间戳重组贴合语音的一句话字幕；支持保存反馈、右键添加、SRT 导入/导出及统一预览/烧录。 |
+| kr-06-post-recording-captions | 录制后离线字幕生成与编辑 | [kr-06-captions/changes/post-recording-captions/](./specs/screen-recorder/krs/kr-06-captions/changes/post-recording-captions/spec.md) | draft | kr-06-captions, kr-01, kr-02, kr-03, kr-05 | 会话字幕默认关闭并持久化；Windows/macOS 内置 Small+VAD，支持自定义模型导入、长期选择、删除与缺失降级；以词级时间戳重组字幕，并统一预览、编辑、SRT 与烧录。 |
 
 ## 依赖关系总览
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import type { CaptionLanguage, CaptionModelTier } from '@shared/captions'
+import type { CaptionLanguage } from '@shared/captions'
+import { BUILTIN_CAPTION_MODEL_ID } from '@shared/captionModels'
 import { usePreviewStore } from '@/store/previewStore'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -16,18 +17,30 @@ const LANGUAGES: Array<{ value: CaptionLanguage; label: string }> = [
 export function CaptionsPanel(): React.JSX.Element {
   const store = usePreviewStore()
   const [language, setLanguage] = useState<CaptionLanguage>('zh')
-  const [model, setModel] = useState<CaptionModelTier>('accurate')
+  const [modelId, setModelId] = useState<string>(BUILTIN_CAPTION_MODEL_ID)
   const [confirmReplace, setConfirmReplace] = useState(false)
+  const [confirmDeleteModel, setConfirmDeleteModel] = useState(false)
   const [pendingSrt, setPendingSrt] = useState<{ name: string; source: string } | null>(null)
   const textRef = useRef<HTMLTextAreaElement>(null)
   const active = useMemo(
     () => store.captions?.segments.find((segment) => segment.id === store.selectedCaptionId) ?? null,
     [store.captions, store.selectedCaptionId]
   )
-  const busy = store.transcription.state === 'downloading' || store.transcription.state === 'transcribing'
-  const progress = store.transcription.state === 'downloading' || store.transcription.state === 'transcribing'
+  const busy = store.transcription.state === 'transcribing'
+  const progress = store.transcription.state === 'transcribing'
     ? Math.round(store.transcription.progress * 100) : 0
-  const selectedModel = store.captionModels.find((item) => item.tier === model)
+  const recordedModel = store.captions?.transcriptionModel ?? null
+  const selectedModel = store.captionModels.find((item) => item.id === modelId) ?? null
+  const recordedMissing = Boolean(recordedModel && !store.captionModels.some((item) => item.id === recordedModel.id))
+  const sessionId = store.current?.session.sessionId
+  const recordedId = recordedModel?.id
+  const lastSessionRef = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    const sessionChanged = lastSessionRef.current !== sessionId
+    lastSessionRef.current = sessionId
+    if (recordedId) setModelId(recordedId)
+    else if (sessionChanged) setModelId(BUILTIN_CAPTION_MODEL_ID)
+  }, [sessionId, recordedId])
   useEffect(() => {
     if (!active?.id.startsWith('caption-manual-')) return
     textRef.current?.focus()
@@ -36,8 +49,19 @@ export function CaptionsPanel(): React.JSX.Element {
 
   const generate = (replaceExisting: boolean): void => {
     setConfirmReplace(false)
-    void store.startTranscription(language, model, replaceExisting)
+    void store.startTranscription(language, modelId, replaceExisting)
   }
+  const importModel = (): void => {
+    void store.importCaptionModel().then((imported) => { if (imported) setModelId(imported.id) })
+  }
+  const deleteModel = (): void => {
+    const id = modelId
+    setConfirmDeleteModel(false)
+    void store.deleteCaptionModel(id).then(() => {
+      setModelId(recordedId && recordedId !== id ? recordedId : BUILTIN_CAPTION_MODEL_ID)
+    })
+  }
+  const generateDisabled = !selectedModel
   const pickSrt = (): void => {
     void window.api.importSessionSrt().then((result) => { if (result) setPendingSrt(result) })
   }
@@ -53,7 +77,7 @@ export function CaptionsPanel(): React.JSX.Element {
           <p className="mt-1 text-[10.5px] leading-4 text-ink-3">本地处理麦克风音轨</p>
         </div>
         <Switch checked={store.captionsEnabled}
-          onChange={(enabled) => store.setCaptionsEnabled(enabled, language, model)} label="启用字幕" />
+          onChange={(enabled) => store.setCaptionsEnabled(enabled, language, modelId)} label="启用字幕" />
       </div>
 
       <AnimatePresence initial={false}>
@@ -66,29 +90,42 @@ export function CaptionsPanel(): React.JSX.Element {
         {store.current?.audioUrl ? <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2">
           <Segmented<CaptionLanguage> options={LANGUAGES} value={language} onChange={(value) => setLanguage(value)}
             className="w-full [&>button]:min-w-0 [&>button]:flex-1 [&>button]:px-2" />
-          <Select value={model} onValueChange={(value) => setModel(value as CaptionModelTier)} disabled={busy}>
-            <SelectTrigger aria-label="字幕模型"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {store.captionModels.map((item) => (
-                <SelectItem key={item.tier} value={item.tier}>
-                  {item.name}{item.tier === 'accurate' ? '（推荐）' : ''} · {Math.round(item.size / 1024 / 1024)}MB{item.downloaded ? ' · 已下载' : ''}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <Select value={modelId} onValueChange={setModelId} disabled={busy}>
+              <SelectTrigger aria-label="字幕模型" className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {store.captionModels.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.name}{item.builtin ? '（内置）' : ''} · {Math.round(item.size / 1024 / 1024)}MB
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" disabled={busy} onClick={importModel}>导入模型</Button>
+          </div>
+          {recordedMissing && recordedModel && (
+            <p className="text-[10.5px] leading-4 text-ink-3">
+              模型已缺失：{recordedModel.name}。已有字幕仍可编辑与导出；重新生成请选择其他模型或重新导入。
+            </p>
+          )}
+          {selectedModel && !selectedModel.builtin && !busy && (
+            <button className="justify-self-end text-[10.5px] text-danger hover:underline"
+              onClick={() => setConfirmDeleteModel(true)}>删除「{selectedModel.name}」</button>
+          )}
           {busy ? (
             <div className="grid gap-1.5">
               <div className="h-1.5 overflow-hidden rounded-full bg-surface-3">
                 <div className="h-full bg-accent" style={{ width: `${progress}%` }} />
               </div>
               <div className="flex items-center justify-between text-[10.5px] text-ink-3">
-                <span>{store.transcription.state === 'downloading' ? '正在下载模型' : '正在生成字幕'} · {progress}%</span>
+                <span>正在生成字幕 · {progress}%</span>
                 <button className="text-accent hover:underline" onClick={() => void store.cancelTranscription()}>取消</button>
               </div>
             </div>
           ) : (
-            <Button variant="outline" size="sm" onClick={() => store.captions ? setConfirmReplace(true) : generate(false)}>
-              {store.captions ? '重新生成字幕' : selectedModel?.downloaded ? '生成字幕' : `下载并生成 · ${Math.round((selectedModel?.size ?? 0) / 1024 / 1024)}MB`}
+            <Button variant="outline" size="sm" disabled={generateDisabled}
+              onClick={() => store.captions ? setConfirmReplace(true) : generate(false)}>
+              {store.captions ? '重新生成字幕' : '生成字幕'}
             </Button>
           )}
         </div> : <p className="rounded-lg bg-surface-2 px-3 py-2 text-[11px] leading-4 text-ink-3">
@@ -170,6 +207,9 @@ export function CaptionsPanel(): React.JSX.Element {
       <ConfirmDialog open={confirmReplace} title="重新生成字幕？"
         description="新结果成功保存后会替换现有字幕文字和时间；取消或失败不会修改当前字幕。"
         confirmLabel="重新生成" destructive onCancel={() => setConfirmReplace(false)} onConfirm={() => generate(true)} />
+      <ConfirmDialog open={confirmDeleteModel} title="删除模型？"
+        description={`删除「${selectedModel?.name ?? ''}」后会移除本地模型文件；使用它生成的已有字幕不受影响。内置模型不可删除。`}
+        confirmLabel="删除" destructive onCancel={() => setConfirmDeleteModel(false)} onConfirm={deleteModel} />
       <ConfirmDialog open={pendingSrt !== null} title="导入并替换字幕？"
         description={`导入 ${pendingSrt?.name ?? 'SRT'} 后会替换当前字幕文字和时间，时间戳按原始录像时间轴解释。`}
         confirmLabel="导入替换" destructive onCancel={() => setPendingSrt(null)}

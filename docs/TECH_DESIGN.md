@@ -87,7 +87,7 @@ Screen Studio 能"放大/替换/平滑光标"的前提是：**光标没有被烧
   - macOS 权限由首页麦克风开关主动申请：`unknown` 调用 Main 的 `systemPreferences.askForMediaAccess('microphone')`，`denied` 跳转“隐私与安全性 → 麦克风”；权限非 `granted` 时开关保持关闭。
   - 麦克风是可选轨。关闭或未授权时允许正常录制且不创建 `mic.wav`；开始录制和 WAV 写入阶段不再触发延迟授权。开始前权限被撤销或 `getUserMedia` 失败时，Renderer 明确提示并降级为无麦克风录制。
 - 编辑器自定义音轨：导入时只执行一次 `decodeAudioData`，缓存 PCM（导出混音）与同一次解码得到的 `AudioBuffer`（预览）；所有自定义 clip 共用一个 `AudioContext`，在播放、seek、速率变化和缓冲恢复边界用 `AudioBufferSourceNode.start(when, offset, duration)` 重建调度，逐帧路径不 seek、不再为 FLAC/MP3 创建额外媒体解码器。波形横向滚动同步平移 `trimStartMs / trimEndMs` 做素材滑移，保持 `offsetMs` 与片段长度；纵向滚动继续沿用时间轴缩放，方向判断兼容鼠标与 macOS 触控板。
-- 录制后字幕（kr-06 第一阶段）只读取已经完整落盘的 `mic.wav`，不进入录制热路径。Renderer 通过白名单 IPC 发起任务，Main 在 `electron/transcription/` 按 `sessionId` 去重并持有后台任务，页面切换不终止；显式取消、删除会话或退出应用会终止 helper。轻量/高精度模型分别使用 whisper.cpp 多语言 Base/Small，按需下载到 `userData/models/whisper/`，SHA-1 校验通过后原子落盘，录音不上传。macOS 与 Windows 分别由 `darwin.ts` / `win32.ts` 启动对应 `whisper-caption` CLI；macOS 固定禁用 Metal 走 CPU，避免部分设备分配 Metal buffer 失败。helper 通过 stderr 上报进度并生成临时 SRT，Main 校验、归一化后才原子替换 `captions.json`。
+- 录制后字幕（kr-06 第一阶段）只读取已经完整落盘的 `mic.wav`，不进入录制热路径。Renderer 通过白名单 IPC 发起任务，Main 在 `electron/transcription/` 按 `sessionId` 去重并持有后台任务，页面切换不终止；显式取消、删除会话或退出应用会终止 helper。模型不走网络下载：Whisper Small 多语言模型与 Silero VAD 随安装包内置（`resourcesPath/whisper-models/`，开发模式为 `native/whisper-caption/models/`，清单与校验值见 `shared/captionModels.json`）；用户可导入其他 whisper.cpp ggml 模型，经格式/摘要/helper 探测后原子复制到 `userData/models/whisper/` 并登记 `registry.json`（仅存 Main 生成的稳定 ID，Renderer 不传文件路径），录音不上传。macOS 与 Windows 分别由 `darwin.ts` / `win32.ts` 启动对应 `whisper-caption` CLI；macOS 固定禁用 Metal 走 CPU，避免部分设备分配 Metal buffer 失败。helper 通过 stderr 上报进度并生成临时 SRT，Main 校验、归一化后才原子替换 `captions.json`（记录生成模型的 ID/名称，模型缺失时保留回显并阻止重新生成）。
 - 系统声音（kr-01 system-audio 已落地）按平台分路径，产物都是 `system.wav`（48kHz/2ch/int16，与 mic.wav 同规格），预览/导出期与 mic.wav 混合：
   - **双轨回声对齐**：音箱外放时 mic 轨会 acoustically 录入系统音，与 system.wav 混合形成回声；两条采集链有固定延迟差（声卡/Voicemeeter 引擎缓冲，逐机不同，实测 ~183ms）。预览（useSyncedAudio 偏移播放）与导出（mixPcm 偏移混合）统一用 `src/lib/audioAlign.ts` 的降采样互相关估计 system 相对 mic 的恒定偏移并对齐；归一化相关度不足（耳机用户 mic 无系统音）→ 偏移 0 不对齐。
   - **macOS**：loopback 轨在 macOS 上出生即 ended、电平恒 0（electron#52738），不可用。走原生 helper：Main 在录制开始时 spawn `native/sck-audio`（Swift + ScreenCaptureKit，`capturesAudio` + `excludesCurrentProcessAudio`，全系统音频回采），流式写 `system.wav`。首次运行会触发 macOS「屏幕与系统音频录制」TCC 授权。
@@ -211,7 +211,7 @@ events.json + 相机关键帧
 要点：
 - **导出不走实时**：帧时间戳由时间轴驱动，渲染慢没关系，保证输出帧率恒定
 - **非破坏式裁剪**：`src/timeline/cuts.ts` 维护"丢弃区间"列表（源时间轴 ms，仅存内存，不改 events.json/视频）；预览播放 seek 跳过、导出按 输出帧→源帧 映射（`outputToSourceMs`）逐帧渲染，音频 PCM 按同一映射拼接（`cutPcm`），音画不漂移
-- **字幕生成与开关**：新录像字幕默认关闭，`captions.json.enabled` 按会话持久化；关闭时预览、导出、字幕轨和操作区均不消费字幕，已有数据保留。首次开启按需下载 Whisper 与约 0.9MB Silero VAD，本地 helper 使用 `--vad --max-len 1` 取得真实发声区间和词级时间戳，再由 `shared/transcription.ts` 按停顿、标点、长度与时长重组为一句一条；关闭开关会取消未完成下载/推理。
+- **字幕生成与开关**：新录像字幕默认关闭，`captions.json.enabled` 按会话持久化；关闭时预览、导出、字幕轨和操作区均不消费字幕，已有数据保留。Whisper Small 与约 0.9MB Silero VAD 随安装包内置、离线可用，首次开启直接本地生成；本地 helper 使用 `--vad --max-len 1` 取得真实发声区间和词级时间戳，再由 `shared/transcription.ts` 按停顿、标点、长度与时长重组为一句一条；关闭开关会取消未完成推理。
 - **字幕导入与导出**：启用时导出 Worker 按输出帧映射回源时间查询字幕，并复用预览位图渲染；SRT 导入按原始录像时间轴解析并确认替换，SRT 导出由纯函数投影到裁剪后的输出时间轴，跨裁剪区间按保留段拆分。字幕文字、区间、样式与位置统一经历 pending → saving → saved/error 的原子自动保存状态。
 - **后台导出队列**：导出任务在点击时冻结编辑快照，由应用级 Store 以单 Worker 串行调度；详情页卸载、会话切换和窗口隐藏不终止任务。根组件显示可折叠全局进度与队列，真正退出应用时若有任务则确认取消。Main 将完整产物直接写入 `AppSettings.exportPath`（默认 `Videos/Lenza/Exports`）或单次选择目录，以 `wx` 排他创建和 `name (n).ext` 递增命名保证不覆盖；H.264 不可用时仍按实际 `.webm` 保存。
 - **动态输出尺寸**：背景关闭时优先按源视频偶数宽高编码，背景开启时目标为 1920×1080；`probeVideoEncoder` 按 H.264/VP9 探测，不支持目标尺寸时保持宽高比逐级降档到最大可用偶数尺寸，OffscreenCanvas、VideoEncoder、muxer 与按键覆盖层必须使用同一个最终尺寸，并把实际尺寸回传 UI。
@@ -282,10 +282,10 @@ screen-recorder/
 
 - 打包工具：electron-builder（配置 `electron-builder.yml`），本地 `npm run dist`，产物输出 `release/`。
 - CI 流水线：`.github/workflows/release.yml`，打 tag `v*`（或手动 workflow_dispatch）触发，matrix 双平台：
-  - **macOS**（macos-latest）：Swift 工具链 runner 自带，另安装 CMake → `npm run build:native` 编 `sck-audio` 和 `whisper-caption` → dmg。
-  - **Windows**（windows-latest）：`dtolnay/rust-toolchain@stable` 装 cargo，另安装 CMake → `npm run build:native` 编 `wasapi-audio.exe` 和 `whisper-caption.exe` → NSIS 安装包。
+  - **macOS**（macos-latest）：Swift 工具链 runner 自带，另安装 CMake → `npm run build:native` 编 `sck-audio`、`whisper-caption` 并下载内置字幕模型（Small + VAD）→ dmg。
+  - **Windows**（windows-latest）：`dtolnay/rust-toolchain@stable` 装 cargo，另安装 CMake → `npm run build:native` 编 `wasapi-audio.exe`、`whisper-caption.exe` 并下载内置字幕模型（Small + VAD）→ NSIS 安装包。
   - tag 触发时由 `softprops/action-gh-release` 自动发布 GitHub Release 并附双平台产物。
-- **原生 helper 随包分发**：electron-builder `extraResources` 把系统音频 helper 放到 `resourcesPath` 根（mac: `sck-audio`，win: `wasapi-audio.exe`），把字幕 helper 目录放到 `resourcesPath/whisper-caption/`（mac: `whisper-caption`，win: `whisper-caption.exe` 与所需 DLL）；分别与 `electron/capture/systemAudio/`、`electron/transcription/` 的平台文件查找路径一一对应。字幕 helper 由 `native/whisper-caption/build.mjs` 固定构建 whisper.cpp v1.9.0，Release 使用 `LENZA_REQUIRE_CAPTION_HELPER=1`，缺少 CMake 或产物时直接失败，避免发布残包。
+- **原生 helper 与内置模型随包分发**：electron-builder `extraResources` 把系统音频 helper 放到 `resourcesPath` 根（mac: `sck-audio`，win: `wasapi-audio.exe`），把字幕 helper 目录放到 `resourcesPath/whisper-caption/`（mac: `whisper-caption`，win: `whisper-caption.exe` 与所需 DLL），把内置字幕模型放到 `resourcesPath/whisper-models/`（双平台均为 `ggml-small.bin` + `ggml-silero-v6.2.0.bin`）；分别与 `electron/capture/systemAudio/`、`electron/transcription/` 的平台文件查找路径一一对应。字幕 helper 由 `native/whisper-caption/build.mjs` 固定构建 whisper.cpp v1.9.0；模型由 `native/whisper-caption/fetch-models.mjs` 按 `shared/captionModels.json` 清单下载并做大小 + SHA-1 校验（两者都挂在 `npm run build:native` 下）。Release 使用 `LENZA_REQUIRE_CAPTION_HELPER=1`，缺少 CMake、helper 产物或模型时直接失败，避免发布残包。
 - `uiohook-napi`（N-API 预编译）经 `asarUnpack` 从 asar 解出，否则无法加载。
 - 产物**未签名**：macOS 需右键打开绕过 Gatekeeper；Windows 可能触发 SmartScreen。后续如有证书可在 CI 注入 `CSC_LINK` / `CSC_KEY_PASSWORD` 开启签名。
 

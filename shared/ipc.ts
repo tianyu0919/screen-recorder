@@ -48,6 +48,8 @@ export const IPC = {
   TranscriptionGet: 'transcription:get',
   TranscriptionStart: 'transcription:start',
   TranscriptionCancel: 'transcription:cancel',
+  TranscriptionImportModel: 'transcription:import-model',
+  TranscriptionDeleteModel: 'transcription:delete-model',
   // 导出产物保存（kr-03）
   ExportSave: 'export:save',
   ExportSetBusy: 'export:set-busy',

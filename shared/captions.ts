@@ -1,9 +1,6 @@
 export const CAPTION_LANGUAGES = ['auto', 'zh', 'en'] as const
 export type CaptionLanguage = (typeof CAPTION_LANGUAGES)[number]
 
-export const CAPTION_MODEL_TIERS = ['light', 'accurate'] as const
-export type CaptionModelTier = (typeof CAPTION_MODEL_TIERS)[number]
-
 export interface CaptionPosition {
   x: number
   y: number
@@ -37,6 +34,8 @@ export interface CaptionsDocument {
   source: 'mic' | 'srt'
   language: CaptionLanguage
   detectedLanguage?: string
+  /** 生成字幕所用模型的稳定 ID 与显示名；历史文档可缺失（按内置 Small 回显）。 */
+  transcriptionModel?: { id: string; name: string }
   style: CaptionStyle
   /** 会话级字幕总开关。 */
   enabled: boolean
@@ -45,24 +44,23 @@ export interface CaptionsDocument {
 }
 
 export interface CaptionModelInfo {
-  tier: CaptionModelTier
+  /** 稳定模型 ID：内置为 captionModels.json 里的 id，自定义为 custom-<sha1 前 12 位>。 */
+  id: string
   name: string
   size: number
-  downloaded: boolean
+  builtin: boolean
 }
 
 export type TranscriptionJobState =
   | { state: 'idle' }
-  | { state: 'downloading'; progress: number; model: CaptionModelTier }
-  | { state: 'transcribing'; progress: number; model: CaptionModelTier }
+  | { state: 'transcribing'; progress: number; model: string }
   | { state: 'done'; updatedAt: number }
   | { state: 'cancelled' }
   | { state: 'error'; code: TranscriptionErrorCode; message: string }
 
 export type TranscriptionErrorCode =
   | 'NO_MIC'
-  | 'MODEL_DOWNLOAD_FAILED'
-  | 'MODEL_CHECKSUM_FAILED'
+  | 'MODEL_MISSING'
   | 'HELPER_MISSING'
   | 'HELPER_FAILED'
   | 'INVALID_OUTPUT'
@@ -72,7 +70,8 @@ export type TranscriptionErrorCode =
 export interface StartTranscriptionRequest {
   sessionId: string
   language: CaptionLanguage
-  model: CaptionModelTier
+  /** 稳定模型 ID（内置或注册表中的自定义模型）；Renderer 不传递文件路径。 */
+  modelId: string
   replaceExisting: boolean
 }
 
@@ -107,6 +106,13 @@ export function validateCaptionsDocument(value: unknown, durationMs = Infinity):
   if (!CAPTION_LANGUAGES.includes(document.language as CaptionLanguage)) errors.push('language 无效')
   if (!document.style || typeof document.style !== 'object') errors.push('style 缺失')
   else errors.push(...validateCaptionStyle(document.style))
+  if (document.transcriptionModel !== undefined) {
+    const model = document.transcriptionModel
+    if (!model || typeof model !== 'object' || typeof model.id !== 'string' || !model.id ||
+      typeof model.name !== 'string' || !model.name.trim()) {
+      errors.push('transcriptionModel 无效')
+    }
+  }
   if (typeof document.enabled !== 'boolean') errors.push('enabled 无效')
   if (!Array.isArray(document.segments)) errors.push('segments 必须是数组')
   else {

@@ -8,7 +8,7 @@
 ```bash
 npm run dev         # 开发（先构建当前平台 window-geometry helper，再启动 electron-vite dev）
 npm run build       # 构建
-npm run build:native # 构建系统音频原生 helper（darwin→native/sck-audio Swift；win32→native/wasapi-audio Rust，按当前平台分发）
+npm run build:native # 构建系统音频原生 helper + 字幕 whisper helper，并下载内置字幕模型（darwin→sck-audio Swift；win32→wasapi-audio Rust，按当前平台分发）
 npm run dist         # 本地打包（electron-builder，配置在 electron-builder.yml，产物在 release/）
 npm run typecheck   # 类型检查（node + web 两套 tsconfig，改动后必跑）
 ```

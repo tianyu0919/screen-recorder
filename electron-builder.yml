@@ -41,6 +41,9 @@ mac:
       to: window-geometry
     - from: native/whisper-caption/bin/darwin
       to: whisper-caption
+    # 内置 Whisper Small + Silero VAD（electron/transcription/modelManager.ts 按 resourcesPath/whisper-models 引用）
+    - from: native/whisper-caption/models
+      to: whisper-models
 
 win:
   target: nsis
@@ -53,6 +56,9 @@ win:
       to: window-geometry.exe
     - from: native/whisper-caption/bin/win32
       to: whisper-caption
+    # 内置 Whisper Small + Silero VAD（electron/transcription/modelManager.ts 按 resourcesPath/whisper-models 引用）
+    - from: native/whisper-caption/models
+      to: whisper-models
     # Windows 托盘图标（electron/main/index.ts 按 resourcesPath/tray-icon.ico 引用）
     - from: build/icon.ico
       to: tray-icon.ico

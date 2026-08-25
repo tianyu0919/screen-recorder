@@ -11,6 +11,7 @@ native/window-geometry/win32/bin/
 native/window-geometry/win32/target/
 native/whisper-caption/bin/
 native/whisper-caption/vendor/
+native/whisper-caption/models/
 .DS_Store
 *.log
 # iconutil 中间产物（icon.svg 渲染后生成，icon.icns/icon.ico 已入库）

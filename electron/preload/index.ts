@@ -89,6 +89,10 @@ export interface RecorderApi {
   getTranscription(sessionId: string): Promise<TranscriptionSnapshot>
   startTranscription(request: StartTranscriptionRequest): Promise<TranscriptionSnapshot>
   cancelTranscription(sessionId: string): Promise<TranscriptionSnapshot>
+  /** 弹文件选择框导入 whisper.cpp 模型；用户取消返回 null。 */
+  importCaptionModel(): Promise<CaptionModelInfo | null>
+  /** 删除自定义模型并返回最新模型列表；内置模型不可删除。 */
+  deleteCaptionModel(modelId: string): Promise<CaptionModelInfo[]>
   onTranscriptionStatusChanged(cb: (snapshot: TranscriptionSnapshot) => void): () => void
   /** 保存导出产物（kr-03）：弹保存对话框并写盘；用户取消返回 null */
   saveExport(
@@ -177,6 +181,8 @@ const api: RecorderApi = {
   getTranscription: (sessionId) => ipcRenderer.invoke(IPC.TranscriptionGet, sessionId),
   startTranscription: (request) => ipcRenderer.invoke(IPC.TranscriptionStart, request),
   cancelTranscription: (sessionId) => ipcRenderer.invoke(IPC.TranscriptionCancel, sessionId),
+  importCaptionModel: () => ipcRenderer.invoke(IPC.TranscriptionImportModel),
+  deleteCaptionModel: (modelId) => ipcRenderer.invoke(IPC.TranscriptionDeleteModel, modelId),
   onTranscriptionStatusChanged: (cb) => {
     const listener = (_e: Electron.IpcRendererEvent, snapshot: TranscriptionSnapshot): void => cb(snapshot)
     ipcRenderer.on(IPC.TranscriptionStatusChanged, listener)

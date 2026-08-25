@@ -12,13 +12,19 @@ import { normalizeCaptionSegments } from '../../shared/captionSegments'
 import { loadCaptionsDocument, saveCaptionsDocument } from '../store/captionsStore'
 import { sessionCatalog } from '../store/sessionCatalog'
 import { CaptionHelperMissingError, type RunningCaptionHelper } from './helper'
-import { runCaptionHelper } from './index'
-import { CaptionModelManager, ModelChecksumError } from './modelManager'
+import { probeModel, runCaptionHelper } from './index'
+import {
+  CaptionModelManager,
+  ModelImportError,
+  ModelMissingError,
+  type ResolvedCaptionModel
+} from './modelManager'
 import { groupCaptionWordsIntoSentences } from '../../shared/transcription'
 
 interface ActiveJob {
   request: StartTranscriptionRequest
   previousDocument: CaptionsDocument | null
+  model: ResolvedCaptionModel
   status: TranscriptionJobState
   abort: AbortController
   helper: RunningCaptionHelper | null
@@ -33,6 +39,18 @@ export class TranscriptionService {
 
   listModels(): CaptionModelInfo[] { return this.models.list() }
 
+  async importModel(sourcePath: string): Promise<CaptionModelInfo> {
+    return this.models.importModel(sourcePath, probeModel)
+  }
+
+  async deleteModel(modelId: string): Promise<CaptionModelInfo[]> {
+    for (const job of this.jobs.values()) {
+      if (job.request.modelId === modelId && job.status.state === 'transcribing') this.cancel(job.request.sessionId)
+    }
+    await this.models.deleteModel(modelId)
+    return this.listModels()
+  }
+
   snapshot(sessionId: string): TranscriptionSnapshot {
     return { sessionId, status: this.jobs.get(sessionId)?.status ?? { state: 'idle' } }
   }
@@ -44,7 +62,7 @@ export class TranscriptionService {
 
   async start(request: StartTranscriptionRequest): Promise<TranscriptionSnapshot> {
     const existing = this.jobs.get(request.sessionId)
-    if (existing && ['downloading', 'transcribing'].includes(existing.status.state)) {
+    if (existing && existing.status.state === 'transcribing') {
       return this.snapshot(request.sessionId)
     }
     const dir = sessionCatalog.resolveSessionDir(request.sessionId)
@@ -54,10 +72,12 @@ export class TranscriptionService {
     if (previousDocument && !request.replaceExisting) {
       throw new Error('该会话已有字幕，重新生成前需要确认覆盖')
     }
+    const model = this.models.resolve(request.modelId)
     const job: ActiveJob = {
       request,
       previousDocument,
-      status: { state: 'downloading', progress: 0, model: request.model },
+      model,
+      status: { state: 'transcribing', progress: 0, model: model.name },
       abort: new AbortController(),
       helper: null
     }
@@ -69,7 +89,7 @@ export class TranscriptionService {
 
   cancel(sessionId: string): TranscriptionSnapshot {
     const job = this.jobs.get(sessionId)
-    if (!job || !['downloading', 'transcribing'].includes(job.status.state)) return this.snapshot(sessionId)
+    if (!job || job.status.state !== 'transcribing') return this.snapshot(sessionId)
     job.abort.abort()
     job.helper?.cancel()
     this.update(job, { state: 'cancelled' })
@@ -82,17 +102,15 @@ export class TranscriptionService {
 
   private async run(job: ActiveJob, wavPath: string): Promise<void> {
     try {
-      const vadModelPath = await this.models.ensureVad(job.abort.signal, (progress) => {
-        if (!job.abort.signal.aborted) this.update(job, { state: 'downloading', progress: progress * 0.05, model: job.request.model })
-      })
-      const modelPath = await this.models.ensure(job.request.model, job.abort.signal, (progress) => {
-        if (!job.abort.signal.aborted) this.update(job, { state: 'downloading', progress: 0.05 + progress * 0.95, model: job.request.model })
-      })
       if (job.abort.signal.aborted) return
-      this.update(job, { state: 'transcribing', progress: 0, model: job.request.model })
-      const helper = runCaptionHelper(modelPath, vadModelPath, wavPath, job.request.language, (progress) => {
-        if (!job.abort.signal.aborted) this.update(job, { state: 'transcribing', progress, model: job.request.model })
-      })
+      const helper = runCaptionHelper(
+        job.model.modelPath, job.model.vadModelPath, wavPath, job.request.language,
+        (progress) => {
+          if (!job.abort.signal.aborted) {
+            this.update(job, { state: 'transcribing', progress, model: job.model.name })
+          }
+        }
+      )
       if (!helper) throw new CaptionHelperMissingError(process.platform)
       job.helper = helper
       const result = await helper.result
@@ -103,6 +121,7 @@ export class TranscriptionService {
         source: 'mic',
         language: job.request.language,
         detectedLanguage: result.detectedLanguage,
+        transcriptionModel: { id: job.model.id, name: job.model.name },
         style: job.previousDocument?.style ?? {
           ...DEFAULT_CAPTION_STYLE,
           position: { ...DEFAULT_CAPTION_STYLE.position }
@@ -134,9 +153,10 @@ export class TranscriptionService {
 
 function toErrorState(error: unknown): TranscriptionJobState {
   const message = error instanceof Error ? error.message : String(error)
-  if (error instanceof ModelChecksumError) return { state: 'error', code: 'MODEL_CHECKSUM_FAILED', message }
+  if (error instanceof ModelMissingError || error instanceof ModelImportError) {
+    return { state: 'error', code: 'MODEL_MISSING', message }
+  }
   if (error instanceof CaptionHelperMissingError) return { state: 'error', code: 'HELPER_MISSING', message }
-  if (/fetch|HTTP|download|network/i.test(message)) return { state: 'error', code: 'MODEL_DOWNLOAD_FAILED', message: `模型下载失败：${message}` }
   return { state: 'error', code: 'HELPER_FAILED', message: `字幕生成失败：${message}` }
 }
 

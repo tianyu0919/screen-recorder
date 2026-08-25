@@ -1,0 +1,16 @@
+{
+  "builtin": {
+    "id": "builtin-small",
+    "name": "Whisper Small",
+    "file": "ggml-small.bin",
+    "size": 487601967,
+    "sha1": "55356645c2b361a969dfd0ef2c5a50d530afd8d5",
+    "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin"
+  },
+  "vad": {
+    "file": "ggml-silero-v6.2.0.bin",
+    "size": 885098,
+    "sha1": "470e5d9d094ddba2f0a512cecc3732a252188abd",
+    "url": "https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v6.2.0.bin"
+  }
+}

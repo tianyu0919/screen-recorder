@@ -1,11 +1,11 @@
 import {
   DEFAULT_CAPTION_STYLE,
   type CaptionLanguage,
-  type CaptionModelTier,
   type CaptionPosition,
   type CaptionStyle,
   type CaptionsDocument
 } from '@shared/captions'
+import { BUILTIN_CAPTION_MODEL_ID } from '@shared/captionModels'
 import { parseWhisperSrt } from '@shared/transcription'
 import { mergeCaptionSegments, normalizeCaptionSegments, splitCaptionSegment } from '@/captions/operations'
 import { serializeSrt } from '@/captions/srt'
@@ -23,11 +23,11 @@ export function createPreviewCaptionActions(set: SetState, get: GetState) {
     persistCaptionsSoon(get, set, delay)
   }
   return {
-    async startTranscription(language: 'auto' | 'zh' | 'en', model: CaptionModelTier, replaceExisting: boolean) {
+    async startTranscription(language: 'auto' | 'zh' | 'en', modelId: string, replaceExisting: boolean) {
       const sessionId = get().current?.session.sessionId
       if (!sessionId) return
       try {
-        const snapshot = await window.api.startTranscription({ sessionId, language, model, replaceExisting })
+        const snapshot = await window.api.startTranscription({ sessionId, language, modelId, replaceExisting })
         if (get().current?.session.sessionId === sessionId) set({ transcription: snapshot.status, captionsError: null })
       } catch (error) {
         set({ captionsError: error instanceof Error ? error.message : String(error) })
@@ -38,6 +38,26 @@ export function createPreviewCaptionActions(set: SetState, get: GetState) {
       if (!sessionId) return
       const snapshot = await window.api.cancelTranscription(sessionId)
       if (get().current?.session.sessionId === sessionId) set({ transcription: snapshot.status })
+    },
+    async refreshCaptionModels() {
+      set({ captionModels: await window.api.listCaptionModels() })
+    },
+    async importCaptionModel() {
+      try {
+        const imported = await window.api.importCaptionModel()
+        set({ captionModels: await window.api.listCaptionModels() })
+        return imported
+      } catch (error) {
+        set({ captionsError: error instanceof Error ? error.message : String(error) })
+        return null
+      }
+    },
+    async deleteCaptionModel(modelId: string) {
+      try {
+        set({ captionModels: await window.api.deleteCaptionModel(modelId), captionsError: null })
+      } catch (error) {
+        set({ captionsError: error instanceof Error ? error.message : String(error) })
+      }
     },
     selectCaption(id: string | null) { set({ selectedCaptionId: id }) },
     setCaptionPositionMode(mode: 'global' | 'segment') { set({ captionPositionMode: mode }) },
@@ -102,7 +122,7 @@ export function createPreviewCaptionActions(set: SetState, get: GetState) {
         updateDocument({ segments: captions.segments.map((segment) => segment.id === state.selectedCaptionId ? { ...segment, positionOverride: clamped } : segment) }, commit ? 0 : 400)
       } else updateDocument({ style: { ...captions.style, position: clamped } }, commit ? 0 : 400)
     },
-    setCaptionsEnabled(enabled: boolean, language: CaptionLanguage = 'zh', model: CaptionModelTier = 'accurate') {
+    setCaptionsEnabled(enabled: boolean, language: CaptionLanguage = 'zh', modelId: string = BUILTIN_CAPTION_MODEL_ID) {
       const state = get()
       if (state.captionsEnabled === enabled) return
       set({ captionsEnabled: enabled })
@@ -131,7 +151,7 @@ export function createPreviewCaptionActions(set: SetState, get: GetState) {
           return
         }
         set({ captionsSaveState: 'saved' })
-        if (state.current?.audioUrl) void get().startTranscription(language, model, true)
+        if (state.current?.audioUrl) void get().startTranscription(language, modelId, true)
       }).catch((error: unknown) => {
         set({ captionsSaveState: 'error', captionsError: `字幕保存失败：${error instanceof Error ? error.message : String(error)}` })
       })

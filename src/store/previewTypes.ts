@@ -8,7 +8,6 @@ import type { CustomClip } from '@/lib/audioClip'
 import type { DisplayKeyPrompt } from '@/timeline/keyPrompts'
 import type {
   CaptionModelInfo,
-  CaptionModelTier,
   CaptionPosition,
   CaptionStyle,
   CaptionsDocument,
@@ -106,8 +105,11 @@ export interface PreviewState {
   setClipGain(id: string, gain: number): void
   setClipMuted(id: string, muted: boolean): void
   setRenderSettings(patch: Partial<RenderSettings>): void
-  startTranscription(language: 'auto' | 'zh' | 'en', model: CaptionModelTier, replaceExisting: boolean): Promise<void>
+  startTranscription(language: 'auto' | 'zh' | 'en', modelId: string, replaceExisting: boolean): Promise<void>
   cancelTranscription(): Promise<void>
+  refreshCaptionModels(): Promise<void>
+  importCaptionModel(): Promise<CaptionModelInfo | null>
+  deleteCaptionModel(modelId: string): Promise<void>
   selectCaption(id: string | null): void
   setCaptionPositionMode(mode: 'global' | 'segment'): void
   updateCaptionText(id: string, text: string): void
@@ -117,7 +119,7 @@ export interface PreviewState {
   removeCaption(id: string): void
   setCaptionStyle(patch: Partial<CaptionStyle>): void
   setCaptionPosition(position: CaptionPosition, segmentOnly: boolean, commit?: boolean): void
-  setCaptionsEnabled(enabled: boolean, language?: 'auto' | 'zh' | 'en', model?: CaptionModelTier): void
+  setCaptionsEnabled(enabled: boolean, language?: 'auto' | 'zh' | 'en', modelId?: string): void
   retryCaptionSave(): void
   addCaptionAt(tMs: number): void
   importCaptionsSrt(source: string): void

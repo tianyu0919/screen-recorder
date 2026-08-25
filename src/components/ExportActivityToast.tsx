@@ -46,15 +46,15 @@ export function ExportActivityToast(): React.JSX.Element | null {
   const errorCount = tasks.filter((task) => task.status === 'error').length
   const queueLabel = `${activeOrdinal}/${tasks.length}`
 
-  return <div className="app-nodrag pointer-events-none fixed right-5 top-[68px] z-40 w-[320px]">
+  return <div className="app-nodrag pointer-events-none fixed left-1/2 top-[68px] z-40 w-[320px] -translate-x-1/2">
     <AnimatePresence mode="wait" initial={false}>
-      {!expanded && (active || allSucceeded) ? <motion.button key="compact" initial={{ opacity: 0, scale: 0.94, x: 16 }}
-        animate={closing ? { opacity: 0, scale: 0.96, x: 8 } : { opacity: 1, scale: 1, x: 0 }}
+      {!expanded && (active || allSucceeded) ? <motion.button key="compact" initial={{ opacity: 0, scale: 0.94, y: -8 }}
+        animate={closing ? { opacity: 0, scale: 0.96, y: -4 } : { opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96 }} transition={{ duration: closing ? 0.2 : 0.24 }}
         onClick={() => setExpanded(true)}
         aria-label={allSucceeded ? `全部 ${tasks.length} 个视频导出成功` : `展开后台导出详情，第 ${queueLabel} 个，当前 ${percent}%`}
         aria-expanded={false}
-        className="pointer-events-auto ml-auto flex h-9 items-center gap-2 rounded-full border border-line-strong bg-surface-1/95 px-3 text-xs text-ink-2 shadow-float backdrop-blur-xl transition-[background-color,border-color,box-shadow] hover:border-accent/35 hover:bg-surface-1 hover:shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-base active:bg-surface-2">
+        className="pointer-events-auto mx-auto flex h-9 items-center gap-2 rounded-full border border-line-strong bg-surface-1/95 px-3 text-xs text-ink-2 shadow-float backdrop-blur-xl transition-[background-color,border-color,box-shadow] hover:border-accent/35 hover:bg-surface-1 hover:shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-base active:bg-surface-2">
         <span className="sr-only" aria-live="polite">{allSucceeded ? `全部 ${tasks.length} 个视频导出成功` : ''}</span>
         {allSucceeded
           ? <span className="relative grid h-5 w-5 place-items-center rounded-full bg-success/10 text-success">

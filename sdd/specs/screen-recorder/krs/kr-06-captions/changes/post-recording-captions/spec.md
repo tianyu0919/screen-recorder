@@ -2,7 +2,7 @@
 id: "kr-06-post-recording-captions"
 kind: change
 parent: "kr-06-captions"
-status: in_progress
+status: draft
 impact_radius:
   - "native/whisper-caption/"
   - "electron/transcription/"
@@ -25,7 +25,7 @@ dependencies:
 
 ## 1. Scope
 
-- **In Scope**: 会话级字幕总开关；编辑页按需从 `mic.wav` 本地生成字幕；Whisper + VAD 按需下载；词级时间戳按停顿/标点重组为句；auto/zh/en；任务进度、取消与重试；`captions.json`；字幕轨编辑与右键添加；全局样式；全局/单段位置；保存状态；MP4 烧录；SRT 导入/导出；历史会话兼容。
+- **In Scope**: 会话级字幕总开关；编辑页按需从 `mic.wav` 本地生成字幕；Windows/macOS 内置 Whisper Small + VAD；用户导入、持久选择和删除其他兼容模型；词级时间戳按停顿/标点重组为句；auto/zh/en；任务进度、取消与重试；`captions.json`；字幕轨编辑与右键添加；全局样式；全局/单段位置；保存状态；MP4 烧录；SRT 导入/导出；历史会话兼容。
 - **Out of Scope**: 录制中实时字幕、AudioWorklet 转写分流、不可捕获悬浮窗；系统音频和自定义音轨转写；云端转写；说话人分离；翻译；逐字高亮；任意字体导入；AI 文案润色。
 
 ## 2. Functional Requirements
@@ -37,7 +37,7 @@ dependencies:
 
 ##### Scenario: 新会话生成字幕
 - **WHEN** 用户打开含 `mic.wav` 且尚无字幕的新会话
-- **THEN** 字幕默认关闭；首次开启后自动进入模型下载、语音检测和转写流程，完成后自动出现字幕轨
+- **THEN** 字幕默认关闭；首次开启后自动进入语音检测和转写流程，完成后自动出现字幕轨
 
 ##### Scenario: 历史会话生成字幕
 - **WHEN** 用户打开升级前录制且包含有效 `mic.wav` 的历史会话
@@ -48,25 +48,48 @@ dependencies:
 - **THEN** 系统禁用生成入口并说明第一期仅支持麦克风字幕，其他预览和导出能力不受影响
 
 #### Requirement: 本地模型管理
-系统 SHALL 在首次开启字幕时按需下载用户选择的多语言 Whisper 模型与 VAD 模型，在校验完整性后加载，并提供轻量与高精度档位。
+系统 SHALL 在 Windows 与 macOS 安装资源中内置多语言 Whisper Small 与 Silero VAD，以 Small 作为不可删除的默认模型，并允许用户导入、长期保留、选择和删除其他与当前 helper 兼容的 whisper.cpp 模型。
 
-##### Scenario: 首次使用
-- **WHEN** 本机缺少所选模型
-- **THEN** 系统在下载前显示体积，下载中显示进度、取消和重试，校验成功后自动继续转写
+##### Scenario: 首次使用内置模型
+- **WHEN** 用户首次开启字幕且未导入任何自定义模型
+- **THEN** 系统直接使用安装包内的 Whisper Small 与 VAD 开始本地转写，不发起模型网络下载
 
-##### Scenario: 下载损坏
-- **WHEN** 下载中断或摘要校验失败
-- **THEN** 系统删除临时文件并进入可重试错误态，不加载不完整模型
+##### Scenario: 导入兼容模型
+- **WHEN** 用户选择本地 whisper.cpp 模型文件并完成导入
+- **THEN** Main 校验文件格式、计算摘要并通过当前平台 helper 做加载探测；成功后以稳定模型 ID 原子复制和注册，长期显示在模型下拉列表
+
+##### Scenario: 导入无效模型
+- **WHEN** 文件格式、复制、摘要或 helper 加载探测失败
+- **THEN** 系统显示用户可读错误、清理临时文件且不新增或覆盖任何已注册模型
+
+##### Scenario: 删除自定义模型
+- **WHEN** 用户确认删除一个自定义模型
+- **THEN** 系统删除对应注册项和本地模型文件但不修改任何录像的已有字幕；内置 Small 与 VAD 不提供删除操作
+
+##### Scenario: 模型缺失
+- **WHEN** 录像记录的自定义模型已删除或文件丢失
+- **THEN** 已有字幕继续正常回显、编辑、预览和导出；模型下拉显示“模型已缺失”，重新生成前要求重新导入或选择可用模型
+
+#### Requirement: 会话模型回显
+系统 SHALL 在字幕文档中持久化生成时使用的稳定模型 ID 与显示名称，并在再次进入录像时恢复对应模型选择和全部字幕数据。
+
+##### Scenario: 再次进入录像
+- **WHEN** 用户重新打开已经生成或编辑过字幕的录像
+- **THEN** 系统从 `captions.json` 恢复字幕数据与生成模型；可用模型被选中，缺失模型以不可用状态回显
+
+##### Scenario: 历史字幕文档
+- **WHEN** 历史 `captions.json` 不含模型元数据
+- **THEN** 系统保持文档可读并默认回显内置 Small，不修改已有字幕内容
 
 #### Requirement: 会话级后台任务
-系统 SHALL 以 `sessionId` 隔离转写任务，并保证旧任务状态和结果不会串入当前会话；关闭字幕时取消该会话尚未完成的下载或转写。
+系统 SHALL 以 `sessionId` 隔离转写任务，并保证旧任务状态和结果不会串入当前会话；关闭字幕时取消该会话尚未完成的转写。
 
 ##### Scenario: 关闭字幕时取消
-- **WHEN** 下载、语音检测或转写期间用户关闭字幕
+- **WHEN** 语音检测或转写期间用户关闭字幕
 - **THEN** 系统立即取消任务并清理临时结果，保留已完成模型缓存和原有正式字幕
 
 ##### Scenario: 重复启动
-- **WHEN** 同一会话已有下载或转写任务运行
+- **WHEN** 同一会话已有转写任务运行
 - **THEN** 系统复用现有状态且不启动第二个 helper
 
 ##### Scenario: 显式取消
