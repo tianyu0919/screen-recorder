@@ -2,6 +2,12 @@
 
 > 全局 spec 索引。新增/变更 spec 时同步更新本表。唯一事实来源：`docs/TECH_DESIGN.md`。
 
+## 状态口径
+
+- `draft`：范围已登记，尚未进入实现。
+- `in_progress`：仍有本 spec 范围内的任务或验收项未关闭。
+- `completed`：本 spec 的 tasks 与 checklist 已关闭；未验收项如调整为上级范围，须先登记到父 KR / Epic checklist，再在原 checklist 留下非复选框的移交说明。
+
 ## Epic
 
 | ID | 名称 | 路径 | 状态 | 依赖 | 简述 |
@@ -13,7 +19,7 @@
 | ID | 名称 | 路径 | 状态 | 依赖 | 简述 |
 |---|---|---|---|---|---|
 | kr-01-capture-foundation | M1 采集底座 | [krs/kr-01-capture-foundation/](./specs/screen-recorder/krs/kr-01-capture-foundation/spec.md) | completed | 无 | electron-vite 脚手架；desktopCapturer 选屏 + MediaRecorder 高码率 webm；鼠标轨迹轮询 + uiohook 事件；会话落盘 events.json。验收：1 分钟录制对齐误差 < 50ms。macOS 主路径已人工冒烟通过（2026-08-19），Windows/极端环境项移交 Epic checklist。 |
-| kr-02-motion-playback | M2 运镜回放 | [krs/kr-02-motion-playback/](./specs/screen-recorder/krs/kr-02-motion-playback/spec.md) | completed | kr-01（会话格式契约） | 虚拟相机 {x,y,zoom}、点击自动生成关键帧、spring 阻尼插值、WebGL 合成器、实时预览播放器。macOS 真实会话集成自测通过（2026-08-20），预览已人工确认正常。 |
+| kr-02-motion-playback | M2 运镜回放 | [krs/kr-02-motion-playback/](./specs/screen-recorder/krs/kr-02-motion-playback/spec.md) | completed | kr-01（会话格式契约） | 虚拟相机 {x,y,zoom}、点击自动生成关键帧、spring 阻尼插值、WebGL 合成器、实时预览播放器。真实会话集成自测与 checklist 逐项验证通过（2026-08-20），Retina 落点在窗口固定画布复验中再次通过（2026-08-25）。 |
 | kr-03-mp4-export | M3 mp4 导出 | [krs/kr-03-mp4-export/](./specs/screen-recorder/krs/kr-03-mp4-export/spec.md) | in_progress | kr-01（会话格式）、kr-02（渲染管线复用） | Worker 线程离线确定性逐帧渲染；WebCodecs Decoder/Encoder + mp4-muxer；正常会话 macOS/Windows 导出均已实机通过；确定性、取消、fallback、损坏源与慢机器边界项仍待验收。 |
 | kr-04-cursor-beautify | M4 光标美化 | [krs/kr-04-cursor-beautify/](./specs/screen-recorder/krs/kr-04-cursor-beautify/spec.md) | draft | kr-01（`captureCursor` 采集抽象） | 原生采集 helper PoC（macOS ScreenCaptureKit / Windows WGC 无光标采集）；轨迹去抖 + catmull-rom 平滑；矢量光标重绘换肤。 |
 | kr-05-editor | M5 编辑器 | [krs/kr-05-editor/](./specs/screen-recorder/krs/kr-05-editor/spec.md) | in_progress | kr-02、kr-03（编辑结果作用于预览与导出） | 运镜编辑、非破坏式裁剪、按键回显与 edit.json 自动保存已由子 change 交付；父 KR 仍缺 webcam 采集/画中画及完整双平台集成验收。 |
@@ -25,7 +31,7 @@
 | ID | 名称 | 路径 | 状态 | 归属 | 简述 |
 |---|---|---|---|---|---|
 | kr-01-system-audio | 系统音频采集 | [kr-01-capture-foundation/changes/system-audio/](./specs/screen-recorder/krs/kr-01-capture-foundation/changes/system-audio/spec.md) | completed | kr-01 | Windows 走 getDisplayMedia loopback；macOS 走原生 helper（native/sck-audio，ScreenCaptureKit）。预览双轨同步、导出双轨混音。macOS 人工冒烟通过（2026-08-20）。Windows 路径已被 win32-native-audio 取代。 |
-| kr-01-win32-native-audio | Windows 系统音频原生化 | [kr-01-capture-foundation/changes/win32-native-audio/](./specs/screen-recorder/krs/kr-01-capture-foundation/changes/win32-native-audio/spec.md) | completed | kr-01 | Windows 改走原生 helper（native/wasapi-audio，Rust + WASAPI loopback）修杂音；VB-Audio 虚拟设备（Voicemeeter/VB-Cable）自动绕行总线采集端点 + Remote API 路由管理；mic/system 双轨回声互相关对齐。Windows 实机（Voicemeeter 环境）验证通过（2026-08-21）。 |
+| kr-01-win32-native-audio | Windows 系统音频原生化 | [kr-01-capture-foundation/changes/win32-native-audio/](./specs/screen-recorder/krs/kr-01-capture-foundation/changes/win32-native-audio/spec.md) | completed | kr-01 | Windows 改走原生 helper（native/wasapi-audio，Rust + WASAPI loopback）修杂音；VB-Audio 虚拟设备（Voicemeeter/VB-Cable）自动绕行总线采集端点 + Remote API 路由管理；mic/system 双轨回声互相关对齐。Windows 实机（Voicemeeter 环境）验证通过（2026-08-21）；干净 Windows 标准 loopback 与 macOS 回归移交 Epic。 |
 | kr-01-microphone-permission-flow | 麦克风权限与可选录制流程 | [kr-01-capture-foundation/changes/microphone-permission-flow/](./specs/screen-recorder/krs/kr-01-capture-foundation/changes/microphone-permission-flow/spec.md) | in_progress | kr-01, ui-modern-light-motion-refresh | 已授权状态可用；Windows 当前机器已有全部权限，首次申请/拒绝/撤权场景未测；macOS 首次授权、设置跳转、撤权与无麦克风录制仍待完整冒烟。 |
 | kr-01-display-selection-outline | 物理显示器选中边框 | [kr-01-capture-foundation/changes/display-selection-outline/](./specs/screen-recorder/krs/kr-01-capture-foundation/changes/display-selection-outline/spec.md) | completed | kr-01, ui-modern-light-motion-refresh | macOS 与 Windows 双屏人工冒烟通过；选择/改选、鼠标穿透、任务栏/Alt+Tab、显示器变化及录制首帧均已验证。 |
 | kr-01-window-capture-fixed-canvas | 窗口录制固定画布与动态几何 | [kr-01-capture-foundation/changes/window-capture-fixed-canvas/](./specs/screen-recorder/krs/kr-01-capture-foundation/changes/window-capture-fixed-canvas/spec.md) | in_progress | kr-01, kr-02, kr-03 | 窗口录制以开始显示器物理分辨率冻结画布；双平台持续采样窗口 bounds；移动/缩放/最大化时统一修正波纹、自动运镜、跟随与预览导出。Windows 实机及 2560×1440 恒定 60fps 导出已通过；macOS Retina geometry、波纹与背景圆角预览已复验通过（2026-08-25），缺陷关闭，剩余 MP4 圆角、跨屏/来源关闭及 1 分钟性能完整验收。 |
@@ -34,7 +40,7 @@
 | session-library-settings | 会话库、回收站与应用设置 | [screen-recorder/changes/session-library-settings/](./specs/screen-recorder/changes/session-library-settings/spec.md) | completed | kr-01, ui-modern-light-motion-refresh | 多保存路径统一历史、内部回收站与到期清理、版本化 Main 设置、默认视频路径，以及 Windows 托盘/macOS Dock 关闭行为。 |
 | app-auto-update | 应用更新检测与安装 | [screen-recorder/changes/app-auto-update/](./specs/screen-recorder/changes/app-auto-update/spec.md) | completed | session-library-settings, ui-modern-light-motion-refresh | 正式 GitHub Release 检测；Windows 用户确认下载与重启安装；macOS 未签名阶段降级为 Release 跳转；设置持久化与顶部升级入口。 |
 | macos-window-chrome-settings | macOS 原生窗口顶栏与设置交互 | [screen-recorder/changes/macos-window-chrome-settings/](./specs/screen-recorder/changes/macos-window-chrome-settings/spec.md) | completed | session-library-settings, ui-modern-light-motion-refresh | 修复设置抽屉关闭；macOS 红灯固定隐藏、Dock 恢复、⌘Q 退出；红绿灯同行承载更新/主题/设置，Windows 保留关闭策略与自绘窗口控件。 |
-| kr-05-timeline-editing | 时间轴编辑（缩放/片段倍率/裁剪） | [kr-05-editor/changes/timeline-editing/](./specs/screen-recorder/krs/kr-05-editor/changes/timeline-editing/spec.md) | completed | kr-05 | 滚轮锚点缩放与平移、播放头缓动跟随；运镜片段级倍率覆盖；非破坏式裁剪（预览跳过、导出映射 + 音频拼接）与真实时长探针。后续 edit.json 持久化已由 interactive-timeline-effects 交付。 |
+| kr-05-timeline-editing | 时间轴编辑（缩放/片段倍率/裁剪） | [kr-05-editor/changes/timeline-editing/](./specs/screen-recorder/krs/kr-05-editor/changes/timeline-editing/spec.md) | completed | kr-05 | 滚轮锚点缩放与平移、播放头缓动跟随；运镜片段级倍率覆盖；非破坏式裁剪（预览跳过、导出映射 + 音频拼接）与真实时长探针。裁剪导出与长会话性能已由后续集成验收覆盖；Windows 全项保留在父 KR。 |
 | kr-05-playhead-scrubbing | 播放线拖动与裁剪区定位规则 | [timeline-editing/changes/playhead-scrubbing/](./specs/screen-recorder/krs/kr-05-editor/changes/timeline-editing/changes/playhead-scrubbing/spec.md) | in_progress | kr-05-timeline-editing | 整条播放线可拖动；播放状态按拖动前状态恢复；点击裁剪区无效，拖入裁剪区按有效内容边界吸附；已裁区使用统一 Tooltip。 |
 | kr-05-audio-volume | 编辑器音频音量控制 | [kr-05-editor/changes/audio-volume/](./specs/screen-recorder/krs/kr-05-editor/changes/audio-volume/spec.md) | completed | kr-05 | 检查器「音频」区分轨增益滑杆（mic/system 各 0–100%）；预览实时生效；导出混音应用同一增益。 |
 | kr-05-custom-audio-track | 自定义音轨（波形+拖拽/裁剪） | [kr-05-editor/changes/custom-audio-track/](./specs/screen-recorder/krs/kr-05-editor/changes/custom-audio-track/spec.md) | completed | kr-05, kr-05-audio-volume | 外部音频文件以波形块拖拽定位与双端裁剪；预览/导出共用 trim 区间与 N 轨混音。多轨布局与残余体验问题已转入后续 change。 |

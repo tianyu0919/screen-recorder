@@ -9,6 +9,7 @@
 - [x] 耳机用户回归：相关度不足时偏移为 0（算法阈值门控）
 - [x] `npm run typecheck` 通过；`npm run build:native` 端到端生成 bin/wasapi-audio.exe
 - [x] macOS 回归：darwin.ts / native/sck-audio 零改动（git diff 确认）
-- [ ] 人工冒烟：Windows 录制 1 分钟（播放音乐 + 说话），预览与导出双向确认无回声
-- [ ] 人工冒烟：macOS 录制回归（确认重构后 helper spawn 行为不变）
-- [ ] 人工冒烟：无 Voicemeeter 的干净 Windows 机器录制（标准 loopback 路径）
+- [x] 人工冒烟：Windows 录制 1 分钟（播放音乐 + 说话），预览与导出双向确认无回声
+  > 2026-08-21 Windows 实机 115s 会话完成预览/导出验证，互相关偏移 +183.3ms。
+- 已移交 Epic：macOS 录制回归（确认重构后 helper spawn 行为不变）。
+- 已移交 Epic：无 Voicemeeter 的干净 Windows 机器录制（标准 loopback 路径）。

@@ -13,6 +13,8 @@
 ## Platform Verification
 - [ ] macOS 冒烟通过：屏幕录制权限 + 辅助功能权限引导页正常，拒绝授权时有明确提示而非崩溃
 - [ ] Windows 冒烟通过：选屏录制、全局输入采集、导出全链路正常
+- [ ] macOS 系统音频回归：原生 helper 启停、预览与导出行为保持正常
+- [ ] 无 Voicemeeter 的干净 Windows 机器：标准 WASAPI loopback 录制、预览与导出正常
 - [ ] 多显示器场景冒烟通过：非主屏录制的事件坐标经 display.bounds/scaleFactor 换算后运镜落点正确
 
 ## Robustness Verification
