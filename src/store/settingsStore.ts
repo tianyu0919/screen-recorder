@@ -17,6 +17,8 @@ interface SettingsState {
   update(patch: AppSettingsPatch): Promise<void>
   chooseRecordingsPath(): Promise<void>
   openRecordingsPath(): Promise<void>
+  chooseExportPath(): Promise<void>
+  openExportPath(): Promise<void>
 }
 
 function message(error: unknown): string {
@@ -66,6 +68,17 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   async openRecordingsPath() {
     try { await window.api.openRecordingsPath() }
     catch (error) { set({ error: `无法打开保存位置：${message(error)}` }) }
+  },
+  async chooseExportPath() {
+    set({ error: null })
+    try {
+      const settings = await window.api.chooseExportPath()
+      if (settings) set({ settings })
+    } catch (error) { set({ error: `无法更改导出位置：${message(error)}` }) }
+  },
+  async openExportPath() {
+    try { await window.api.openExportPath() }
+    catch (error) { set({ error: `无法打开导出位置：${message(error)}` }) }
   }
 }))
 

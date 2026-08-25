@@ -123,7 +123,8 @@ export class Compositor {
     camera: CameraState,
     tMs: number,
     clicks: readonly RipplePoint[] = [],
-    keyOverlay: KeyOverlayFrame | null = null
+    keyOverlay: KeyOverlayFrame | null = null,
+    captionOverlay: KeyOverlayFrame | null = null
   ): RenderInfo {
     if (!this.canvasSize) throw new CompositorError('未设置画布尺寸：先调用 setCanvasSize')
     const gl = this.gl
@@ -174,6 +175,7 @@ export class Compositor {
     )
     if (ripples.length > 0) this.drawRipples(ripples)
     if (keyOverlay) this.keyOverlay.draw(keyOverlay, output, () => this.bindQuad())
+    if (captionOverlay) this.keyOverlay.draw(captionOverlay, output, () => this.bindQuad())
 
     this.info = {
       outputWidth: output.width,

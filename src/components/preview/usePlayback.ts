@@ -9,6 +9,7 @@ import { attachPlaybackVideoEvents } from './playbackVideoEvents'
 import { keyOverlayFrameAt } from '@/render/keyOverlay'
 import { hexToRgba, resolveOutputPlan } from '@/render/outputPlan'
 import { PreviewPerformanceMonitor } from '@/lib/previewPerformance'
+import { captionOverlayFrameAt } from '@/render/captionOverlay'
 
 export function usePlayback(
   videoRef: RefObject<HTMLVideoElement | null>,
@@ -21,6 +22,7 @@ export function usePlayback(
     ripples,
     keyPrompts,
     keyboardOverlay,
+    captions,
     cuts,
     fallbackDurationMs,
     sourceFps,
@@ -38,6 +40,8 @@ export function usePlayback(
   keyPromptsRef.current = keyPrompts
   const keyboardOverlayRef = useRef(keyboardOverlay)
   keyboardOverlayRef.current = keyboardOverlay
+  const captionsRef = useRef(captions)
+  captionsRef.current = captions
   const renderOutputSizeRef = useRef(renderOutputSize)
   renderOutputSizeRef.current = renderOutputSize
   const cutsRef = useRef(cuts)
@@ -81,7 +85,8 @@ export function usePlayback(
       const overlay = output
         ? keyOverlayFrameAt(keyPromptsRef.current, tMs, keyboardOverlayRef.current, output)
         : null
-      const next = comp.drawFrame(video, anim.sample(), tMs, ripplesRef.current, overlay)
+      const captionOverlay = output ? captionOverlayFrameAt(captionsRef.current, tMs, output) : null
+      const next = comp.drawFrame(video, anim.sample(), tMs, ripplesRef.current, overlay, captionOverlay)
       if (!sameRenderInfo(renderInfoRef.current, next)) {
         renderInfoRef.current = next
         setRenderInfo(next)
@@ -135,15 +140,12 @@ export function usePlayback(
     draw(lastMsRef.current)
   }, [keyframes, canvasSize, draw])
 
-  const cancelLoop = useCallback(
-    (video: HTMLVideoElement) => {
+  const cancelLoop = useCallback((video: HTMLVideoElement) => {
       if (rvfcRef.current) {
         video.cancelVideoFrameCallback(rvfcRef.current)
         rvfcRef.current = 0
       }
-    },
-    []
-  )
+  }, [])
 
   const onFrame = useCallback(
     function frame() {
@@ -235,13 +237,12 @@ export function usePlayback(
       void video
         .play()
         .then(() => {
-          // then 回调前用户可能已暂停：只在仍处于播放态时启动渲染循环
-          if (video.paused) return
+              if (video.paused) return
           setPlaying(true)
           rvfcRef.current = video.requestVideoFrameCallback(onFrame)
         })
         .catch(() => {
-          // play() 被中断（快速暂停/卸载时移除 src）：无需处理
+          // 快速暂停或卸载会中断 play()，无需处理。
         })
     } else {
       video.pause()
@@ -285,7 +286,6 @@ export function usePlayback(
     publishCurrentMs(target, true)
     draw(target)
   }, [cuts, videoRef, draw, fallbackDurationMs, publishCurrentMs])
-
   return {
     playing,
     currentMs,

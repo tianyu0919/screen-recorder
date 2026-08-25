@@ -11,6 +11,10 @@ import { createPreviewAudioActions, clampPreviewClips } from './previewAudioActi
 import { createPreviewMotionActions } from './previewMotionActions'
 import { markEditDirty, resetEditAutosave } from './editAutosave'
 import { restoreCustomAudio } from './customAudioPersistence'
+import { parseCaptionsDocument, CaptionsDocumentError } from '@/captions/document'
+import { createPreviewCaptionActions } from './previewCaptionActions'
+import { ensureTranscriptionBridge } from './transcriptionBridge'
+import { resetCaptionPersistence } from './captionPersistence'
 import type { PreviewSession, PreviewState } from './previewTypes'
 import {
   DEFAULT_BACKGROUND_PADDING_PERCENT,
@@ -18,6 +22,8 @@ import {
 } from '@shared/edit'
 
 export type { CustomClip } from '@/lib/audioClip'
+
+let openingSessionId: string | null = null
 
 const EMPTY_EDIT_STATE = {
   motionEffects: [],
@@ -44,10 +50,13 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     backgroundPaddingPercent: DEFAULT_BACKGROUND_PADDING_PERCENT
   },
   customClips: [], clipError: null,
+  captions: null, captionsError: null, captionsEnabled: false, captionsSaveState: 'idle',
+  captionModels: [], transcription: { state: 'idle' }, selectedCaptionId: null,
+  captionPositionMode: 'global',
 
-  async loadSessions() {
+  async loadSessions(refresh = false) {
     set({ loading: true, loadError: null })
-    try { set({ sessions: await window.api.listSessions(), sessionsLoaded: true, loading: false }) }
+    try { set({ sessions: await window.api.listSessions(refresh), sessionsLoaded: true, loading: false }) }
     catch (error) { set({ loading: false, loadError: `无法加载会话：${error instanceof Error ? error.message : String(error)}` }) }
   },
 
@@ -79,13 +88,40 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     await window.api.removeMissingSession(sessionId)
     set({ sessions: await window.api.listSessions() })
   },
+  setSessionThumbnail(sessionId, thumbnail) {
+    set({ sessions: get().sessions.map((session) =>
+      session.sessionId === sessionId ? { ...session, thumbnail } : session
+    ) })
+  },
+
+  async renameSession(value) {
+    const sessionId = get().current?.session.sessionId
+    if (!sessionId) throw new Error('当前没有打开的录像')
+    const displayName = await window.api.renameSession(sessionId, value)
+    set((state) => ({
+      sessions: state.sessions.map((session) =>
+        session.sessionId === sessionId ? { ...session, displayName } : session
+      ),
+      current: state.current?.session.sessionId === sessionId
+        ? { ...state.current, session: { ...state.current.session, displayName } }
+        : state.current
+    }))
+    return displayName
+  },
 
   async openSession(sessionId) {
+    openingSessionId = sessionId
     resetEditAutosave()
+    resetCaptionPersistence()
+    ensureTranscriptionBridge(get, set)
     set({ loading: true, loadError: null })
     try {
       const result = await window.api.loadSession(sessionId)
       const timeline = parseEventsJson(result.eventsJson)
+      const [captionModels, transcription] = await Promise.all([
+        window.api.listCaptionModels(),
+        window.api.getTranscription(sessionId)
+      ])
       let systemAudioOffsetSec = 0
       if (result.audioUrl && result.systemAudioUrl) {
         const [micWav, systemWav] = await Promise.all([
@@ -99,6 +135,14 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
         audioUrl: result.audioUrl, systemAudioUrl: result.systemAudioUrl, systemAudioOffsetSec
       }
       let editLoadError: string | null = null
+      let captionsError: string | null = null
+      let captions = null
+      if (result.captionsJson) {
+        try { captions = parseCaptionsDocument(result.captionsJson, timeline.durationMs) }
+        catch (error) {
+          captionsError = error instanceof CaptionsDocumentError ? error.message : `字幕数据损坏：${String(error)}`
+        }
+      }
       let document
       try {
         document = result.editJson
@@ -118,6 +162,7 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
         current, document.motionParams, document.motionEffects, document.manualKeyPrompts,
         document.hiddenRecordedKeyIndices, timeline.durationMs, document.motionEnabled
       )
+      if (openingSessionId !== sessionId) return
       set({
         loading: false, current, motionParams: document.motionParams,
         motionEnabled: document.motionEnabled,
@@ -128,9 +173,14 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
         audioGain: document.audioGain, audioMute: document.audioMute,
         renderSettings: document.renderSettings, customClips: restored.clips,
         clipError: restored.error, sourceDurationMs: null,
+        captions, captionsError, captionsEnabled: captions?.enabled ?? false,
+        captionsSaveState: 'idle', captionModels,
+        transcription: transcription.status, selectedCaptionId: null,
+        captionPositionMode: 'global',
         saveState: { kind: 'idle' }, editRevision: 0, editLoadError, ...derived
       })
     } catch (error) {
+      if (openingSessionId !== sessionId) return
       set({
         loading: false, current: null,
         loadError: error instanceof TimelineParseError
@@ -141,7 +191,9 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
   },
 
   closeSession() {
+    openingSessionId = null
     resetEditAutosave()
+    resetCaptionPersistence()
     clearClipAssets()
     set({
       current: null, keyframes: [], ripples: [], loadError: null, cuts: [],
@@ -153,7 +205,10 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
         backgroundPaddingPercent: DEFAULT_BACKGROUND_PADDING_PERCENT
       },
       motionEnabled: true, customClips: [],
-      clipError: null, ...EMPTY_EDIT_STATE
+      clipError: null, ...EMPTY_EDIT_STATE,
+      captions: null, captionsError: null, captionsEnabled: false, captionsSaveState: 'idle',
+      captionModels: [], transcription: { state: 'idle' }, selectedCaptionId: null,
+      captionPositionMode: 'global'
     })
   },
 
@@ -230,5 +285,6 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
   },
 
   ...createPreviewMotionActions(set, get),
-  ...createPreviewAudioActions(set, get)
+  ...createPreviewAudioActions(set, get),
+  ...createPreviewCaptionActions(set, get)
 }))

@@ -3,10 +3,12 @@ import { cp, mkdir, rename, rm, writeFile } from 'node:fs/promises'
 import { accessSync, constants, existsSync, readFileSync, readdirSync, statSync, unlinkSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { RecordingSession } from '../../shared/types'
+import { normalizeSessionDisplayName, validateSessionDisplayName } from '../../shared/sessionName'
 import { appSettings } from './appSettings'
 
 interface IndexEntry {
   sessionId: string
+  displayName?: string
   dir: string
   startedAt: number
   editedAt?: number
@@ -34,13 +36,15 @@ function readTimes(dir: string): Pick<IndexEntry, 'startedAt' | 'editedAt'> | nu
   } catch { /* 加载阶段给出具体错误。 */ }
   const editPath = join(dir, 'edit.json')
   let editedAt: number | undefined
-  if (existsSync(editPath)) {
-    editedAt = statSync(editPath).mtimeMs
+  for (const documentPath of [editPath, join(dir, 'captions.json')]) {
+    if (!existsSync(documentPath)) continue
+    let value = statSync(documentPath).mtimeMs
     try {
-      const value = JSON.parse(readFileSync(editPath, 'utf8')) as { updatedAt?: unknown }
-      const parsed = typeof value.updatedAt === 'string' ? Date.parse(value.updatedAt) : NaN
-      if (Number.isFinite(parsed)) editedAt = parsed
+      const document = JSON.parse(readFileSync(documentPath, 'utf8')) as { updatedAt?: unknown }
+      const parsed = typeof document.updatedAt === 'string' ? Date.parse(document.updatedAt) : NaN
+      if (Number.isFinite(parsed)) value = parsed
     } catch { /* 同上。 */ }
+    editedAt = Math.max(editedAt ?? 0, value)
   }
   return { startedAt, editedAt }
 }
@@ -69,7 +73,11 @@ export class SessionCatalog {
       const source = existsSync(this.indexPath) ? this.indexPath : `${this.indexPath}.bak`
       const parsed = JSON.parse(readFileSync(source, 'utf8')) as { entries?: IndexEntry[] }
       for (const entry of parsed.entries ?? []) {
-        if (SESSION_ID_RE.test(entry.sessionId)) this.entries.set(entry.sessionId, entry)
+        if (!SESSION_ID_RE.test(entry.sessionId)) continue
+        const displayName = typeof entry.displayName === 'string' && !validateSessionDisplayName(entry.displayName)
+          ? entry.displayName.trim()
+          : undefined
+        this.entries.set(entry.sessionId, { ...entry, displayName })
       }
     } catch { /* 首次运行或损坏时通过磁盘扫描重建可用部分。 */ }
     try {
@@ -95,7 +103,8 @@ export class SessionCatalog {
           if (!statSync(dir).isDirectory()) continue
           const times = readTimes(dir)
           if (!times) continue
-          this.entries.set(sessionId, { sessionId, dir, ...times, lifecycle: 'active' })
+          const displayName = this.entries.get(sessionId)?.displayName
+          this.entries.set(sessionId, { sessionId, dir, ...times, lifecycle: 'active', displayName })
         } catch { /* 单个会话不阻塞列表。 */ }
       }
     }
@@ -108,10 +117,12 @@ export class SessionCatalog {
     void this.persist().catch(() => {})
   }
 
-  list(): RecordingSession[] {
+  list(refresh = false): RecordingSession[] {
     this.load()
-    this.scanRoots()
-    void this.persist().catch(() => {})
+    if (refresh) {
+      this.scanRoots()
+      void this.persist().catch(() => {})
+    }
     const roots = appSettings.get().recordingRoots
     return [...this.entries.values()].map((entry) => {
       const root = roots.find((item) => isWithin(item, entry.lifecycle === 'active' ? entry.dir : entry.originalDir ?? entry.dir))
@@ -134,6 +145,21 @@ export class SessionCatalog {
       : appSettings.get().recordingRoots.some((root) => isWithin(root, entry.dir))
     if (!allowed || !existsSync(entry.dir)) throw new Error('会话文件不可用')
     return entry.dir
+  }
+
+  displayNameFor(sessionId: string): string {
+    this.load()
+    const entry = this.entries.get(sessionId)
+    if (!entry) throw new Error('会话不存在')
+    return entry.displayName ?? sessionId
+  }
+
+  async renameDisplayName(sessionId: string, value: string): Promise<string> {
+    const entry = this.requireEntry(sessionId, 'active')
+    const displayName = normalizeSessionDisplayName(value)
+    entry.displayName = displayName
+    await this.persist()
+    return displayName
   }
 
   async trash(sessionId: string): Promise<void> {
@@ -191,13 +217,15 @@ export class SessionCatalog {
     await this.persist()
   }
 
-  async purgeExpired(): Promise<void> {
+  async purgeExpired(): Promise<string[]> {
     const now = Date.now()
+    const removed: string[] = []
     for (const entry of [...this.entries.values()]) {
       if (entry.lifecycle !== 'trashed' || entry.purgeAt === undefined || entry.purgeAt > now) continue
-      try { await this.deletePermanent(entry.sessionId) }
+      try { await this.deletePermanent(entry.sessionId); removed.push(entry.sessionId) }
       catch { entry.cleanupFailed = true; await this.persist() }
     }
+    return removed
   }
 
   async updateRetention(): Promise<void> {

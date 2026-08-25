@@ -17,8 +17,13 @@ export const IPC = {
   // 录制会话读取（kr-02 预览）
   SessionList: 'session:list',
   SessionLoad: 'session:load',
+  SessionRename: 'session:rename',
   SessionReveal: 'session:reveal',
   SessionSaveEdit: 'session:save-edit',
+  SessionSaveCaptions: 'session:save-captions',
+  SessionSaveThumbnail: 'session:save-thumbnail',
+  SessionExportSrt: 'session:export-srt',
+  SessionImportSrt: 'session:import-srt',
   SessionSaveAudioAsset: 'session:save-audio-asset',
   SessionLoadAudioAsset: 'session:load-audio-asset',
   SessionDeleteAudioAsset: 'session:delete-audio-asset',
@@ -31,13 +36,21 @@ export const IPC = {
   SettingsUpdate: 'settings:update',
   SettingsChooseRecordingsPath: 'settings:choose-recordings-path',
   SettingsOpenRecordingsPath: 'settings:open-recordings-path',
+  SettingsChooseExportPath: 'settings:choose-export-path',
+  SettingsOpenExportPath: 'settings:open-export-path',
+  ExportChooseDirectory: 'export:choose-directory',
   UpdateGetState: 'update:get-state',
   UpdateCheck: 'update:check',
   UpdateDownload: 'update:download',
   UpdateInstall: 'update:install',
   UpdateOpenRelease: 'update:open-release',
+  TranscriptionModels: 'transcription:models',
+  TranscriptionGet: 'transcription:get',
+  TranscriptionStart: 'transcription:start',
+  TranscriptionCancel: 'transcription:cancel',
   // 导出产物保存（kr-03）
   ExportSave: 'export:save',
+  ExportSetBusy: 'export:set-busy',
   // 自定义音轨文件选择（kr-05 custom-audio-track）
   PickAudioFile: 'audio:pick-file',
   // 窗口控制（Windows 自绘标题栏按钮）
@@ -53,7 +66,8 @@ export const IPC = {
   InputHookStatus: 'input:hook-status',
   WindowMaximizeChanged: 'window:maximize-changed',
   WindowCloseRequested: 'window:close-requested',
-  UpdateStatusChanged: 'update:status-changed'
+  UpdateStatusChanged: 'update:status-changed',
+  TranscriptionStatusChanged: 'transcription:status-changed'
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

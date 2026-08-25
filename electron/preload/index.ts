@@ -2,6 +2,12 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../../shared/ipc'
 import type { SessionEditSaveResult } from '../../shared/edit'
 import type {
+  CaptionModelInfo,
+  CaptionsDocument,
+  StartTranscriptionRequest,
+  TranscriptionSnapshot
+} from '../../shared/captions'
+import type {
   CaptureSource,
   ActivateRecordingResult,
   ExportFormat,
@@ -13,6 +19,7 @@ import type {
   PrepareRecordingResult,
   StartRecordingPayload
 } from '../../shared/types'
+import type { SaveSessionThumbnailRequest, SessionThumbnailInfo } from '../../shared/sessionThumbnail'
 import type {
   AppSettings,
   AppSettingsPatch,
@@ -40,12 +47,17 @@ export interface RecorderApi {
   stopRecording(): Promise<{ dir: string; sessionId: string } | null>
   abortRecording(): Promise<void>
   /** 枚举已落盘的录制会话（kr-02 预览） */
-  listSessions(): Promise<RecordingSession[]>
+  listSessions(refresh?: boolean): Promise<RecordingSession[]>
   /** 加载会话：events.json 原文 + media:// 视频流式 URL */
   loadSession(sessionId: string): Promise<SessionLoadResult>
+  renameSession(sessionId: string, displayName: string): Promise<string>
   /** 在系统文件管理器（macOS Finder）中显示会话文件位置 */
   revealSession(sessionId: string): Promise<void>
   saveSessionEdit(sessionId: string, json: string): Promise<SessionEditSaveResult>
+  saveSessionCaptions(sessionId: string, document: CaptionsDocument): Promise<{ updatedAt: number }>
+  saveSessionThumbnail(request: SaveSessionThumbnailRequest): Promise<SessionThumbnailInfo>
+  exportSessionSrt(sessionId: string, srt: string): Promise<ExportSaveResult | null>
+  importSessionSrt(): Promise<{ name: string; source: string } | null>
   saveSessionAudioAsset(
     sessionId: string,
     assetId: string,
@@ -63,17 +75,28 @@ export interface RecorderApi {
   updateSettings(patch: AppSettingsPatch): Promise<AppSettings>
   chooseRecordingsPath(): Promise<AppSettings | null>
   openRecordingsPath(): Promise<void>
+  chooseExportPath(): Promise<AppSettings | null>
+  openExportPath(): Promise<void>
+  chooseExportDirectory(): Promise<string | null>
+  setExportBusy(busy: boolean): Promise<void>
   getUpdateState(): Promise<UpdateSnapshot>
   checkForUpdates(): Promise<UpdateSnapshot>
   downloadUpdate(): Promise<void>
   installUpdate(): Promise<void>
   openUpdateRelease(): Promise<void>
   onUpdateStatusChanged(cb: (snapshot: UpdateSnapshot) => void): () => void
+  listCaptionModels(): Promise<CaptionModelInfo[]>
+  getTranscription(sessionId: string): Promise<TranscriptionSnapshot>
+  startTranscription(request: StartTranscriptionRequest): Promise<TranscriptionSnapshot>
+  cancelTranscription(sessionId: string): Promise<TranscriptionSnapshot>
+  onTranscriptionStatusChanged(cb: (snapshot: TranscriptionSnapshot) => void): () => void
   /** 保存导出产物（kr-03）：弹保存对话框并写盘；用户取消返回 null */
   saveExport(
     sessionId: string,
+    displayName: string,
     data: ArrayBuffer,
-    format: ExportFormat
+    format: ExportFormat,
+    directory?: string
   ): Promise<ExportSaveResult | null>
   /** 选择自定义音轨文件（kr-05 custom-audio-track）：对话框 + 读 bytes；取消返回 null */
   pickAudioFile(): Promise<{ name: string; path: string; data: ArrayBuffer } | null>
@@ -108,11 +131,19 @@ const api: RecorderApi = {
   writeSystemAudio: (wav) => ipcRenderer.invoke(IPC.RecordingWriteSystemAudio, wav),
   stopRecording: () => ipcRenderer.invoke(IPC.RecordingStop),
   abortRecording: () => ipcRenderer.invoke('recording:abort'),
-  listSessions: () => ipcRenderer.invoke(IPC.SessionList),
+  listSessions: (refresh = false) => ipcRenderer.invoke(IPC.SessionList, refresh),
   loadSession: (sessionId) => ipcRenderer.invoke(IPC.SessionLoad, sessionId),
+  renameSession: (sessionId, displayName) =>
+    ipcRenderer.invoke(IPC.SessionRename, sessionId, displayName),
   revealSession: (sessionId) => ipcRenderer.invoke(IPC.SessionReveal, sessionId),
   saveSessionEdit: (sessionId, json) =>
     ipcRenderer.invoke(IPC.SessionSaveEdit, sessionId, json),
+  saveSessionCaptions: (sessionId, document) =>
+    ipcRenderer.invoke(IPC.SessionSaveCaptions, sessionId, document),
+  saveSessionThumbnail: (request) => ipcRenderer.invoke(IPC.SessionSaveThumbnail, request),
+  exportSessionSrt: (sessionId, srt) =>
+    ipcRenderer.invoke(IPC.SessionExportSrt, sessionId, srt),
+  importSessionSrt: () => ipcRenderer.invoke(IPC.SessionImportSrt),
   saveSessionAudioAsset: (sessionId, assetId, name, data) =>
     ipcRenderer.invoke(IPC.SessionSaveAudioAsset, sessionId, assetId, name, data),
   loadSessionAudioAsset: (sessionId, assetFile) =>
@@ -128,6 +159,10 @@ const api: RecorderApi = {
   updateSettings: (patch) => ipcRenderer.invoke(IPC.SettingsUpdate, patch),
   chooseRecordingsPath: () => ipcRenderer.invoke(IPC.SettingsChooseRecordingsPath),
   openRecordingsPath: () => ipcRenderer.invoke(IPC.SettingsOpenRecordingsPath),
+  chooseExportPath: () => ipcRenderer.invoke(IPC.SettingsChooseExportPath),
+  openExportPath: () => ipcRenderer.invoke(IPC.SettingsOpenExportPath),
+  chooseExportDirectory: () => ipcRenderer.invoke(IPC.ExportChooseDirectory),
+  setExportBusy: (busy) => ipcRenderer.invoke(IPC.ExportSetBusy, busy),
   getUpdateState: () => ipcRenderer.invoke(IPC.UpdateGetState),
   checkForUpdates: () => ipcRenderer.invoke(IPC.UpdateCheck),
   downloadUpdate: () => ipcRenderer.invoke(IPC.UpdateDownload),
@@ -138,8 +173,17 @@ const api: RecorderApi = {
     ipcRenderer.on(IPC.UpdateStatusChanged, listener)
     return () => ipcRenderer.removeListener(IPC.UpdateStatusChanged, listener)
   },
-  saveExport: (sessionId, data, format) =>
-    ipcRenderer.invoke(IPC.ExportSave, sessionId, data, format),
+  listCaptionModels: () => ipcRenderer.invoke(IPC.TranscriptionModels),
+  getTranscription: (sessionId) => ipcRenderer.invoke(IPC.TranscriptionGet, sessionId),
+  startTranscription: (request) => ipcRenderer.invoke(IPC.TranscriptionStart, request),
+  cancelTranscription: (sessionId) => ipcRenderer.invoke(IPC.TranscriptionCancel, sessionId),
+  onTranscriptionStatusChanged: (cb) => {
+    const listener = (_e: Electron.IpcRendererEvent, snapshot: TranscriptionSnapshot): void => cb(snapshot)
+    ipcRenderer.on(IPC.TranscriptionStatusChanged, listener)
+    return () => ipcRenderer.removeListener(IPC.TranscriptionStatusChanged, listener)
+  },
+  saveExport: (sessionId, displayName, data, format, directory) =>
+    ipcRenderer.invoke(IPC.ExportSave, sessionId, displayName, data, format, directory),
   pickAudioFile: () => ipcRenderer.invoke(IPC.PickAudioFile),
   windowMinimize: () => ipcRenderer.invoke(IPC.WindowMinimize),
   windowIsMaximized: () => ipcRenderer.invoke(IPC.WindowIsMaximized),

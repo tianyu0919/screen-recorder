@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { RecordingSession } from '@shared/types'
 import { formatDayLabel } from '@/lib/format'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,8 @@ import { LoaderCircle } from 'lucide-react'
 import { Segmented } from '@/components/ui/segmented'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { EmptySessionState } from './EmptySessionState'
+import type { SessionThumbnailInfo } from '@shared/sessionThumbnail'
+import { INITIAL_SESSION_COUNT, nextSessionCount } from '@/lib/sessionBatch'
 
 interface SessionListProps {
   sessions: RecordingSession[]
@@ -22,6 +24,7 @@ interface SessionListProps {
   onOpen: (sessionId: string) => void | Promise<void>
   onSessionAction: (action: SessionAction, sessionId: string) => Promise<void>
   onEmptyTrash: () => Promise<void>
+  onThumbnailReady(sessionId: string, thumbnail: SessionThumbnailInfo): void
 }
 
 interface SessionGroup {
@@ -55,7 +58,8 @@ export function SessionList({
   onRefresh,
   onOpen,
   onSessionAction,
-  onEmptyTrash
+  onEmptyTrash,
+  onThumbnailReady
 }: SessionListProps): React.JSX.Element {
   const [openingSessionId, setOpeningSessionId] = useState<string | null>(null)
   const [tab, setTab] = useState<'active' | 'trash'>('active')
@@ -63,7 +67,32 @@ export function SessionList({
   const [acting, setActing] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<string | null>(null)
-  const visibleSessions = sessions.filter((session) => tab === 'trash' ? session.lifecycle === 'trashed' : session.lifecycle !== 'trashed')
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const loadMoreRef = useRef<HTMLDivElement>(null)
+  const [renderedCount, setRenderedCount] = useState(INITIAL_SESSION_COUNT)
+  const visibleSessions = useMemo(
+    () => sessions.filter((session) => tab === 'trash' ? session.lifecycle === 'trashed' : session.lifecycle !== 'trashed'),
+    [sessions, tab]
+  )
+  const renderedSessions = visibleSessions.slice(0, renderedCount)
+  const sessionOrderKey = visibleSessions.map((session) => session.sessionId).join('|')
+
+  useEffect(() => {
+    setRenderedCount(INITIAL_SESSION_COUNT)
+    scrollRef.current?.scrollTo({ top: 0 })
+  }, [tab, sessionOrderKey])
+
+  useEffect(() => {
+    const root = scrollRef.current, target = loadMoreRef.current
+    if (!root || !target || renderedCount >= visibleSessions.length) return
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setRenderedCount((count) => nextSessionCount(count, visibleSessions.length))
+      }
+    }, { root, rootMargin: '800px 0px' })
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [renderedCount, visibleSessions.length])
 
   useEffect(() => {
     if (tab !== 'trash') return
@@ -103,7 +132,7 @@ export function SessionList({
   } : null
 
   return (
-    <motion.div variants={staggerContainer} initial="initial" animate="enter" className="relative flex-1 overflow-y-auto px-6 pb-5 pt-0">
+    <motion.div ref={scrollRef} variants={staggerContainer} initial="initial" animate="enter" className="relative flex-1 overflow-y-auto px-6 pb-5 pt-0">
       <div className="flex flex-col gap-5">
         <motion.div variants={staggerItem} className="flex items-center justify-between">
           <div className="flex items-center gap-4"><h2 className="flex items-baseline gap-2 text-lg font-semibold tracking-[-0.02em] text-ink-1">
@@ -146,7 +175,7 @@ export function SessionList({
             )}
 
             <AnimatePresence mode="popLayout">
-              {groupByDay(visibleSessions).map((group) => (
+              {groupByDay(renderedSessions).map((group) => (
                 <motion.section exit={{ opacity: 0, height: 0, marginBottom: 0 }} key={`${tab}-${group.label}`} className="flex flex-col gap-2.5 pb-1">
                   <h3 className="text-[11px] font-semibold tracking-[0.4px] text-ink-3">{group.label}</h3>
                   <SessionGrid
@@ -154,10 +183,14 @@ export function SessionList({
                     disabled={loading || openingSessionId !== null}
                     onOpen={(sessionId) => void handleOpen(sessionId)}
                     onAction={(action, session) => setPending({ action, sessionId: session.sessionId })}
+                    onThumbnailReady={onThumbnailReady}
                   />
                 </motion.section>
               ))}
             </AnimatePresence>
+            {renderedCount < visibleSessions.length && (
+              <div ref={loadMoreRef} aria-hidden className="h-px w-full" />
+            )}
           </motion.div>
         </AnimatePresence>
 

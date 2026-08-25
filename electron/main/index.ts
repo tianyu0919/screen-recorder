@@ -18,6 +18,9 @@ import { updateService } from '../updater'
 import { displaySelectionOutline } from '../displaySelectionOutline'
 import { installReloadShortcutGuard } from '../windowLifecycle/reloadGuard'
 import packageMetadata from '../../package.json'
+import { transcriptionService } from '../transcription/service'
+import { sessionThumbnailCache } from '../store/sessionThumbnailCache'
+import { confirmQuitWithExports } from '../export/exportActivity'
 
 /**
  * 应用名（改名时四处同步：index.html <title>、App.tsx 标题、electron-builder.yml
@@ -128,8 +131,14 @@ if (!hasSingleInstanceLock) {
     registerMediaProtocol()
     registerIpc(() => win, appIcon)
     sessionCatalog.load()
-    void sessionCatalog.purgeExpired()
-    setInterval(() => void sessionCatalog.purgeExpired(), 60_000).unref()
+    void sessionThumbnailCache.prune(new Set(sessionCatalog.list().map((session) => session.sessionId)))
+    const purgeExpired = (): void => {
+      void sessionCatalog.purgeExpired().then((ids) =>
+        Promise.all(ids.map((sessionId) => sessionThumbnailCache.remove(sessionId)))
+      )
+    }
+    purgeExpired()
+    setInterval(purgeExpired, 60_000).unref()
     createWindow()
     updateService.initialize(() => win)
 
@@ -139,8 +148,13 @@ if (!hasSingleInstanceLock) {
     })
   })
 
-  app.on('before-quit', () => {
+  app.on('before-quit', (event) => {
+    if (!quitting && !confirmQuitWithExports(win)) {
+      event.preventDefault()
+      return
+    }
     quitting = true
+    transcriptionService.cancelAll()
     displaySelectionOutline.dispose()
     disposeTray()
   })

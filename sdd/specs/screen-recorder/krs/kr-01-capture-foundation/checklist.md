@@ -5,6 +5,7 @@
 > 状态口径：macOS 主路径全部验证通过 → 本 KR 判 completed；Windows/极端环境项已登记到 Epic checklist，以下以“移交”说明保留追踪关系，不再作为本 KR 的未关闭项。
 
 ## Functional Verification
+- [ ] macOS 开启麦克风与系统音频录制后，`mic.wav` 包含非零 PCM 且预览可听
 - [x] 源选择面板可枚举 screen/window 源并显示缩略图，选中后可正常开始/停止录制
   > 人工冒烟通过（2026-08-19）：选源 → 预览 → 录制 → 停止全流程正常。
 - [x] 停止录制后 `recordings/<session-id>/` 存在 screen.webm（可播放）、mic.wav（开启麦克风时）与 events.json

@@ -3,15 +3,17 @@ import { AnimatePresence, motion } from 'motion/react'
 import { staggerContainer } from '@/lib/motion'
 import { useGridFlip } from '@/hooks/useGridFlip'
 import { SessionCard, type SessionAction } from './SessionCard'
+import type { SessionThumbnailInfo } from '@shared/sessionThumbnail'
 
 interface SessionGridProps {
   sessions: RecordingSession[]
   disabled: boolean
   onOpen: (sessionId: string) => void
   onAction: (action: SessionAction, session: RecordingSession) => void
+  onThumbnailReady(sessionId: string, thumbnail: SessionThumbnailInfo): void
 }
 
-export function SessionGrid({ sessions, disabled, onOpen, onAction }: SessionGridProps): React.JSX.Element {
+export function SessionGrid({ sessions, disabled, onOpen, onAction, onThumbnailReady }: SessionGridProps): React.JSX.Element {
   const itemKey = sessions.map((session) => session.sessionId).join('|')
   const gridRef = useGridFlip(itemKey)
 
@@ -31,7 +33,8 @@ export function SessionGrid({ sessions, disabled, onOpen, onAction }: SessionGri
             exit={{ opacity: 0, transition: { duration: 0.18, ease: 'easeOut' } }}
             className="min-w-0"
           >
-            <SessionCard session={session} disabled={disabled} onOpen={onOpen} onAction={onAction} />
+            <SessionCard session={session} disabled={disabled} onOpen={onOpen} onAction={onAction}
+              onThumbnailReady={(thumbnail) => onThumbnailReady(session.sessionId, thumbnail)} />
           </motion.div>
         ))}
       </AnimatePresence>

@@ -167,11 +167,12 @@ export function PlayerTimeline({
   const deleteTarget = (target: TimelineMenuTarget): void => {
     if (target.kind === 'motion') store.removeMotionEffect(target.id)
     else if (target.kind === 'key') store.removeKeyPrompt(target.id)
-    else store.removeCustomClip(target.id)
+    else if (target.kind === 'audio') store.removeCustomClip(target.id)
+    else store.removeCaption(target.id)
   }
 
   return (
-    <div className="flex h-[216px] select-none flex-none flex-col border-t border-line bg-surface-1">
+    <div className={`flex ${store.captionsEnabled ? 'h-[264px]' : 'h-[216px]'} select-none flex-none flex-col border-t border-line bg-surface-1 transition-[height] duration-200`}>
       <div className="flex h-10 flex-none items-center gap-3 border-b border-line px-6">
         <button onClick={onTogglePlay} disabled={durationMs === 0} aria-label={playing ? '暂停' : '播放'} aria-pressed={playing} className="grid h-7 w-7 place-items-center rounded-full bg-ink-1 text-surface-1 transition-[transform,box-shadow] hover:scale-105 hover:shadow-card active:scale-95 disabled:opacity-40">
           <MorphIcon
@@ -196,6 +197,7 @@ export function PlayerTimeline({
           <span className="flex h-[42px] items-center justify-center border-b border-line">运镜</span>
           <span className="flex h-[42px] items-center justify-center">事件</span>
           <span className="flex h-[48px] items-center justify-center border-t border-line">音频</span>
+          {store.captionsEnabled && <span className="flex h-[48px] items-center justify-center border-t border-line">字幕</span>}
         </div>
         <div ref={scrollRef} className="no-scrollbar min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
           <div
@@ -213,19 +215,23 @@ export function PlayerTimeline({
               motionEffects={store.motionEffects} motionEnabled={store.motionEnabled}
               selectedMotionId={store.selectedMotionId}
               keyPrompts={store.keyPrompts} ripples={store.ripples} clips={store.customClips}
+              captions={store.captionsEnabled ? store.captions?.segments ?? [] : []}
+              captionsEnabled={store.captionsEnabled} selectedCaptionId={store.selectedCaptionId}
               duration={duration} pxPerSec={pxPerSec} eventWindow={eventWindow} getPlayheadMs={getPlayheadMs}
               onSelectMotion={store.selectMotionEffect} onSeek={onSeek}
               onMoveMotion={(id, start, anchor) => store.moveMotionEffect(id, start, false, anchor)}
               onResizeMotion={(id, edge, time, anchor) => store.resizeMotionEffect(id, edge, time, false, anchor)}
               onCommitEdit={store.commitEdit} onOffsetChange={store.setClipOffset}
               onTrimChange={store.setClipTrim} onContextMenu={openMenu}
+              onSelectCaption={store.selectCaption}
+              onCaptionRangeChange={store.updateCaptionRange}
             />
             <TimelinePlayhead currentMs={currentMs} duration={duration} playing={playing} zoom={zoom} cuts={store.cuts} scrollRef={scrollRef} followHoldUntil={followHoldUntil} subscribeCurrentMs={subscribeCurrentMs} onSeek={onSeek} onTogglePlay={onTogglePlay} />
           </div>
         </div>
       </div>
 
-      <TimelineContextMenu menu={menu} onClose={() => setMenu(null)} onAddMotion={(time) => { store.addMotionEffect(time) }} onAddKey={setCaptureAt} onAddAudio={(time) => { void store.addCustomClip(time) }} onDelete={deleteTarget} />
+      <TimelineContextMenu menu={menu} onClose={() => setMenu(null)} onAddMotion={(time) => { store.addMotionEffect(time) }} onAddKey={setCaptureAt} onAddAudio={(time) => { void store.addCustomClip(time) }} onAddCaption={store.addCaptionAt} captionsEnabled={store.captionsEnabled} onDelete={deleteTarget} />
       <KeyPromptCapture open={captureAt !== null} onCancel={() => setCaptureAt(null)} onConfirm={(keys) => { if (captureAt !== null) store.addManualKeyPrompt(captureAt, keys); setCaptureAt(null) }} />
     </div>
   )

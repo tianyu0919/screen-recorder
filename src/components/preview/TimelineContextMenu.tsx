@@ -7,6 +7,7 @@ export type TimelineMenuTarget =
   | { kind: 'motion'; id: string }
   | { kind: 'key'; id: string }
   | { kind: 'audio'; id: string }
+  | { kind: 'caption'; id: string }
 
 export interface TimelineMenuState {
   x: number
@@ -21,6 +22,8 @@ interface Props {
   onAddMotion(tMs: number): void
   onAddKey(tMs: number): void
   onAddAudio(tMs: number): void
+  onAddCaption(tMs: number): void
+  captionsEnabled: boolean
   onDelete(target: TimelineMenuTarget): void
 }
 
@@ -30,6 +33,8 @@ export function TimelineContextMenu({
   onAddMotion,
   onAddKey,
   onAddAudio,
+  onAddCaption,
+  captionsEnabled,
   onDelete
 }: Props): React.JSX.Element | null {
   useEffect(() => {
@@ -70,7 +75,7 @@ export function TimelineContextMenu({
             onClick={() => run(() => onDelete(menu.target!))}
           >
             <Trash2 size={12} strokeWidth={2} />
-            删除{menu.target.kind === 'motion' ? '运镜' : menu.target.kind === 'key' ? '事件' : '音频'}
+            删除{menu.target.kind === 'motion' ? '运镜' : menu.target.kind === 'key' ? '事件' : menu.target.kind === 'caption' ? '字幕' : '音频'}
           </button>
           <div className="my-1 border-t border-line" />
         </>
@@ -78,6 +83,7 @@ export function TimelineContextMenu({
       <MenuButton label="添加运镜" onClick={() => run(() => onAddMotion(menu.tMs))} />
       <MenuButton label="添加事件" onClick={() => run(() => onAddKey(menu.tMs))} />
       <MenuButton label="添加音频" onClick={() => run(() => onAddAudio(menu.tMs))} />
+      {captionsEnabled && <MenuButton label="添加字幕" onClick={() => run(() => onAddCaption(menu.tMs))} />}
     </div>,
     document.body
   )

@@ -17,7 +17,8 @@ interface SettingsPanelProps {
 }
 
 export function SettingsPanel({ open, onClose }: SettingsPanelProps): React.JSX.Element {
-  const { settings, loading, error, update, chooseRecordingsPath, openRecordingsPath } = useSettingsStore()
+  const { settings, loading, error, update, chooseRecordingsPath, openRecordingsPath,
+    chooseExportPath, openExportPath } = useSettingsStore()
   const { snapshot, check, setOpen: setUpdateOpen } = useUpdateStore()
   const isWindows = window.api.platform === 'win32'
   const updateStatus = snapshot?.status
@@ -74,6 +75,16 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps): React.JSX.
                       <div className="mt-3 flex gap-2">
                         <Button variant="outline" size="sm" onClick={() => void chooseRecordingsPath()}>更改位置</Button>
                         <Button variant="ghost" size="sm" onClick={() => void openRecordingsPath()}><FolderOpen size={13} />打开文件夹</Button>
+                      </div>
+                    </div>
+                  </SettingSection>
+
+                  <SettingSection title="录像导出位置" description="导出完成后默认直接保存到这里，不覆盖同名文件。">
+                    <div className="rounded-xl border border-line bg-surface-2 p-3">
+                      <p className="break-all font-mono text-[11px] leading-5 text-ink-2">{settings.exportPath}</p>
+                      <div className="mt-3 flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => void chooseExportPath()}>更改位置</Button>
+                        <Button variant="ghost" size="sm" onClick={() => void openExportPath()}><FolderOpen size={13} />打开文件夹</Button>
                       </div>
                     </div>
                   </SettingSection>

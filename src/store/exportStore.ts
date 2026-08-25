@@ -1,176 +1,155 @@
 import { create } from 'zustand'
 import type { ExportFormat } from '@shared/types'
-import type { ExportWorkerMessage } from '@/export/messages'
-import { usePreviewStore } from './previewStore'
-import { getClipAsset } from '@/export/clipCache'
+import type { ExportStartMessage, ExportWorkerMessage } from '@/export/messages'
 
-/**
- * 导出状态（kr-03 Task 3.1 / 3.2）：
- * startExport 取预览当前的 keyframes/ripples（参数面板调好后的效果）启动 Worker；
- * 取消 = worker.terminate() 硬终止（输出在内存，无半成品文件）；
- * 完成后经 saveExport IPC 弹保存对话框落盘。
- */
+export type ExportTaskStatus = 'queued' | 'exporting' | 'done' | 'error'
 
-type ExportStatus = 'idle' | 'exporting' | 'done' | 'error'
-
-interface ExportState {
-  status: ExportStatus
-  /** 0..1，按已渲染帧数成比例 */
+export interface ExportTask {
+  id: string
+  sessionId: string
+  name: string
+  status: ExportTaskStatus
   progress: number
-  /** 完成后的保存路径（用户在保存对话框取消则为 null） */
+  destinationDir?: string
+  message: ExportStartMessage
   resultPath: string | null
   outputFormat: ExportFormat | null
   hasAudio: boolean
   outputSize: { width: number; height: number } | null
   errorMessage: string | null
-
-  startExport(): Promise<void>
-  cancelExport(): void
-  reset(): void
+  createdAt: number
+  completedAt?: number
 }
 
-/** 当前导出 Worker 句柄（不进 state，避免不必要的订阅触发） */
+interface ExportState {
+  tasks: ExportTask[]
+  activeTaskId: string | null
+  activityRevision: number
+  activityVisible: boolean
+  enqueueExport(message: ExportStartMessage, directory?: string): void
+  enqueueExportToDirectory(message: ExportStartMessage): Promise<void>
+  cancelTask(id: string): void
+  dismissTask(id: string): void
+  dismissAll(): void
+  revealActivity(): void
+}
+
 let activeWorker: Worker | null = null
-/** 使已终止导出的异步回调失效，避免保存完成后把旧结果写回新会话。 */
-let exportGeneration = 0
-
-function terminateWorker(): void {
-  activeWorker?.terminate()
-  activeWorker = null
-}
 
 export const useExportStore = create<ExportState>((set, get) => ({
-  status: 'idle',
-  progress: 0,
-  resultPath: null,
-  outputFormat: null,
-  hasAudio: false,
-  outputSize: null,
-  errorMessage: null,
-
-  async startExport() {
-    if (get().status === 'exporting') return
-    const {
-      current, keyframes, ripples, keyPrompts, keyboardOverlay,
-      cuts, audioGain, audioMute, customClips, renderSettings
-    } =
-      usePreviewStore.getState()
-    if (!current) return
-    const sessionId = current.session.sessionId
-
-    terminateWorker()
-    const generation = ++exportGeneration
-    const worker = new Worker(new URL('../export/worker.ts', import.meta.url), {
-      type: 'module'
-    })
-    activeWorker = worker
-    set({
-      status: 'exporting',
-      progress: 0,
-      resultPath: null,
-      outputFormat: null,
-      hasAudio: false,
-      outputSize: null,
-      errorMessage: null
-    })
-
-    worker.onmessage = (event: MessageEvent<ExportWorkerMessage>) => {
-      if (generation !== exportGeneration) return
-      const msg = event.data
-      if (msg.type === 'progress') {
-        set({
-          progress: msg.total > 0 ? msg.done / msg.total : 0,
-          ...(msg.outputWidth && msg.outputHeight
-            ? { outputSize: { width: msg.outputWidth, height: msg.outputHeight } }
-            : {})
-        })
-      } else if (msg.type === 'error') {
-        terminateWorker()
-        set({ status: 'error', errorMessage: msg.message })
-      } else {
-        // done：Worker 侧 buffer 已 transfer 过来，弹保存对话框落盘
-        terminateWorker()
-        void window.api
-          .saveExport(sessionId, msg.buffer, msg.format)
-          .then((saved) => {
-            if (generation !== exportGeneration) return
-            set({
-              status: 'done',
-              progress: 1,
-              outputFormat: msg.format,
-              hasAudio: msg.audio,
-              outputSize: { width: msg.outputWidth, height: msg.outputHeight },
-              resultPath: saved?.path ?? null
-            })
-          })
-          .catch((err: unknown) => {
-            if (generation !== exportGeneration) return
-            set({
-              status: 'error',
-              errorMessage: `保存失败: ${err instanceof Error ? err.message : String(err)}`
-            })
-          })
-      }
+  tasks: [], activeTaskId: null, activityRevision: 0, activityVisible: false,
+  enqueueExport(snapshot, directory) {
+    const hadBackgroundWork = get().tasks.some(
+      (item) => item.status === 'queued' || item.status === 'exporting'
+    )
+    const task: ExportTask = {
+      id: crypto.randomUUID(), sessionId: snapshot.sessionId, name: snapshot.sessionName,
+      status: 'queued', progress: 0, destinationDir: directory, message: snapshot,
+      resultPath: null, outputFormat: null, hasAudio: false, outputSize: null,
+      errorMessage: null, createdAt: Date.now()
     }
-    worker.onerror = () => {
-      if (generation !== exportGeneration) return
-      terminateWorker()
-      set({ status: 'error', errorMessage: '导出失败: 导出线程异常终止' })
-    }
-
-    worker.postMessage({
-      type: 'start',
-      sessionId,
-      keyframes,
-      ripples,
-      keyPrompts,
-      keyboardOverlay,
-      cuts,
-      audioGain: {
-        mic: audioMute.mic ? 0 : audioGain.mic,
-        system: audioMute.system ? 0 : audioGain.system
-      },
-      renderSettings,
-      // 自定义音轨 PCM：缓存缺失的轨跳过（不阻断导出）；samples 结构化克隆（缓存保留复导出）
-      customAudio: customClips.flatMap((c) => {
-        const asset = getClipAsset(c.id)
-        return asset
-          ? [
-              {
-                offsetMs: c.offsetMs,
-                trimStartMs: c.trimStartMs,
-                trimEndMs: c.trimEndMs,
-                gain: c.muted ? 0 : c.gain,
-                sampleRate: asset.wav.sampleRate,
-                channels: asset.wav.channels,
-                samples: asset.wav.samples.buffer as ArrayBuffer
-              }
-            ]
-          : []
-      }),
-      canvas: current.timeline.canvas,
-      fallbackDurationMs: current.timeline.durationMs
-    })
-  },
-
-  cancelExport() {
-    if (get().status !== 'exporting') return
-    exportGeneration += 1
-    terminateWorker()
-    set({ status: 'idle', progress: 0 })
-  },
-
-  reset() {
-    exportGeneration += 1
-    terminateWorker()
     set({
-      status: 'idle',
-      progress: 0,
-      resultPath: null,
-      outputFormat: null,
-      hasAudio: false,
-      outputSize: null,
-      errorMessage: null
+      tasks: [...get().tasks, task],
+      activityVisible: hadBackgroundWork ? get().activityVisible : false
     })
+    queueMicrotask(pumpQueue)
+  },
+  async enqueueExportToDirectory(message) {
+    const directory = await window.api.chooseExportDirectory()
+    if (directory) get().enqueueExport(message, directory)
+  },
+  cancelTask(id) {
+    if (get().activeTaskId === id) {
+      activeWorker?.terminate()
+      activeWorker = null
+      const tasks = get().tasks.filter((task) => task.id !== id)
+      set({ activeTaskId: null, tasks, activityVisible: tasks.length > 0 && get().activityVisible })
+      queueMicrotask(pumpQueue)
+      return
+    }
+    const tasks = get().tasks.filter((task) => task.id !== id)
+    set({ tasks, activityVisible: tasks.length > 0 && get().activityVisible })
+  },
+  dismissTask(id) {
+    const tasks = get().tasks.filter((task) => task.id !== id)
+    set({ tasks, activityVisible: tasks.length > 0 && get().activityVisible })
+  },
+  dismissAll() {
+    if (get().activeTaskId) return
+    set({ tasks: [], activityVisible: false })
+  },
+  revealActivity() {
+    const state = get()
+    if (state.activityVisible || !state.tasks.some(
+      (task) => task.status === 'queued' || task.status === 'exporting'
+    )) return
+    set({ activityVisible: true, activityRevision: state.activityRevision + 1 })
   }
 }))
+
+useExportStore.subscribe((state, previous) => {
+  const busy = state.tasks.some((task) => task.status === 'queued' || task.status === 'exporting')
+  const wasBusy = previous.tasks.some((task) => task.status === 'queued' || task.status === 'exporting')
+  if (busy !== wasBusy) void window.api.setExportBusy(busy)
+})
+
+function updateTask(id: string, patch: Partial<ExportTask>): void {
+  useExportStore.setState((state) => ({
+    tasks: state.tasks.map((task) => task.id === id ? { ...task, ...patch } : task)
+  }))
+}
+
+function finishTask(id: string, patch: Partial<ExportTask>): void {
+  activeWorker = null
+  useExportStore.setState((state) => ({
+    activeTaskId: null,
+    tasks: state.tasks.map((task) => task.id === id
+      ? { ...task, ...patch, completedAt: Date.now() } : task)
+  }))
+  queueMicrotask(pumpQueue)
+}
+
+function pumpQueue(): void {
+  const state = useExportStore.getState()
+  if (state.activeTaskId) return
+  const task = state.tasks.find((item) => item.status === 'queued')
+  if (!task) return
+  const worker = new Worker(new URL('../export/worker.ts', import.meta.url), { type: 'module' })
+  activeWorker = worker
+  useExportStore.setState({ activeTaskId: task.id })
+  updateTask(task.id, { status: 'exporting', progress: 0 })
+  worker.onmessage = (event: MessageEvent<ExportWorkerMessage>) => {
+    if (useExportStore.getState().activeTaskId !== task.id) return
+    const message = event.data
+    if (message.type === 'progress') {
+      updateTask(task.id, {
+        progress: message.total > 0 ? message.done / message.total : 0,
+        ...(message.outputWidth && message.outputHeight
+          ? { outputSize: { width: message.outputWidth, height: message.outputHeight } } : {})
+      })
+      return
+    }
+    worker.terminate()
+    if (message.type === 'error') {
+      finishTask(task.id, { status: 'error', errorMessage: message.message })
+      return
+    }
+    void window.api.saveExport(
+      task.sessionId, task.name, message.buffer, message.format, task.destinationDir
+    )
+      .then((saved) => finishTask(task.id, {
+        status: 'done', progress: 1, resultPath: saved?.path ?? null,
+        outputFormat: message.format, hasAudio: message.audio,
+        outputSize: { width: message.outputWidth, height: message.outputHeight }
+      }))
+      .catch((error: unknown) => finishTask(task.id, {
+        status: 'error', errorMessage: `保存失败：${error instanceof Error ? error.message : String(error)}`
+      }))
+  }
+  worker.onerror = () => {
+    if (useExportStore.getState().activeTaskId !== task.id) return
+    worker.terminate()
+    finishTask(task.id, { status: 'error', errorMessage: '导出线程异常终止' })
+  }
+  worker.postMessage(task.message)
+}

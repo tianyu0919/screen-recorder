@@ -4,6 +4,7 @@ import type { CutRange } from '../timeline/cuts'
 import type { CanvasSize } from '../timeline/types'
 import type { DisplayKeyPrompt } from '../timeline/keyPrompts'
 import type { RenderSettings } from '@shared/edit'
+import type { CaptionsDocument } from '@shared/captions'
 
 /**
  * Renderer ↔ 导出 Worker 消息协议（Task 1.1）。
@@ -17,6 +18,7 @@ export type { ExportFormat }
 export interface ExportStartMessage {
   type: 'start'
   sessionId: string
+  sessionName: string
   keyframes: CameraKeyframe[]
   ripples: RipplePoint[]
   keyPrompts: DisplayKeyPrompt[]
@@ -26,6 +28,7 @@ export interface ExportStartMessage {
   /** 分轨音量增益（0–1，检查器音频滑杆），混音时应用到 mic/system 轨 */
   audioGain: { mic: number; system: number }
   renderSettings: RenderSettings
+  captions: CaptionsDocument | null
   /** 自定义音轨（kr-05 custom-audio-track）：Renderer 已解码 PCM，锚定源时间轴 */
   customAudio: Array<{
     offsetMs: number

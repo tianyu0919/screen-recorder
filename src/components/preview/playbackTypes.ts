@@ -4,6 +4,7 @@ import type { RenderInfo, RipplePoint } from '@/render/types'
 import type { CutRange } from '@/timeline/cuts'
 import type { DisplayKeyPrompt } from '@/timeline/keyPrompts'
 import type { RenderSettings } from '@shared/edit'
+import type { CaptionsDocument } from '@shared/captions'
 
 export interface PlaybackOptions {
   /** 录屏源分辨率（相机坐标系基准）。 */
@@ -15,6 +16,7 @@ export interface PlaybackOptions {
   ripples: RipplePoint[]
   keyPrompts: DisplayKeyPrompt[]
   keyboardOverlay: { x: number; y: number }
+  captions: CaptionsDocument | null
   cuts: CutRange[]
   fallbackDurationMs: number
   sourceFps: number

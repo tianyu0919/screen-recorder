@@ -6,6 +6,15 @@ import type { CutRange } from '@/timeline/cuts'
 import type { RipplePoint } from '@/render/types'
 import type { CustomClip } from '@/lib/audioClip'
 import type { DisplayKeyPrompt } from '@/timeline/keyPrompts'
+import type {
+  CaptionModelInfo,
+  CaptionModelTier,
+  CaptionPosition,
+  CaptionStyle,
+  CaptionsDocument,
+  TranscriptionJobState
+} from '@shared/captions'
+import type { SessionThumbnailInfo } from '@shared/sessionThumbnail'
 
 export interface PreviewSession {
   session: RecordingSession
@@ -42,13 +51,23 @@ export interface PreviewState {
   renderSettings: RenderSettings
   customClips: CustomClip[]
   clipError: string | null
+  captions: CaptionsDocument | null
+  captionsError: string | null
+  captionsEnabled: boolean
+  captionsSaveState: 'idle' | 'pending' | 'saving' | 'saved' | 'error'
+  captionModels: CaptionModelInfo[]
+  transcription: TranscriptionJobState
+  selectedCaptionId: string | null
+  captionPositionMode: 'global' | 'segment'
 
-  loadSessions(): Promise<void>
+  loadSessions(refresh?: boolean): Promise<void>
   trashSession(sessionId: string): Promise<void>
   restoreSession(sessionId: string): Promise<void>
   deleteSessionPermanent(sessionId: string): Promise<void>
   emptyTrash(): Promise<void>
   removeMissingSession(sessionId: string): Promise<void>
+  setSessionThumbnail(sessionId: string, thumbnail: SessionThumbnailInfo): void
+  renameSession(displayName: string): Promise<string>
   openSession(sessionId: string): Promise<void>
   closeSession(): void
   setMotionParams(patch: Partial<MotionParams>): void
@@ -87,4 +106,20 @@ export interface PreviewState {
   setClipGain(id: string, gain: number): void
   setClipMuted(id: string, muted: boolean): void
   setRenderSettings(patch: Partial<RenderSettings>): void
+  startTranscription(language: 'auto' | 'zh' | 'en', model: CaptionModelTier, replaceExisting: boolean): Promise<void>
+  cancelTranscription(): Promise<void>
+  selectCaption(id: string | null): void
+  setCaptionPositionMode(mode: 'global' | 'segment'): void
+  updateCaptionText(id: string, text: string): void
+  updateCaptionRange(id: string, startMs: number, endMs: number, commit?: boolean): void
+  splitCaption(id: string, atMs: number): void
+  mergeCaptionWithNext(id: string): void
+  removeCaption(id: string): void
+  setCaptionStyle(patch: Partial<CaptionStyle>): void
+  setCaptionPosition(position: CaptionPosition, segmentOnly: boolean, commit?: boolean): void
+  setCaptionsEnabled(enabled: boolean, language?: 'auto' | 'zh' | 'en', model?: CaptionModelTier): void
+  retryCaptionSave(): void
+  addCaptionAt(tMs: number): void
+  importCaptionsSrt(source: string): void
+  exportCaptionsSrt(): Promise<void>
 }

@@ -19,6 +19,7 @@ import { KeyboardOverlayHandle } from './KeyboardOverlayHandle'
 import { resolveOutputPlan } from '@/render/outputPlan'
 import { FocusPreviewControls } from './FocusPreviewControls'
 import { blocksGlobalShortcut } from '@/lib/keyboardTarget'
+import { CaptionOverlayHandle } from './CaptionOverlayHandle'
 import type { PreviewQualityMode } from '@shared/types'
 
 interface PreviewPlayerProps {
@@ -83,6 +84,10 @@ export function PreviewPlayer({
   const cuts = usePreviewStore((s) => s.cuts)
   const keyPrompts = usePreviewStore((s) => s.keyPrompts)
   const keyboardOverlay = usePreviewStore((s) => s.keyboardOverlay)
+  const captions = usePreviewStore((s) => s.captions)
+  const selectedCaptionId = usePreviewStore((s) => s.selectedCaptionId)
+  const captionPositionMode = usePreviewStore((s) => s.captionPositionMode)
+  const setCaptionPosition = usePreviewStore((s) => s.setCaptionPosition)
   const setKeyboardOverlay = usePreviewStore((s) => s.setKeyboardOverlay)
   const setSourceDurationMs = usePreviewStore((s) => s.setSourceDurationMs)
   const {
@@ -102,6 +107,7 @@ export function PreviewPlayer({
       ripples,
       keyPrompts,
       keyboardOverlay,
+      captions: captions?.enabled ? captions : null,
       cuts,
       sourceFps: timeline.events.video.fps,
       performanceMonitoring: !focusMode && quality !== 'smooth',
@@ -193,6 +199,15 @@ export function PreviewPlayer({
                 <KeyboardOverlayHandle
                   position={keyboardOverlay}
                   onChange={setKeyboardOverlay}
+                />
+              )}
+              {!focusMode && captions?.enabled && (captionPositionMode === 'global' || selectedCaptionId) && (
+                <CaptionOverlayHandle
+                  segmentOnly={captionPositionMode === 'segment'}
+                  position={captionPositionMode === 'segment'
+                    ? captions.segments.find((segment) => segment.id === selectedCaptionId)?.positionOverride ?? captions.style.position
+                    : captions.style.position}
+                  onChange={setCaptionPosition}
                 />
               )}
             </div>

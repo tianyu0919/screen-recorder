@@ -30,6 +30,8 @@ jobs:
         run: node -e "const p=require('./package.json').version,t=process.env.GITHUB_REF_NAME.replace(/^v/,'');if(p!==t){console.error('Tag '+t+' does not match package version '+p);process.exit(1)}"
       # Swift 工具链 macOS runner 自带；构建 native/sck-audio 系统音频 helper
       - run: npm run build:native
+        env:
+          LENZA_REQUIRE_CAPTION_HELPER: '1'
       - run: npm run build
       - run: npx electron-builder --mac --publish never
         env:
@@ -59,6 +61,8 @@ jobs:
         shell: bash
         run: node -e "const p=require('./package.json').version,t=process.env.GITHUB_REF_NAME.replace(/^v/,'');if(p!==t){console.error('Tag '+t+' does not match package version '+p);process.exit(1)}"
       - run: npm run build:native
+        env:
+          LENZA_REQUIRE_CAPTION_HELPER: '1'
       - run: npm run build
       - run: npx electron-builder --win --publish never
         env:

@@ -150,7 +150,17 @@ export class ScreenRecorder {
       // 麦克风权限/设备请求也在正式计时前完成，失败只降级本次录制。
       if (withMic) {
         try {
-          this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+          // 录屏同时存在系统音频回采时，Chromium/macOS 的默认回声消除可能把输入
+          // 误判为回声并压成全零。录制素材需要原始稳定输入，显式关闭语音处理。
+          this.micStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false,
+              channelCount: { ideal: 1 },
+              sampleRate: { ideal: 48_000 }
+            }
+          })
           const audioMime = MediaRecorder.isTypeSupported(AUDIO_MIME) ? AUDIO_MIME : 'audio/webm'
           this.micRecorder = new MediaRecorder(this.micStream, { mimeType: audioMime })
           this.micChunks = []
@@ -158,6 +168,7 @@ export class ScreenRecorder {
             if (e.data.size > 0) this.micChunks.push(e.data)
           }
         } catch {
+          this.micStream?.getTracks().forEach((track) => track.stop())
           this.micStream = null
           this.micRecorder = null
         }

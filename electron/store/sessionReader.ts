@@ -4,6 +4,8 @@ import { open, readFile } from 'node:fs/promises'
 import { join, normalize, sep } from 'node:path'
 import type { RecordingSession, SessionLoadResult } from '../../shared/types'
 import { sessionCatalog } from './sessionCatalog'
+import { loadCaptionsJson } from './captionsStore'
+import { sessionThumbnailCache } from './sessionThumbnailCache'
 
 /**
  * 录制会话读取（kr-02 Phase 3 预览）：
@@ -25,10 +27,10 @@ function readStartedAt(eventsPath: string): number {
   return statSync(eventsPath).mtimeMs
 }
 
-function readEditedAt(editPath: string): number | undefined {
-  if (!existsSync(editPath)) return undefined
+function readDocumentUpdatedAt(path: string): number | undefined {
+  if (!existsSync(path)) return undefined
   try {
-    const parsed = JSON.parse(readFileSync(editPath, 'utf8')) as { updatedAt?: unknown }
+    const parsed = JSON.parse(readFileSync(path, 'utf8')) as { updatedAt?: unknown }
     if (typeof parsed.updatedAt === 'string') {
       const value = Date.parse(parsed.updatedAt)
       if (Number.isFinite(value)) return value
@@ -36,12 +38,17 @@ function readEditedAt(editPath: string): number | undefined {
   } catch {
     /* 损坏由加载路径处理；列表仍可展示。 */
   }
-  return statSync(editPath).mtimeMs
+  return statSync(path).mtimeMs
 }
 
 /** 枚举已落盘会话（按开始时间倒序）；events.json 损坏的会话也列出，选中后走友好错误路径 */
-export function listSessions(): RecordingSession[] {
-  return sessionCatalog.list()
+export function listSessions(refresh = false): RecordingSession[] {
+  return sessionCatalog.list(refresh).map((session) => ({
+    ...session,
+    thumbnail: session.availability === 'available'
+      ? sessionThumbnailCache.getInfo(session.sessionId) ?? undefined
+      : undefined
+  }))
 }
 
 /** 加载会话：返回 events.json 原文 + 视频流式 URL；文件缺失抛错（IPC 包装为友好提示） */
@@ -53,6 +60,11 @@ export function loadSession(sessionId: string): SessionLoadResult {
   const eventsJson = readFileSync(eventsPath, 'utf8')
   const editPath = join(dir, 'edit.json')
   const editJson = existsSync(editPath) ? readFileSync(editPath, 'utf8') : null
+  const captionsJson = loadCaptionsJson(sessionId)
+  const editedAt = Math.max(
+    readDocumentUpdatedAt(editPath) ?? 0,
+    readDocumentUpdatedAt(join(dir, 'captions.json')) ?? 0
+  ) || undefined
   // 视频文件名取 events.json 的 video.file；损坏时按约定回退 screen.webm（解析错误由 Renderer 提示）
   let videoFile = 'screen.webm'
   try {
@@ -69,15 +81,18 @@ export function loadSession(sessionId: string): SessionLoadResult {
   const systemAudioUrl = existsSync(join(dir, 'system.wav'))
     ? `media://rec/${sessionId}/system.wav`
     : null
+  const displayName = sessionCatalog.displayNameFor(sessionId)
   return {
     session: {
       sessionId,
+      displayName: displayName === sessionId ? undefined : displayName,
       dir,
       startedAt: readStartedAt(eventsPath),
-      editedAt: readEditedAt(editPath)
+      editedAt
     },
     eventsJson,
     editJson,
+    captionsJson,
     videoUrl: `media://rec/${sessionId}/${encodeURIComponent(videoFile)}`,
     audioUrl,
     systemAudioUrl
@@ -106,21 +121,32 @@ export function revealSession(sessionId: string): void {
 export function registerMediaProtocol(): void {
   protocol.handle('media', async (request) => {
     const url = new URL(request.url)
-    // URL 形如 media://rec/<sessionId>/<file>：host=rec，pathname=/<sessionId>/<file>
     const rel = decodeURIComponent(url.pathname).replace(/^\/+/, '')
     const [sessionId, ...fileParts] = rel.split('/')
     if (!sessionId || fileParts.length === 0) return new Response('forbidden', { status: 403 })
-    let root: string
-    try { root = sessionCatalog.resolveSessionDir(sessionId, true) }
-    catch { return new Response('not found', { status: 404 }) }
-    const abs = normalize(join(root, ...fileParts))
-    if (abs !== root && !abs.startsWith(root + sep)) return new Response('forbidden', { status: 403 })
+    let abs: string
+    if (url.host === 'thumb') {
+      if (fileParts.join('/') !== 'thumbnail.webp') return new Response('forbidden', { status: 403 })
+      const cached = sessionThumbnailCache.resolveImage(sessionId)
+      if (!cached) return new Response('not found', { status: 404 })
+      abs = cached
+    } else if (url.host === 'rec') {
+      let root: string
+      try { root = sessionCatalog.resolveSessionDir(sessionId, true) }
+      catch { return new Response('not found', { status: 404 }) }
+      abs = normalize(join(root, ...fileParts))
+      if (abs !== root && !abs.startsWith(root + sep)) {
+        return new Response('forbidden', { status: 403 })
+      }
+    } else return new Response('forbidden', { status: 403 })
     if (!existsSync(abs)) {
       return new Response('not found', { status: 404 })
     }
 
     const size = statSync(abs).size
-    const contentType = abs.endsWith('.webm')
+    const contentType = abs.endsWith('.webp')
+      ? 'image/webp'
+      : abs.endsWith('.webm')
       ? 'video/webm'
       : abs.endsWith('.wav')
         ? 'audio/wav'

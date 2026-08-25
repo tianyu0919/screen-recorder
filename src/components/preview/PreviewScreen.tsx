@@ -6,8 +6,10 @@ import { PreviewPlayer } from './PreviewPlayer'
 import { MotionParamsPanel } from './MotionParamsPanel'
 import { AudioPanel } from './AudioPanel'
 import { BackgroundPanel } from './BackgroundPanel'
+import { CaptionsPanel } from './CaptionsPanel'
 import { CutsPanel } from './CutsPanel'
 import { ExportControls } from './ExportControls'
+import { EditableSessionName } from './EditableSessionName'
 import { SessionList } from './SessionList'
 import { Chip } from '@/components/ui/chip'
 import { ChevronLeftIcon, FolderIcon } from '@/components/icons'
@@ -54,7 +56,6 @@ export function PreviewScreen({
   const [inspectorOpen, setInspectorOpen] = useState(true)
   const previewQuality = useSettingsStore((state) => state.settings?.previewQuality ?? 'auto')
   const updateSettings = useSettingsStore((state) => state.update)
-  const resetExport = useExportStore((state) => state.reset)
   const {
     sessions,
     sessionsLoaded,
@@ -75,20 +76,22 @@ export function PreviewScreen({
     restoreSession,
     deleteSessionPermanent,
     emptyTrash,
-    removeMissingSession
+    removeMissingSession,
+    setSessionThumbnail,
+    renameSession
   } = usePreviewStore()
   const notifyPerformanceIssue = usePreviewPerformanceToast(current?.session.sessionId ?? null)
+  const revealExportActivity = useExportStore((state) => state.revealActivity)
 
   useEffect(() => {
     void loadSessions()
   }, [loadSessions])
 
   useEffect(() => {
-    resetExport()
     setScaleMode('fit')
     setInspectorOpen(true)
     onFocusModeChange(false)
-  }, [current?.session.sessionId, onFocusModeChange, resetExport])
+  }, [current?.session.sessionId, onFocusModeChange])
 
   useEffect(() => {
     if (!current) return
@@ -135,7 +138,7 @@ export function PreviewScreen({
         {/* 工具栏：会话标识 + 导出操作 */}
         {!focusMode && <motion.div variants={detailSectionEntrance} className="flex h-[52px] flex-none items-center justify-between border-b border-line px-6">
           <div className="flex min-w-0 items-center gap-2.5">
-            <Button variant="ghost" size="sm" onClick={closeSession} aria-label="返回会话列表">
+            <Button variant="ghost" size="sm" onClick={() => { revealExportActivity(); closeSession() }} aria-label="返回会话列表">
               <ChevronLeftIcon size={15} />
             </Button>
             <div className="flex min-w-0 items-baseline gap-2">
@@ -143,9 +146,8 @@ export function PreviewScreen({
                 {formatDayLabel(current.session.startedAt)}{' '}
                 {formatTimeOfDay(current.session.startedAt)}
               </span>
-              <span className="truncate font-mono text-[11px] text-ink-3">
-                {current.session.sessionId}
-              </span>
+              <EditableSessionName sessionId={current.session.sessionId}
+                displayName={current.session.displayName} onRename={renameSession} />
             </div>
             <Chip>{formatDuration(durationMs)}</Chip>
             <Chip>
@@ -205,6 +207,7 @@ export function PreviewScreen({
                 <div className="flex h-full w-[280px] flex-col overflow-y-auto">
                   <MotionParamsPanel />
                   <AudioPanel />
+                  <CaptionsPanel />
                   <BackgroundPanel />
                   <CutsPanel />
                   <section className="px-4 py-3.5">
@@ -240,7 +243,7 @@ export function PreviewScreen({
       sessionsLoaded={sessionsLoaded}
       loading={loading}
       loadError={loadError}
-      onRefresh={() => void loadSessions()}
+      onRefresh={() => void loadSessions(true)}
       onOpen={(sessionId) => openSession(sessionId)}
       onSessionAction={(action, sessionId) => {
         if (action === 'trash') return trashSession(sessionId)
@@ -249,6 +252,7 @@ export function PreviewScreen({
         return removeMissingSession(sessionId)
       }}
       onEmptyTrash={emptyTrash}
+      onThumbnailReady={setSessionThumbnail}
     />
   )
 }

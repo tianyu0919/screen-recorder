@@ -18,6 +18,7 @@ import { AppHeader } from '@/components/AppHeader'
 import { PermissionStatusChips } from '@/components/PermissionStatusChips'
 import { Toaster } from '@/components/ui/sonner'
 import { useThemeStore } from '@/store/themeStore'
+import { ExportActivityToast } from '@/components/ExportActivityToast'
 
 const PreviewScreen = lazy(async () => {
   const module = await loadPreviewScreen()
@@ -111,6 +112,7 @@ export default function App(): React.JSX.Element {
       </MotionConfig>
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <CloseConfirmDialog />
+      <ExportActivityToast />
       <Toaster position="top-center" theme={theme} closeButton />
     </main>
     </TooltipProvider>

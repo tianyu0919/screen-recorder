@@ -13,6 +13,8 @@ import { AudioClipsLayer } from './AudioClipsLayer'
 import { MotionEffectsLayer } from './MotionEffectsLayer'
 import type { TimelineMenuTarget } from './TimelineContextMenu'
 import { TimelineEventTooltip } from './TimelineEventTooltip'
+import type { CaptionSegment } from '@shared/captions'
+import { CaptionsLayer } from './CaptionsLayer'
 
 interface TimelineTracksProps {
   motionEffects: MotionEffect[]
@@ -21,6 +23,9 @@ interface TimelineTracksProps {
   keyPrompts: DisplayKeyPrompt[]
   ripples: RipplePoint[]
   clips: CustomClip[]
+  captions: CaptionSegment[]
+  captionsEnabled: boolean
+  selectedCaptionId: string | null
   duration: number
   pxPerSec: number
   eventWindow: TimeWindow
@@ -36,6 +41,8 @@ interface TimelineTracksProps {
     patch: Partial<Pick<CustomClip, 'offsetMs' | 'trimStartMs' | 'trimEndMs'>>
   ): void
   onContextMenu(event: React.MouseEvent, tMs: number, target?: TimelineMenuTarget): void
+  onSelectCaption(id: string): void
+  onCaptionRangeChange(id: string, startMs: number, endMs: number, commit: boolean): void
 }
 
 /** 静态时间轴轨道：运镜片段、密度自适应事件与自定义音频。 */
@@ -113,6 +120,17 @@ export const TimelineTracks = memo(function TimelineTracks(
           onContextMenu={props.onContextMenu}
         />
       </div>
+
+      {props.captionsEnabled && <CaptionsLayer
+        segments={props.captions}
+        selectedId={props.selectedCaptionId}
+        duration={props.duration}
+        pxPerSec={props.pxPerSec}
+        onSelect={props.onSelectCaption}
+        onSeek={props.onSeek}
+        onRangeChange={props.onCaptionRangeChange}
+        onContextMenu={(event, tMs, id) => props.onContextMenu(event, tMs, { kind: 'caption', id })}
+      />}
     </>
   )
 })

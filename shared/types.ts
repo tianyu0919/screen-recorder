@@ -3,7 +3,7 @@
  * kr-02 / kr-03 依赖本文件，改动需同步更新 design.md。
  */
 import { validateRecordingSource } from './eventsV2'
-
+import type { SessionThumbnailInfo } from './sessionThumbnail'
 /** events.json 顶层结构，version 用于后续格式演进 */
 export interface RecordingEvents {
   version: 1
@@ -78,6 +78,8 @@ export interface CaptureSource {
 /** 录制会话元信息（落盘目录 recordings/<session-id>/） */
 export interface RecordingSession {
   sessionId: string
+  /** 用户可编辑的显示/导出名称；稳定身份与磁盘目录仍使用 sessionId。 */
+  displayName?: string
   dir: string
   startedAt: number
   /** edit.json 最近一次成功保存时间；从未编辑时不存在。 */
@@ -87,7 +89,10 @@ export interface RecordingSession {
   trashedAt?: number
   purgeAt?: number
   cleanupFailed?: boolean
+  /** 应用缓存中的派生缩略图；缺失时由可视卡片按需生成。 */
+  thumbnail?: SessionThumbnailInfo
 }
+
 
 export type ThemeMode = 'system' | 'light' | 'dark'
 export type CloseBehavior = 'background' | 'quit'
@@ -102,9 +107,10 @@ export function normalizePreviewQuality(value: unknown): PreviewQualityMode {
 }
 
 export interface AppSettings {
-  version: 2
+  version: 3
   theme: ThemeMode
   recordingsPath: string
+  exportPath: string
   recordingRoots: string[]
   trashRetentionDays: TrashRetentionDays
   /** null 表示关闭时仍需询问。 */
@@ -154,6 +160,8 @@ export interface SessionLoadResult {
   eventsJson: string
   /** 会话级非破坏编辑文档；历史会话不存在时为 null。 */
   editJson: string | null
+  /** 会话级字幕文档；历史/未生成会话为 null，损坏时由 Renderer 友好降级。 */
+  captionsJson: string | null
   /** 自定义 media:// 协议流式 URL，直接喂 <video src>（支持 Range，不整文件读内存） */
   videoUrl: string
   /** mic.wav 流式 URL（麦克风可选轨，不存在时为 null）；预览与画面同步播放 */

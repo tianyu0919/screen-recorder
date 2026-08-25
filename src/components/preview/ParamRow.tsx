@@ -24,7 +24,7 @@ export function ParamRow({
   disabled
 }: ParamRowProps): React.JSX.Element {
   return (
-    <div className={`flex items-center gap-3 ${disabled ? 'opacity-40' : ''}`}>
+    <div className={`flex w-full min-w-0 items-center gap-3 ${disabled ? 'opacity-40' : ''}`}>
       <span className="w-16 flex-none text-[12.5px] text-ink-1">{label}</span>
       <Slider
         className="flex-1"

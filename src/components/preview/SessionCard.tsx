@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type { RecordingSession } from '@shared/types'
+import type { SessionThumbnailInfo } from '@shared/sessionThumbnail'
 import { formatDuration, formatTimeOfDay } from '@/lib/format'
 import { MonitorIcon } from '@/components/icons'
 import { motion } from 'motion/react'
 import { staggerItem } from '@/lib/motion'
-import { RotateCcw, Trash2, Unlink, X } from 'lucide-react'
+import { Loader2, RotateCcw, Trash2, Unlink, X } from 'lucide-react'
 
 export type SessionAction = 'trash' | 'restore' | 'delete-permanent' | 'remove-missing'
 
@@ -13,45 +14,140 @@ interface SessionCardProps {
   disabled?: boolean
   onOpen: (sessionId: string) => void
   onAction: (action: SessionAction, session: RecordingSession) => void
+  onThumbnailReady(thumbnail: SessionThumbnailInfo): void
 }
 
-export function SessionCard({ session, disabled, onOpen, onAction }: SessionCardProps): React.JSX.Element {
-  const videoRef = useRef<HTMLVideoElement>(null)
+export function SessionCard({ session, disabled, onOpen, onAction, onThumbnailReady }: SessionCardProps): React.JSX.Element {
+  const articleRef = useRef<HTMLElement>(null)
+  const probeRef = useRef<HTMLVideoElement>(null)
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [durationMs, setDurationMs] = useState<number | null>(null)
+  const blobUrlRef = useRef<string | null>(null)
+  const generatingRef = useRef(false)
+  const cancelledRef = useRef(false)
+  const [nearViewport, setNearViewport] = useState(false)
+  const [thumbnail, setThumbnail] = useState<SessionThumbnailInfo | undefined>(session.thumbnail)
+  const [durationMs, setDurationMs] = useState<number | null>(session.thumbnail?.durationMs ?? null)
+  const [imageReady, setImageReady] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
+  const [previewReady, setPreviewReady] = useState(false)
   const [failed, setFailed] = useState(false)
   const available = session.availability === undefined || session.availability === 'available'
   const trashed = session.lifecycle === 'trashed'
+
+  useEffect(() => {
+    if (!session.thumbnail) return
+    setImageReady(false)
+    setThumbnail(session.thumbnail)
+    setDurationMs(session.thumbnail.durationMs)
+    setFailed(false)
+  }, [session.thumbnail])
+
+  useEffect(() => {
+    const element = articleRef.current
+    if (!element || !available || thumbnail) return
+    const observer = new IntersectionObserver(([entry]) => setNearViewport(entry.isIntersecting), {
+      rootMargin: '75% 0px'
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [available, thumbnail])
+
+  useEffect(() => {
+    cancelledRef.current = false
+    return () => {
+      cancelledRef.current = true
+      if (previewTimerRef.current) clearTimeout(previewTimerRef.current)
+      if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current)
+    }
+  }, [])
+
+  const startPreview = (): void => {
+    if (!available || !thumbnail || !imageReady) return
+    previewTimerRef.current = setTimeout(() => setShowPreview(true), 160)
+  }
   const stopPreview = (): void => {
     if (previewTimerRef.current) clearTimeout(previewTimerRef.current)
     previewTimerRef.current = null
-    videoRef.current?.pause()
+    setShowPreview(false)
+    setPreviewReady(false)
   }
-  const startPreview = (): void => {
-    if (!available) return
-    previewTimerRef.current = setTimeout(() => void videoRef.current?.play().catch(() => {}), 160)
+
+  const prepareProbe = (video: HTMLVideoElement): void => {
+    if (Number.isFinite(video.duration) && video.duration > 0) {
+      setDurationMs(video.duration * 1000)
+      video.currentTime = Math.min(1, video.duration * 0.05)
+    } else video.currentTime = 1e7
   }
-  useEffect(() => () => { if (previewTimerRef.current) clearTimeout(previewTimerRef.current) }, [])
+
+  const captureProbe = async (): Promise<void> => {
+    const video = probeRef.current
+    if (!video || generatingRef.current || video.videoWidth <= 0 || video.videoHeight <= 0) return
+    generatingRef.current = true
+    try {
+      const measuredDurationMs = Number.isFinite(video.duration) && video.duration > 0
+        ? video.duration * 1000
+        : durationMs
+      setDurationMs(measuredDurationMs)
+      const blob = await videoFrameToWebp(video)
+      if (cancelledRef.current) return
+      const localUrl = URL.createObjectURL(blob)
+      if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current)
+      blobUrlRef.current = localUrl
+      const local = { url: localUrl, durationMs: measuredDurationMs }
+      setImageReady(false)
+      setThumbnail(local)
+      try {
+        const saved = await window.api.saveSessionThumbnail({
+          sessionId: session.sessionId,
+          webp: await blob.arrayBuffer(),
+          durationMs: measuredDurationMs
+        })
+        if (cancelledRef.current) return
+        URL.revokeObjectURL(localUrl)
+        if (blobUrlRef.current === localUrl) blobUrlRef.current = null
+        setImageReady(false)
+        setThumbnail(saved)
+        onThumbnailReady(saved)
+      } catch { /* 内存缩略图继续可用，下次进入会重试持久化。 */ }
+    } catch { if (!cancelledRef.current) setFailed(true) }
+  }
+
   return (
-    <motion.article
-      variants={staggerItem}
+    <motion.article ref={articleRef} variants={staggerItem}
       exit={{ opacity: 0, scale: 0.96, y: -8, transition: { duration: 0.18, ease: 'easeOut' } }}
-      whileHover={{ y: -4 }}
-      onMouseEnter={startPreview}
-      onMouseLeave={stopPreview}
-      className="group relative flex flex-col gap-1.5 rounded-2xl border border-transparent bg-surface-1 p-2.5 shadow-card transition-colors hover:border-line-strong focus-within:border-line-strong"
-    >
-      <button type="button" disabled={disabled || !available || trashed} onClick={() => onOpen(session.sessionId)} className="text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default">
+      whileHover={{ y: -4 }} onMouseEnter={startPreview} onMouseLeave={stopPreview}
+      className="group relative flex flex-col gap-1.5 rounded-2xl border border-transparent bg-surface-1 p-2.5 shadow-card transition-colors hover:border-line-strong focus-within:border-line-strong">
+      <button type="button" disabled={disabled || !available || trashed} onClick={() => onOpen(session.sessionId)}
+        className="text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default">
         <div className="relative aspect-video overflow-hidden rounded-xl border border-line bg-surface-2">
-          {!available || failed ? <div className="grid h-full place-items-center text-ink-3"><MonitorIcon size={22} /></div> : (
-            <video ref={videoRef} src={`media://rec/${session.sessionId}/screen.webm`} muted playsInline preload="metadata"
-              onLoadedMetadata={(event) => { const video = event.currentTarget; if (Number.isFinite(video.duration)) { setDurationMs(video.duration * 1000); video.currentTime = Math.min(1, video.duration * 0.05) } else video.currentTime = 1e7 }}
-              onDurationChange={(event) => { const video = event.currentTarget; if (Number.isFinite(video.duration)) { setDurationMs(video.duration * 1000); video.currentTime = Math.min(1, video.duration * 0.05) } }}
-              onError={() => setFailed(true)} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.015]" />
+          {!available || failed ? <ThumbnailFallback /> : thumbnail ? <>
+            {!imageReady && <ThumbnailLoading label="正在加载封面" />}
+            <img src={thumbnail.url} alt="" draggable={false} loading="lazy"
+              onLoad={() => setImageReady(true)}
+              onError={() => { setImageReady(false); setThumbnail(undefined); setNearViewport(true) }}
+              className={`absolute inset-0 h-full w-full object-cover transition-[opacity,transform] duration-200 group-hover:scale-[1.015] ${imageReady ? 'opacity-100' : 'opacity-0'}`} />
+          </> : nearViewport ? <>
+            <ThumbnailLoading label="正在生成封面" />
+            <video ref={probeRef} src={`media://rec/${session.sessionId}/screen.webm`} muted playsInline preload="metadata"
+              onLoadedMetadata={(event) => prepareProbe(event.currentTarget)}
+              onDurationChange={(event) => prepareProbe(event.currentTarget)}
+              onSeeked={() => void captureProbe()} onError={() => setFailed(true)}
+              aria-hidden="true" className="pointer-events-none absolute h-px w-px opacity-0" />
+          </> : <ThumbnailFallback />}
+          {showPreview && (
+            <>
+              {!previewReady && <ThumbnailLoading label="正在加载预览" overlay />}
+              <video src={`media://rec/${session.sessionId}/screen.webm`} muted playsInline autoPlay preload="auto"
+              onCanPlay={() => setPreviewReady(true)} onError={stopPreview}
+              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-150 ${previewReady ? 'opacity-100' : 'opacity-0'}`} />
+            </>
           )}
         </div>
         <div className="mt-1.5 flex items-center justify-between gap-2 px-0.5">
-          <span className="min-w-0 truncate font-mono text-[11px] text-ink-3">{session.sessionId}</span>
+          <span title={session.displayName ?? session.sessionId}
+            className={`min-w-0 truncate text-[11px] text-ink-3 ${session.displayName ? 'font-medium' : 'font-mono'}`}>
+            {session.displayName ?? session.sessionId}
+          </span>
           {durationMs !== null && available && (
             <span className="flex-none rounded-md border border-line bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] font-semibold leading-none text-ink-2">
               {formatDuration(durationMs)}
@@ -63,6 +159,38 @@ export function SessionCard({ session, disabled, onOpen, onAction }: SessionCard
       <SessionActions session={session} onAction={(action) => onAction(action, session)} />
     </motion.article>
   )
+}
+
+function ThumbnailFallback(): React.JSX.Element {
+  return <div className="grid h-full place-items-center text-ink-3"><MonitorIcon size={22} /></div>
+}
+
+function ThumbnailLoading({ label, overlay = false }: { label: string; overlay?: boolean }): React.JSX.Element {
+  return (
+    <div role="status" aria-label={label}
+      className={`absolute inset-0 z-10 grid place-items-center overflow-hidden ${overlay ? 'bg-surface-1/35 backdrop-blur-[1px]' : 'bg-surface-2'}`}>
+      {!overlay && <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-surface-2 via-surface-3 to-surface-2" />}
+      <div className="relative flex items-center gap-1.5 rounded-full border border-line bg-surface-1/90 px-2.5 py-1 text-[10.5px] text-ink-3 shadow-sm">
+        <Loader2 aria-hidden="true" size={12} className="animate-spin text-accent" />
+        <span>{label}</span>
+      </div>
+    </div>
+  )
+}
+
+async function videoFrameToWebp(video: HTMLVideoElement): Promise<Blob> {
+  const canvas = document.createElement('canvas')
+  canvas.width = 320; canvas.height = 180
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('无法创建缩略图画布')
+  const sourceRatio = video.videoWidth / video.videoHeight, targetRatio = canvas.width / canvas.height
+  let sx = 0, sy = 0, sw = video.videoWidth, sh = video.videoHeight
+  if (sourceRatio > targetRatio) { sw = sh * targetRatio; sx = (video.videoWidth - sw) / 2 }
+  else { sh = sw / targetRatio; sy = (video.videoHeight - sh) / 2 }
+  context.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height)
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', 0.78))
+  if (!blob) throw new Error('无法编码 WebP 缩略图')
+  return blob
 }
 
 function SessionActions({ session, onAction }: { session: RecordingSession; onAction: (action: SessionAction) => void }): React.JSX.Element {

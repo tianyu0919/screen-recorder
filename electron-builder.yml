@@ -39,6 +39,8 @@ mac:
     # macOS 窗口几何采样 helper（electron/capture/windowGeometry/darwin.ts 按 resourcesPath/window-geometry 引用）
     - from: native/window-geometry/darwin/bin/window-geometry
       to: window-geometry
+    - from: native/whisper-caption/bin/darwin
+      to: whisper-caption
 
 win:
   target: nsis
@@ -49,6 +51,8 @@ win:
     # Windows 窗口几何采样 helper（electron/capture/windowGeometry/win32.ts 按 resourcesPath/window-geometry.exe 引用）
     - from: native/window-geometry/win32/bin/window-geometry.exe
       to: window-geometry.exe
+    - from: native/whisper-caption/bin/win32
+      to: whisper-caption
     # Windows 托盘图标（electron/main/index.ts 按 resourcesPath/tray-icon.ico 引用）
     - from: build/icon.ico
       to: tray-icon.ico

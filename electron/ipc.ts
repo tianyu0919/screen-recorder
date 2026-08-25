@@ -3,12 +3,14 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 import { IPC } from '../shared/ipc'
 import type { SessionEditSaveResult } from '../shared/edit'
+import type { CaptionsDocument, StartTranscriptionRequest } from '../shared/captions'
 import type {
   ExportFormat,
   ExportSaveResult,
   StartRecordingPayload,
   StartRecordingResult
 } from '../shared/types'
+import type { SaveSessionThumbnailRequest } from '../shared/sessionThumbnail'
 import { listCaptureSources, setPendingCaptureSource } from './capture/sources'
 import { InputHook } from './input/uiohook'
 import { listSessions, loadSession, revealSession } from './store/sessionReader'
@@ -26,6 +28,12 @@ import { backgroundWindow } from './windowLifecycle'
 import { updateService } from './updater'
 import { displaySelectionOutline } from './displaySelectionOutline'
 import { registerRecordingIpc } from './capture/recordingIpc'
+import { saveCaptionsDocument } from './store/captionsStore'
+import { transcriptionService } from './transcription/service'
+import { sessionThumbnailCache } from './store/sessionThumbnailCache'
+import { setExportBusy } from './export/exportActivity'
+import { saveExportWithoutOverwrite } from './export/saveExport'
+import { normalizeSessionDisplayName } from '../shared/sessionName'
 
 export type { StartRecordingPayload, StartRecordingResult }
 
@@ -63,14 +71,33 @@ export function registerIpc(getWindow: () => BrowserWindow | null, appIcon?: Ele
   })
 
   // 录制会话读取（kr-02 预览）：枚举 / 加载 events.json + 视频流式 URL
-  ipcMain.handle(IPC.SessionList, () => listSessions())
+  ipcMain.handle(IPC.SessionList, (_event, refresh = false) => listSessions(refresh === true))
   ipcMain.handle(IPC.SessionLoad, (_e, sessionId: string) => loadSession(sessionId))
+  ipcMain.handle(IPC.SessionRename, (_e, sessionId: string, displayName: string) =>
+    sessionCatalog.renameDisplayName(sessionId, displayName)
+  )
   ipcMain.handle(IPC.SessionReveal, (_e, sessionId: string) => revealSession(sessionId))
-  ipcMain.handle(IPC.SessionTrash, (_e, sessionId: string) => sessionCatalog.trash(sessionId))
+  ipcMain.handle(IPC.SessionTrash, (_e, sessionId: string) => {
+    transcriptionService.cancel(sessionId)
+    return sessionCatalog.trash(sessionId)
+  })
   ipcMain.handle(IPC.SessionRestore, (_e, sessionId: string) => sessionCatalog.restore(sessionId))
-  ipcMain.handle(IPC.SessionDeletePermanent, (_e, sessionId: string) => sessionCatalog.deletePermanent(sessionId))
-  ipcMain.handle(IPC.SessionEmptyTrash, () => sessionCatalog.emptyTrash())
-  ipcMain.handle(IPC.SessionRemoveMissing, (_e, sessionId: string) => sessionCatalog.removeMissing(sessionId))
+  ipcMain.handle(IPC.SessionDeletePermanent, async (_e, sessionId: string) => {
+    transcriptionService.cancel(sessionId)
+    await sessionCatalog.deletePermanent(sessionId)
+    await sessionThumbnailCache.remove(sessionId)
+  })
+  ipcMain.handle(IPC.SessionEmptyTrash, async () => {
+    transcriptionService.cancelAll()
+    const ids = sessionCatalog.list().filter((session) => session.lifecycle === 'trashed')
+      .map((session) => session.sessionId)
+    await sessionCatalog.emptyTrash()
+    await Promise.all(ids.map((sessionId) => sessionThumbnailCache.remove(sessionId)))
+  })
+  ipcMain.handle(IPC.SessionRemoveMissing, async (_e, sessionId: string) => {
+    await sessionCatalog.removeMissing(sessionId)
+    await sessionThumbnailCache.remove(sessionId)
+  })
   ipcMain.handle(IPC.SettingsGet, () => appSettings.get())
   ipcMain.handle(IPC.SettingsUpdate, async (_e, patch: AppSettingsPatch) => {
     const settings = appSettings.update(patch)
@@ -85,6 +112,20 @@ export function registerIpc(getWindow: () => BrowserWindow | null, appIcon?: Ele
     return appSettings.setRecordingsPath(result.filePaths[0])
   })
   ipcMain.handle(IPC.SettingsOpenRecordingsPath, () => shell.openPath(appSettings.get().recordingsPath))
+  ipcMain.handle(IPC.SettingsChooseExportPath, async () => {
+    const win = getWindow()
+    if (!win) return null
+    const result = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'] })
+    if (result.canceled || !result.filePaths[0]) return null
+    return appSettings.setExportPath(result.filePaths[0])
+  })
+  ipcMain.handle(IPC.SettingsOpenExportPath, () => shell.openPath(appSettings.get().exportPath))
+  ipcMain.handle(IPC.ExportChooseDirectory, async () => {
+    const win = getWindow()
+    if (!win) return null
+    const result = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'] })
+    return result.canceled ? null : result.filePaths[0] ?? null
+  })
   ipcMain.handle(IPC.UpdateGetState, () => updateService.snapshot())
   ipcMain.handle(IPC.UpdateCheck, () => updateService.check())
   ipcMain.handle(IPC.UpdateDownload, () => updateService.download())
@@ -95,6 +136,48 @@ export function registerIpc(getWindow: () => BrowserWindow | null, appIcon?: Ele
     (_e, sessionId: string, json: string): Promise<SessionEditSaveResult> =>
       saveEditJson(sessionId, json)
   )
+  ipcMain.handle(
+    IPC.SessionSaveCaptions,
+    (_e, sessionId: string, document: CaptionsDocument) =>
+      saveCaptionsDocument(sessionId, document)
+  )
+  ipcMain.handle(IPC.SessionSaveThumbnail, (_e, request: SaveSessionThumbnailRequest) =>
+    sessionThumbnailCache.save(request)
+  )
+  ipcMain.handle(IPC.SessionExportSrt, async (_e, sessionId: string, srt: string) => {
+    const win = getWindow()
+    if (!win) return null
+    const result = await dialog.showSaveDialog(win, {
+      defaultPath: `${sessionCatalog.displayNameFor(sessionId)}.srt`,
+      filters: [{ name: 'SRT 字幕', extensions: ['srt'] }]
+    })
+    if (result.canceled || !result.filePath) return null
+    await writeFile(result.filePath, srt, 'utf8')
+    return { path: result.filePath }
+  })
+  ipcMain.handle(IPC.SessionImportSrt, async () => {
+    const win = getWindow()
+    if (!win) return null
+    const result = await dialog.showOpenDialog(win, {
+      properties: ['openFile'], filters: [{ name: 'SRT 字幕', extensions: ['srt'] }]
+    })
+    const path = result.filePaths[0]
+    if (result.canceled || !path) return null
+    return { name: basename(path), source: await readFile(path, 'utf8') }
+  })
+
+  ipcMain.handle(IPC.TranscriptionModels, () => transcriptionService.listModels())
+  ipcMain.handle(IPC.TranscriptionGet, (_e, sessionId: string) => transcriptionService.snapshot(sessionId))
+  ipcMain.handle(IPC.TranscriptionStart, (_e, request: StartTranscriptionRequest) =>
+    transcriptionService.start(request)
+  )
+  ipcMain.handle(IPC.TranscriptionCancel, (_e, sessionId: string) =>
+    transcriptionService.cancel(sessionId)
+  )
+  transcriptionService.onStatus((snapshot) => {
+    const win = getWindow()
+    if (win && !win.isDestroyed()) win.webContents.send(IPC.TranscriptionStatusChanged, snapshot)
+  })
   ipcMain.handle(
     IPC.SessionSaveAudioAsset,
     (_e, sessionId: string, assetId: string, name: string, data: ArrayBuffer) =>
@@ -115,24 +198,20 @@ export function registerIpc(getWindow: () => BrowserWindow | null, appIcon?: Ele
     async (
       _e,
       sessionId: string,
+      displayName: string,
       data: ArrayBuffer,
-      format: ExportFormat
+      format: ExportFormat,
+      directory?: string
     ): Promise<ExportSaveResult | null> => {
-      const win = getWindow()
-      if (!win) return null
-      const result = await dialog.showSaveDialog(win, {
-        defaultPath: `${sessionId}.${format}`,
-        filters: [
-          format === 'mp4'
-            ? { name: 'MP4 视频', extensions: ['mp4'] }
-            : { name: 'WebM 视频', extensions: ['webm'] }
-        ]
-      })
-      if (result.canceled || !result.filePath) return null
-      await writeFile(result.filePath, Buffer.from(data))
-      return { path: result.filePath }
+      const targetDirectory = directory || appSettings.get().exportPath
+      sessionCatalog.resolveSessionDir(sessionId)
+      const path = await saveExportWithoutOverwrite(
+        targetDirectory, normalizeSessionDisplayName(displayName), format, data
+      )
+      return { path }
     }
   )
+  ipcMain.handle(IPC.ExportSetBusy, (_event, busy: boolean) => setExportBusy(busy === true))
 
   // 自定义音轨文件选择（kr-05 custom-audio-track）：对话框选音频 → 读 bytes 回 Renderer 解码
   // （预览用 blobUrl、导出用 PCM；不走 media:// 协议——它只放行 recordings 目录）

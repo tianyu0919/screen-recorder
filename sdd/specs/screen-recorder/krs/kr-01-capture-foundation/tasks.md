@@ -19,6 +19,7 @@
   - 实际：`src/recorder/screenRecorder.ts`，vp9/webm @16Mbps，timeslice 1s 分片经 IPC 流式写盘
 - [x] Task 2.3: 实现麦克风采集（getUserMedia audio）与 mic.wav 落盘
   - 实际：mic 用 MediaRecorder(opus) 采集，停止时 `decodeAudioData` → PCM16 WAV 编码（`src/recorder/wav.ts`）落盘 mic.wav；解码失败则跳过不写坏文件
+  - [x] 缺陷修复：macOS 同时回采系统音频时显式关闭 mic 回声消除/降噪/自动增益，避免有效系统输入被抑制为全零；请求 48kHz 单声道并补齐失败轨道释放
 - [x] Task 2.4: 实现 macOS 权限引导页（屏幕录制 + 辅助功能权限检测与系统设置跳转）
   - 实际：`electron/permissions.ts` + `src/components/PermissionGuide.tsx`（含麦克风权限项与"重新检查"）
 

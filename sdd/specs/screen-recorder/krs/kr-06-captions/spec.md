@@ -2,7 +2,7 @@
 id: "kr-06-captions"
 kind: kr
 parent: "screen-recorder"
-status: draft
+status: in_progress
 impact_radius:
   - "native/whisper-caption/"
   - "electron/transcription/"

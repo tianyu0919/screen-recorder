@@ -43,7 +43,7 @@ export function AppHeader({ onOpenSettings }: AppHeaderProps): React.JSX.Element
         <div className="app-drag flex h-10 flex-none items-center justify-end border-b border-line pl-[78px] pr-3">
           <HeaderActions onOpenSettings={onOpenSettings} windows={false} />
         </div>
-        <header className="app-drag flex flex-none items-center px-6 pb-1 pt-3">
+        <header className="app-nodrag flex flex-none items-center px-6 pb-1 pt-3">
           <Brand />
         </header>
       </>

@@ -19,11 +19,13 @@ function uniquePaths(paths: string[]): string[] {
 
 function defaults(): AppSettings {
   const recordingsPath = join(app.getPath('videos'), 'Lenza')
+  const exportPath = join(recordingsPath, 'Exports')
   const legacyPath = join(app.getPath('userData'), 'recordings')
   return {
-    version: 2,
+    version: 3,
     theme: 'light',
     recordingsPath,
+    exportPath,
     recordingRoots: uniquePaths([recordingsPath, legacyPath]),
     trashRetentionDays: 3,
     closeBehavior: null,
@@ -48,13 +50,16 @@ function parseSettings(value: unknown): AppSettings {
     typeof data.recordingsPath === 'string' && data.recordingsPath.length > 0
       ? resolve(data.recordingsPath)
       : base.recordingsPath
+  const exportPath = typeof data.exportPath === 'string' && data.exportPath.length > 0
+    ? resolve(data.exportPath) : base.exportPath
   const roots = Array.isArray(data.recordingRoots)
     ? data.recordingRoots.filter((item): item is string => typeof item === 'string' && item.length > 0)
     : []
   return {
-    version: 2,
+    version: 3,
     theme: isTheme(data.theme) ? data.theme : base.theme,
     recordingsPath,
+    exportPath,
     recordingRoots: uniquePaths([...roots, recordingsPath, ...base.recordingRoots]),
     trashRetentionDays: RETENTIONS.includes(data.trashRetentionDays as TrashRetentionDays)
       ? (data.trashRetentionDays as TrashRetentionDays)
@@ -83,6 +88,7 @@ export class AppSettingsStore {
       this.value = defaults()
     }
     mkdirSync(this.value.recordingsPath, { recursive: true })
+    mkdirSync(this.value.exportPath, { recursive: true })
     this.persist()
     return structuredClone(this.value)
   }
@@ -110,6 +116,15 @@ export class AppSettingsStore {
       recordingsPath,
       recordingRoots: [...current.recordingRoots, recordingsPath]
     })
+    this.persist()
+    return this.get()
+  }
+
+  setExportPath(path: string): AppSettings {
+    const current = this.get()
+    const exportPath = resolve(path)
+    mkdirSync(exportPath, { recursive: true })
+    this.value = parseSettings({ ...current, exportPath })
     this.persist()
     return this.get()
   }

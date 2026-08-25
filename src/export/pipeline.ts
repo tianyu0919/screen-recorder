@@ -15,6 +15,7 @@ import { effectiveDurationMs, normalizeCuts, outputToSourceMs } from '../timelin
 import type { ExportDoneMessage, ExportStartMessage } from './messages'
 import { keyOverlayFrameAt } from '../render/keyOverlay'
 import { hexToRgba, resolveOutputPlan } from '../render/outputPlan'
+import { captionOverlayFrameAt } from '../render/captionOverlay'
 
 /**
  * 时间轴驱动主循环（Task 2.1 / 2.2）：
@@ -123,7 +124,8 @@ export async function runExport(
         params.keyboardOverlay,
         output
       )
-      compositor.drawFrame(source, camera, sourceMs, params.ripples, keyOverlay)
+      const captionOverlay = captionOverlayFrameAt(params.captions, sourceMs, output)
+      compositor.drawFrame(source, camera, sourceMs, params.ripples, keyOverlay, captionOverlay)
       // 捕获前 flush：确保 WebGL 绘制命令已提交，VideoFrame 快照拿到本帧内容
       compositor.flush()
       const outFrame = new VideoFrame(canvas, {
