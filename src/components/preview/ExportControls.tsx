@@ -36,13 +36,17 @@ export function ExportControls(): React.JSX.Element {
     return <div className="flex items-center gap-1.5">
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className={`flex h-8 max-w-[240px] items-center gap-2 rounded-[10px] border px-2.5 text-xs shadow-sm ${task.status === 'done' ? 'border-line bg-surface-1 text-ink-2' : 'border-danger/30 bg-danger/5 text-danger'}`}>
+          <button type="button" disabled={!task.resultPath}
+            onClick={() => { if (task.resultPath) void window.api.revealExport(task.resultPath) }}
+            aria-label={task.status === 'done' ? '在文件夹中显示导出的视频' : undefined}
+            className={`flex h-8 max-w-[240px] items-center gap-2 rounded-[10px] border px-2.5 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-base ${task.status === 'done' ? 'border-line bg-surface-1 text-ink-2 transition-colors hover:border-accent/35 hover:bg-surface-2 disabled:pointer-events-none' : 'border-danger/30 bg-danger/5 text-danger'}`}>
             {task.status === 'done' && <span className="grid h-4 w-4 place-items-center rounded-full bg-success text-on-accent"><CheckIcon size={9} /></span>}
             <span className="truncate">{summary}</span>
-          </div>
+          </button>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="max-w-[380px]">
           <p>{summary}</p>{task.resultPath && <p className="mt-1 break-all font-mono text-[10px]">{task.resultPath}</p>}
+          {task.resultPath && <p className="mt-1 text-[10px] text-ink-3">点击在文件夹中显示</p>}
         </TooltipContent>
       </Tooltip>
       <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => dismissTask(task.id)} aria-label="关闭导出结果"><CloseIcon size={13} /></Button>

@@ -102,6 +102,8 @@ export interface RecorderApi {
     format: ExportFormat,
     directory?: string
   ): Promise<ExportSaveResult | null>
+  /** 在系统文件管理器中显示已导出的文件 */
+  revealExport(path: string): Promise<void>
   /** 选择自定义音轨文件（kr-05 custom-audio-track）：对话框 + 读 bytes；取消返回 null */
   pickAudioFile(): Promise<{ name: string; path: string; data: ArrayBuffer } | null>
   /** 窗口控制（Windows 自绘标题栏按钮） */
@@ -190,6 +192,7 @@ const api: RecorderApi = {
   },
   saveExport: (sessionId, displayName, data, format, directory) =>
     ipcRenderer.invoke(IPC.ExportSave, sessionId, displayName, data, format, directory),
+  revealExport: (path) => ipcRenderer.invoke(IPC.ExportReveal, path),
   pickAudioFile: () => ipcRenderer.invoke(IPC.PickAudioFile),
   windowMinimize: () => ipcRenderer.invoke(IPC.WindowMinimize),
   windowIsMaximized: () => ipcRenderer.invoke(IPC.WindowIsMaximized),

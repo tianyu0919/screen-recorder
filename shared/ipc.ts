@@ -52,6 +52,7 @@ export const IPC = {
   TranscriptionDeleteModel: 'transcription:delete-model',
   // 导出产物保存（kr-03）
   ExportSave: 'export:save',
+  ExportReveal: 'export:reveal',
   ExportSetBusy: 'export:set-busy',
   // 自定义音轨文件选择（kr-05 custom-audio-track）
   PickAudioFile: 'audio:pick-file',

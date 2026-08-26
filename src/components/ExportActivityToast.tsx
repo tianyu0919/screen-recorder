@@ -8,6 +8,8 @@ export function ExportActivityToast(): React.JSX.Element | null {
   const { tasks, activeTaskId, activityRevision, activityVisible, cancelTask, dismissTask, dismissAll } = useExportStore()
   const [expanded, setExpanded] = useState(true)
   const [closing, setClosing] = useState(false)
+  const [hovered, setHovered] = useState(false)
+  const [focusWithin, setFocusWithin] = useState(false)
   const seenCompleted = useRef(new Set<string>())
   const active = tasks.find((task) => task.id === activeTaskId)
   const allSucceeded = tasks.length > 0 && tasks.every((task) => task.status === 'done')
@@ -27,7 +29,7 @@ export function ExportActivityToast(): React.JSX.Element | null {
   }, [tasks, allSucceeded])
 
   useEffect(() => {
-    if (!activityVisible || !allSucceeded) {
+    if (!activityVisible || !allSucceeded || hovered || focusWithin) {
       setClosing(false)
       return
     }
@@ -37,7 +39,7 @@ export function ExportActivityToast(): React.JSX.Element | null {
       clearTimeout(closeTimer)
       clearTimeout(dismissTimer)
     }
-  }, [activityVisible, allSucceeded, dismissAll])
+  }, [activityVisible, allSucceeded, dismissAll, focusWithin, hovered])
 
   if (!activityVisible || !tasks.length) return null
   const percent = Math.round((active?.progress ?? 0) * 100)
@@ -46,7 +48,14 @@ export function ExportActivityToast(): React.JSX.Element | null {
   const errorCount = tasks.filter((task) => task.status === 'error').length
   const queueLabel = `${activeOrdinal}/${tasks.length}`
 
-  return <div className="app-nodrag pointer-events-none fixed left-1/2 top-[68px] z-40 w-[320px] -translate-x-1/2">
+  return <div
+    onMouseEnter={() => setHovered(true)}
+    onMouseLeave={() => setHovered(false)}
+    onFocusCapture={() => setFocusWithin(true)}
+    onBlurCapture={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget)) setFocusWithin(false)
+    }}
+    className="app-nodrag pointer-events-none fixed left-1/2 top-[68px] z-40 w-[320px] -translate-x-1/2">
     <AnimatePresence mode="wait" initial={false}>
       {!expanded && (active || allSucceeded) ? <motion.button key="compact" initial={{ opacity: 0, scale: 0.94, y: -8 }}
         animate={closing ? { opacity: 0, scale: 0.96, y: -4 } : { opacity: 1, scale: 1, y: 0 }}
@@ -101,18 +110,23 @@ export function ExportActivityToast(): React.JSX.Element | null {
           {active && <ChevronDown size={14} className="text-ink-3" />}
         </button>
         <div className="max-h-64 overflow-y-auto p-2">
-          {tasks.map((task) => <div key={task.id} className="flex items-center gap-2 rounded-xl px-2 py-2 hover:bg-surface-2">
-            {task.status === 'done' ? <CheckCircle2 size={15} className="text-success" /> : task.status === 'error' ? <XCircle size={15} className="text-danger" /> : <Download size={15} className="text-accent" />}
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[11px] font-medium text-ink-1">{task.name}</span>
-              <span className="block truncate text-[10px] text-ink-3">{task.status === 'queued' ? '等待导出' : task.status === 'exporting' ? `正在导出 · ${Math.round(task.progress * 100)}%` : task.status === 'done' ? '导出成功' : task.errorMessage}</span>
-              {task.status === 'exporting' && <ProgressBar progress={task.progress} className="mt-1.5" />}
-            </span>
+          {tasks.map((task) => <div key={task.id} className="flex items-center rounded-xl hover:bg-surface-2">
+            <button type="button" disabled={task.status !== 'done' || !task.resultPath}
+              onClick={() => { if (task.resultPath) void window.api.revealExport(task.resultPath) }}
+              aria-label={task.status === 'done' ? `在文件夹中显示 ${task.name}` : undefined}
+              className="flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent disabled:cursor-default">
+              {task.status === 'done' ? <CheckCircle2 size={15} className="flex-none text-success" /> : task.status === 'error' ? <XCircle size={15} className="flex-none text-danger" /> : <Download size={15} className="flex-none text-accent" />}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[11px] font-medium text-ink-1">{task.name}</span>
+                <span className="block truncate text-[10px] text-ink-3">{task.status === 'queued' ? '等待导出' : task.status === 'exporting' ? `正在导出 · ${Math.round(task.progress * 100)}%` : task.status === 'done' ? '导出成功 · 点击打开文件夹' : task.errorMessage}</span>
+                {task.status === 'exporting' && <ProgressBar progress={task.progress} className="mt-1.5" />}
+              </span>
+            </button>
             <Tooltip>
               <TooltipTrigger asChild>
                 <button aria-label={task.status === 'done' || task.status === 'error' ? '关闭提示' : '取消导出'}
                   onClick={() => task.status === 'done' || task.status === 'error' ? dismissTask(task.id) : cancelTask(task.id)}
-                  className="grid h-6 w-6 place-items-center rounded-md text-ink-3 hover:bg-surface-3 hover:text-ink-1"><X size={12} /></button>
+                  className="mr-2 grid h-6 w-6 flex-none place-items-center rounded-md text-ink-3 hover:bg-surface-3 hover:text-ink-1"><X size={12} /></button>
               </TooltipTrigger>
               <TooltipContent side="left">
                 {task.status === 'done' || task.status === 'error' ? '关闭提示' : '取消导出'}

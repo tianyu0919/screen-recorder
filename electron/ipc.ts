@@ -224,6 +224,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null, appIcon?: Ele
       return { path }
     }
   )
+  ipcMain.handle(IPC.ExportReveal, (_event, path: string) => shell.showItemInFolder(path))
   ipcMain.handle(IPC.ExportSetBusy, (_event, busy: boolean) => setExportBusy(busy === true))
 
   // 自定义音轨文件选择（kr-05 custom-audio-track）：对话框选音频 → 读 bytes 回 Renderer 解码
