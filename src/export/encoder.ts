@@ -22,6 +22,8 @@ export interface VideoEncoderChoice {
   config: VideoEncoderConfig
 }
 
+export type VideoEncoderSupportProbe = (config: VideoEncoderConfig) => Promise<boolean>
+
 export const OUTPUT_FPS = 60
 const VIDEO_BITRATE = 12_000_000
 
@@ -47,8 +49,15 @@ function bitrateFor(size: OutputSize): number {
 }
 
 /** 探测目标尺寸；不支持时按源比例逐级降档。 */
-export async function probeVideoEncoder(desired: OutputSize): Promise<VideoEncoderChoice> {
-  for (const size of candidateSizes(desired)) {
+export async function probeVideoEncoder(
+  desired: OutputSize,
+  isSupported: VideoEncoderSupportProbe = async (config) =>
+    (await VideoEncoder.isConfigSupported(config)).supported === true
+): Promise<VideoEncoderChoice> {
+  const sizes = candidateSizes(desired)
+  // 容器优先级高于分辨率：先穷举可降档的 H.264，避免 5K H.264 不支持时
+  // 被同尺寸 VP9 提前截获，导致本可导出 4K/2K MP4 的 macOS 错误降级 WebM。
+  for (const size of sizes) {
     for (const codec of H264_CODECS) {
       const config: VideoEncoderConfig = {
         codec,
@@ -57,9 +66,10 @@ export async function probeVideoEncoder(desired: OutputSize): Promise<VideoEncod
         framerate: OUTPUT_FPS,
         latencyMode: 'quality'
       }
-      const support = await VideoEncoder.isConfigSupported(config)
-      if (support.supported) return { format: 'mp4', config }
+      if (await isSupported(config)) return { format: 'mp4', config }
     }
+  }
+  for (const size of sizes) {
     const config: VideoEncoderConfig = {
       codec: VP9_CODEC,
       ...size,
@@ -67,8 +77,7 @@ export async function probeVideoEncoder(desired: OutputSize): Promise<VideoEncod
       framerate: OUTPUT_FPS,
       latencyMode: 'quality'
     }
-    const support = await VideoEncoder.isConfigSupported(config)
-    if (support.supported) return { format: 'webm', config }
+    if (await isSupported(config)) return { format: 'webm', config }
   }
   throw new Error('当前环境无可用视频编码器（H.264 / VP9 均不支持）')
 }

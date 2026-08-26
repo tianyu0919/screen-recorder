@@ -22,6 +22,7 @@ export function SessionCard({ session, disabled, onOpen, onAction, onThumbnailRe
   const probeRef = useRef<HTMLVideoElement>(null)
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const blobUrlRef = useRef<string | null>(null)
+  const appliedThumbnailUrlRef = useRef(session.thumbnail?.url ?? null)
   const generatingRef = useRef(false)
   const cancelledRef = useRef(false)
   const [nearViewport, setNearViewport] = useState(false)
@@ -36,7 +37,10 @@ export function SessionCard({ session, disabled, onOpen, onAction, onThumbnailRe
 
   useEffect(() => {
     if (!session.thumbnail) return
-    setImageReady(false)
+    if (session.thumbnail.url !== appliedThumbnailUrlRef.current) {
+      appliedThumbnailUrlRef.current = session.thumbnail.url
+      setImageReady(false)
+    }
     setThumbnail(session.thumbnail)
     setDurationMs(session.thumbnail.durationMs)
     setFailed(false)
