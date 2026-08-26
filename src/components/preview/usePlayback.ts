@@ -10,6 +10,7 @@ import { keyOverlayFrameAt } from '@/render/keyOverlay'
 import { hexToRgba, resolveOutputPlan } from '@/render/outputPlan'
 import { PreviewPerformanceMonitor } from '@/lib/previewPerformance'
 import { captionOverlayFrameAt } from '@/render/captionOverlay'
+import { usePlaybackLoops } from './usePlaybackLoops'
 
 export function usePlayback(
   videoRef: RefObject<HTMLVideoElement | null>,
@@ -32,7 +33,6 @@ export function usePlayback(
 ): Playback {
   const compositorRef = useRef<Compositor | null>(null)
   const animatorRef = useRef<ReturnType<typeof createCameraAnimator> | null>(null)
-  const rvfcRef = useRef(0)
   const lastMsRef = useRef(0)
   const ripplesRef = useRef(ripples)
   ripplesRef.current = ripples
@@ -71,12 +71,13 @@ export function usePlayback(
 
   const subscribeCurrentMs = useCallback((listener: (currentMs: number) => void) => {
     progressListenersRef.current.add(listener)
+    listener(lastMsRef.current)
     return () => {
       progressListenersRef.current.delete(listener)
     }
   }, [])
   const draw = useCallback(
-    (tMs: number) => {
+    (tMs: number, uploadVideoFrame = true) => {
       const video = videoRef.current
       const comp = compositorRef.current
       const anim = animatorRef.current
@@ -86,7 +87,10 @@ export function usePlayback(
         ? keyOverlayFrameAt(keyPromptsRef.current, tMs, keyboardOverlayRef.current, output)
         : null
       const captionOverlay = output ? captionOverlayFrameAt(captionsRef.current, tMs, output) : null
-      const next = comp.drawFrame(video, anim.sample(), tMs, ripplesRef.current, overlay, captionOverlay)
+      if (uploadVideoFrame) comp.uploadFrame(video)
+      const next = comp.drawUploadedFrame(
+        anim.sample(), tMs, ripplesRef.current, overlay, captionOverlay
+      )
       if (!sameRenderInfo(renderInfoRef.current, next)) {
         renderInfoRef.current = next
         setRenderInfo(next)
@@ -140,50 +144,18 @@ export function usePlayback(
     draw(lastMsRef.current)
   }, [keyframes, canvasSize, draw])
 
-  const cancelLoop = useCallback((video: HTMLVideoElement) => {
-      if (rvfcRef.current) {
-        video.cancelVideoFrameCallback(rvfcRef.current)
-        rvfcRef.current = 0
-      }
-  }, [])
-
-  const onFrame = useCallback(
-    function frame() {
-      const video = videoRef.current
-      if (!video || video.paused) return
-      if (!skippingRef.current) {
-        const tMs = video.currentTime * 1000
-        // 裁剪区跳过：seek 到保留段起点（音轨经 seeked 自动跟随对齐）
-        const cut = cutAt(tMs, cutsRef.current)
-        if (cut !== null) {
-          const rawEnd = Number.isFinite(video.duration)
-            ? video.duration * 1000
-            : fallbackDurationMs
-          if (cut.endMs >= rawEnd - 50) {
-            // 裁剪区直达片尾：停在保留段最后一帧，而不是 seek 到片尾显示被裁内容
-            video.pause()
-            setPlaying(false)
-            video.currentTime = cut.startMs / 1000
-            lastMsRef.current = cut.startMs
-            animatorRef.current?.reset(cut.startMs)
-            publishCurrentMs(cut.startMs, true)
-            return
-          }
-          skippingRef.current = true
-          video.currentTime = cut.endMs / 1000
-          lastMsRef.current = cut.endMs
-        } else {
-          const dt = Math.max(0, tMs - lastMsRef.current)
-          lastMsRef.current = tMs
-          animatorRef.current?.step(dt)
-          draw(tMs)
-          publishCurrentMs(tMs)
-        }
-      }
-      rvfcRef.current = video.requestVideoFrameCallback(frame)
-    },
-    [videoRef, draw, publishCurrentMs]
-  )
+  const { start: startLoop, cancel: cancelLoop } = usePlaybackLoops({
+    videoRef,
+    compositorRef,
+    animatorRef,
+    cutsRef,
+    skippingRef,
+    lastMsRef,
+    fallbackDurationMs,
+    draw,
+    publishCurrentMs,
+    setPlaying
+  })
 
   useEffect(() => {
     const video = videoRef.current
@@ -239,7 +211,7 @@ export function usePlayback(
         .then(() => {
               if (video.paused) return
           setPlaying(true)
-          rvfcRef.current = video.requestVideoFrameCallback(onFrame)
+          startLoop(video)
         })
         .catch(() => {
           // 快速暂停或卸载会中断 play()，无需处理。
@@ -249,7 +221,7 @@ export function usePlayback(
       cancelLoop(video)
       setPlaying(false)
     }
-  }, [videoRef, onFrame, cancelLoop])
+  }, [videoRef, startLoop, cancelLoop])
 
   const seekTo = useCallback(
     (ms: number) => {

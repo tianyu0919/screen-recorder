@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Play, Pause } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { usePreviewStore } from '@/store/previewStore'
@@ -18,7 +18,6 @@ import { formatMs } from '@/timeline/ticks'
 
 interface PlayerTimelineProps {
   playing: boolean
-  currentMs: number
   durationMs: number
   onTogglePlay(): void
   onSeek(ms: number): void
@@ -26,9 +25,8 @@ interface PlayerTimelineProps {
 }
 
 /** 可缩放/平移的多轨时间轴；逐帧播放头与静态素材轨分离。 */
-export function PlayerTimeline({
+export const PlayerTimeline = memo(function PlayerTimeline({
   playing,
-  currentMs,
   durationMs,
   onTogglePlay,
   onSeek,
@@ -37,8 +35,7 @@ export function PlayerTimeline({
   const store = usePreviewStore()
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  const currentMsRef = useRef(currentMs)
-  currentMsRef.current = currentMs
+  const currentMsRef = useRef(0)
   const getPlayheadMs = useCallback(() => currentMsRef.current, [])
   const [viewportW, setViewportW] = useState(0)
   const [zoom, setZoom] = useState(1)
@@ -56,6 +53,11 @@ export function PlayerTimeline({
       scrollPage * Math.max(1, viewportW / 2), viewportW, contentWpx, duration
     ),
     [scrollPage, viewportW, contentWpx, duration]
+  )
+
+  useEffect(
+    () => subscribeCurrentMs((nextMs) => { currentMsRef.current = nextMs }),
+    [subscribeCurrentMs]
   )
 
   useEffect(() => {
@@ -183,10 +185,8 @@ export function PlayerTimeline({
             reducedMotion="user"
           />
         </button>
-        <span className="font-mono text-[12.5px] text-ink-1">
-          {formatMs(sourceToOutputMs(currentMs, store.cuts))}{' '}
-          <span className="text-ink-3">/ {formatMs(effectiveDurationMs(durationMs, store.cuts))}</span>
-        </span>
+        <TimelineTimeDisplay durationMs={durationMs} cuts={store.cuts}
+          subscribeCurrentMs={subscribeCurrentMs} />
         <span className="flex-1" />
         {zoom > 1 && <button onClick={() => setZoom(1)} className="rounded-md border border-line bg-surface-2 px-2 py-0.5 font-mono text-[10.5px] text-ink-2">{Math.round(zoom * 100)}%</button>}
         <span className="text-[10.5px] text-ink-3">左键定位 · 右键添加 · 滚轮缩放 · 拖动平移</span>
@@ -226,7 +226,9 @@ export function PlayerTimeline({
               onSelectCaption={store.selectCaption}
               onCaptionRangeChange={store.updateCaptionRange}
             />
-            <TimelinePlayhead currentMs={currentMs} duration={duration} playing={playing} zoom={zoom} cuts={store.cuts} scrollRef={scrollRef} followHoldUntil={followHoldUntil} subscribeCurrentMs={subscribeCurrentMs} onSeek={onSeek} onTogglePlay={onTogglePlay} />
+            <TimelinePlayhead duration={duration} contentWidth={contentWpx} playing={playing}
+              zoom={zoom} cuts={store.cuts} scrollRef={scrollRef} followHoldUntil={followHoldUntil}
+              subscribeCurrentMs={subscribeCurrentMs} onSeek={onSeek} onTogglePlay={onTogglePlay} />
           </div>
         </div>
       </div>
@@ -235,4 +237,25 @@ export function PlayerTimeline({
       <KeyPromptCapture open={captureAt !== null} onCancel={() => setCaptureAt(null)} onConfirm={(keys) => { if (captureAt !== null) store.addManualKeyPrompt(captureAt, keys); setCaptureAt(null) }} />
     </div>
   )
-}
+})
+
+const TimelineTimeDisplay = memo(function TimelineTimeDisplay({
+  durationMs,
+  cuts,
+  subscribeCurrentMs
+}: {
+  durationMs: number
+  cuts: ReturnType<typeof normalizeCuts>
+  subscribeCurrentMs(listener: (currentMs: number) => void): () => void
+}): React.JSX.Element {
+  const currentRef = useRef<HTMLSpanElement>(null)
+  useEffect(() => subscribeCurrentMs((currentMs) => {
+    if (currentRef.current) currentRef.current.textContent = formatMs(sourceToOutputMs(currentMs, cuts))
+  }), [cuts, subscribeCurrentMs])
+  return (
+    <span className="font-mono text-[12.5px] text-ink-1">
+      <span ref={currentRef}>{formatMs(sourceToOutputMs(0, cuts))}</span>{' '}
+      <span className="text-ink-3">/ {formatMs(effectiveDurationMs(durationMs, cuts))}</span>
+    </span>
+  )
+})

@@ -13,9 +13,10 @@ import {
   createProgram
 } from './shaders'
 import { VideoTexture } from './texture'
+import type { TextureUploadInfo } from './texture'
 import { KeyOverlayPass } from './keyOverlayPass'
+import { mergeCompositorOptions, type CompositorConfig } from './compositorConfig'
 import {
-  DEFAULT_COMPOSITOR_OPTIONS,
   type CompositorOptions,
   type FrameSource,
   type KeyOverlayFrame,
@@ -38,18 +39,7 @@ export class CompositorError extends Error {
   }
 }
 
-/** 构造配置：各参数组可部分覆盖默认值 */
-export type CompositorConfig = Partial<
-  Omit<CompositorOptions, 'background' | 'videoStyle' | 'ripple'>
-> & {
-  background?: Partial<CompositorOptions['background']>
-  videoStyle?: Partial<CompositorOptions['videoStyle']>
-  ripple?: Partial<CompositorOptions['ripple']>
-  /** 预览可主动限制上传纹理尺寸；导出省略时使用 GPU MAX_TEXTURE_SIZE。 */
-  textureLimit?: number
-  /** 主动预览降档不作为硬件限制警告展示。 */
-  reportTextureDownsample?: boolean
-}
+export type { CompositorConfig } from './compositorConfig'
 
 interface ProgramSlots {
   program: WebGLProgram
@@ -67,10 +57,11 @@ export class Compositor {
   private keyOverlay: KeyOverlayPass
   private quad: WebGLBuffer
   private info: RenderInfo | null = null
+  private uploadedFrame: TextureUploadInfo | null = null
   private reportTextureDownsample: boolean
 
   constructor(canvas: HTMLCanvasElement | OffscreenCanvas, config: CompositorConfig = {}) {
-    this.options = mergeOptions(config)
+    this.options = mergeCompositorOptions(config)
     canvas.width = this.options.output.width
     canvas.height = this.options.output.height
     const gl = (canvas as HTMLCanvasElement).getContext('webgl2', {
@@ -126,10 +117,28 @@ export class Compositor {
     keyOverlay: KeyOverlayFrame | null = null,
     captionOverlay: KeyOverlayFrame | null = null
   ): RenderInfo {
+    this.uploadFrame(source)
+    return this.drawUploadedFrame(camera, tMs, clicks, keyOverlay, captionOverlay)
+  }
+
+  /** 更新视频纹理，但不触发合成；预览用它把解码帧更新与显示刷新解耦。 */
+  uploadFrame(source: FrameSource): void {
+    this.uploadedFrame = this.texture.upload(source)
+  }
+
+  /** 使用最近上传的视频纹理合成一帧，不重复上传大尺寸源画面。 */
+  drawUploadedFrame(
+    camera: CameraState,
+    tMs: number,
+    clicks: readonly RipplePoint[] = [],
+    keyOverlay: KeyOverlayFrame | null = null,
+    captionOverlay: KeyOverlayFrame | null = null
+  ): RenderInfo {
     if (!this.canvasSize) throw new CompositorError('未设置画布尺寸：先调用 setCanvasSize')
+    if (!this.uploadedFrame) throw new CompositorError('未上传视频帧：先调用 uploadFrame')
     const gl = this.gl
     const { output, background, videoStyle, ripple } = this.options
-    const tex = this.texture.upload(source)
+    const tex = this.uploadedFrame
     const placement = computeBasePlacement(this.canvasSize, output, videoStyle.paddingRatio)
     const transform = cameraToOutputTransform(camera, this.canvasSize, placement, output)
 
@@ -275,18 +284,4 @@ function makeSlots(
     if (loc) uniforms.set(name, loc)
   }
   return { program, uniforms }
-}
-
-function mergeOptions(config: CompositorConfig): CompositorOptions {
-  const d = DEFAULT_COMPOSITOR_OPTIONS
-  return {
-    output: { ...d.output, ...config.output },
-    background: { ...d.background, ...config.background },
-    videoStyle: {
-      ...d.videoStyle,
-      ...config.videoStyle
-    },
-    ripple: { ...d.ripple, ...config.ripple },
-    maxRipples: config.maxRipples ?? d.maxRipples
-  }
 }

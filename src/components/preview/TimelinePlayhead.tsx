@@ -1,10 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, type MutableRefObject, type RefObject } from 'react'
+import { useEffect, useRef, type MutableRefObject, type RefObject } from 'react'
 import type { CutRange } from '@/timeline/cuts'
 import { snapDraggedTimeToCuts } from '@/timeline/cuts'
 
 interface TimelinePlayheadProps {
-  currentMs: number
   duration: number
+  contentWidth: number
   playing: boolean
   zoom: number
   cuts: CutRange[]
@@ -15,10 +15,10 @@ interface TimelinePlayheadProps {
   onTogglePlay(): void
 }
 
-/** 播放头逐帧直接写 DOM；React 只负责低频时间文本。 */
+/** 播放头逐帧只更新合成层 transform，避免触发布局与静态轨道重绘。 */
 export function TimelinePlayhead(props: TimelinePlayheadProps): React.JSX.Element {
   const {
-    currentMs, duration, playing, zoom, cuts, scrollRef, followHoldUntil,
+    duration, contentWidth, playing, zoom, cuts, scrollRef, followHoldUntil,
     subscribeCurrentMs, onSeek, onTogglePlay
   } = props
   const playheadRef = useRef<HTMLDivElement>(null)
@@ -49,7 +49,10 @@ export function TimelinePlayhead(props: TimelinePlayheadProps): React.JSX.Elemen
     const scroll = scrollRef.current
     return subscribeCurrentMs((nextMs) => {
       if (playheadRef.current) {
-        playheadRef.current.style.left = `${Math.min(1, nextMs / duration) * 100}%`
+        const progress = Math.min(1, Math.max(0, nextMs / duration))
+        playheadRef.current.style.transform =
+          `translate3d(${progress * contentWidth}px, 0, 0) translateX(-50%)`
+        playheadRef.current.setAttribute('aria-valuenow', String(Math.round(nextMs)))
       }
       if (!scroll || !playing || zoom <= 1 || Date.now() < followHoldUntil.current) return
       const x = (nextMs / duration) * scroll.scrollWidth
@@ -59,13 +62,7 @@ export function TimelinePlayhead(props: TimelinePlayheadProps): React.JSX.Elemen
       const delta = x < low ? x - low : x > high ? x - high : 0
       if (delta !== 0) scroll.scrollLeft = Math.max(0, scroll.scrollLeft + delta * 0.18)
     })
-  }, [duration, followHoldUntil, playing, scrollRef, subscribeCurrentMs, zoom])
-
-  useLayoutEffect(() => {
-    if (playheadRef.current) {
-      playheadRef.current.style.left = `${Math.min(1, currentMs / duration) * 100}%`
-    }
-  }, [currentMs, duration])
+  }, [contentWidth, duration, followHoldUntil, playing, scrollRef, subscribeCurrentMs, zoom])
 
   return (
     <div
@@ -75,9 +72,7 @@ export function TimelinePlayhead(props: TimelinePlayheadProps): React.JSX.Elemen
       aria-label="播放位置"
       aria-valuemin={0}
       aria-valuemax={Math.round(duration)}
-      aria-valuenow={Math.round(currentMs)}
-      className="absolute bottom-0 top-0 z-30 w-4 -translate-x-1/2 cursor-ew-resize touch-none"
-      style={{ left: `${Math.min(1, currentMs / duration) * 100}%` }}
+      className="absolute bottom-0 left-0 top-0 z-30 w-4 cursor-ew-resize touch-none will-change-transform"
       onPointerDown={(event) => {
         if (event.button !== 0) return
         event.preventDefault()

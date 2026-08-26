@@ -101,10 +101,11 @@ Release 流水线：`.github/workflows/release.yml`，打 tag `v*` 触发，macO
 - 逐帧变化的内部值（动画积分器、上一帧时间戳、滚动位置）一律放 `useRef`；每帧只允许必要的 `setState`（如 `currentMs`）。
 - 滚动位置（`scrollLeft`）等高频 DOM 状态直接读写 DOM，不要用 state 驱动滚动，避免每帧整树重渲染。
 
-### 2. 帧驱动用 requestVideoFrameCallback，不自开 rAF
+### 2. 视频纹理与显示动画分离驱动
 
-- 与视频播放相关的逐帧工作（合成绘制、播放头推进、视口跟随）挂 `video.requestVideoFrameCallback`，暂停/卸载时必须 `cancelVideoFrameCallback`，不允许留下空转的循环。
-- 派生的逐帧效果（如时间轴跟随滚动）通过帧回调更新的 state（`currentMs`）间接触发，不另开 `requestAnimationFrame`。
+- 视频纹理上传挂 `video.requestVideoFrameCallback`，只在解码出新画面时执行，禁止在显示刷新循环中重复上传 2K/4K 源纹理。
+- 运镜、字幕/波纹动画、播放头与视口跟随用单个 `requestAnimationFrame` 按 `video.currentTime` 推进，兼容 VFR 与静态画面省略重复帧；暂停、片尾、尾部裁剪和卸载时必须同时取消 rAF 与 rVFC，不允许留下空转循环。
+- 高频播放进度经订阅直接更新 DOM；React `currentMs` 只允许限频更新，避免逐帧整树重渲染。
 - 一次性的 DOM 校正（缩放锚点保持）用 `useLayoutEffect`，不要写成持续动画循环。
 
 ### 3. 派生数据纯函数化 + 引用驱动更新

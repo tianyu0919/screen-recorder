@@ -70,6 +70,7 @@ export function attachPlaybackVideoEvents(options: PlaybackVideoEventOptions): (
     setPlaying(false)
     const tMs = video.currentTime * 1000
     if (tMs > 0) {
+      lastMsRef.current = tMs
       setDurationMs((previous) => (Math.abs(tMs - previous) > 200 ? tMs : previous))
       publishCurrentMs(tMs, true)
     }

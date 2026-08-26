@@ -24,8 +24,9 @@ export interface PlatformHelperConfig {
 }
 
 function resolveBinary(config: PlatformHelperConfig): string {
-  const binary = resolveBinary(config)
-  return binary
+  return app.isPackaged
+    ? join(process.resourcesPath, 'whisper-caption', config.binName)
+    : join(app.getAppPath(), config.devPath)
 }
 
 export function spawnCaptionHelper(
@@ -36,9 +37,7 @@ export function spawnCaptionHelper(
   language: CaptionLanguage,
   onProgress: (progress: number) => void
 ): RunningCaptionHelper {
-  const binary = app.isPackaged
-    ? join(process.resourcesPath, 'whisper-caption', config.binName)
-    : join(app.getAppPath(), config.devPath)
+  const binary = resolveBinary(config)
   if (!existsSync(binary)) throw new CaptionHelperMissingError(binary)
   const outputPrefix = join(app.getPath('temp'), `lenza-captions-${process.pid}-${Date.now()}`)
   const simplifiedChinese = OpenCC.Converter({ from: 'tw', to: 'cn' })

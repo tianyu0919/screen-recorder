@@ -272,7 +272,6 @@ export function PreviewPlayer({
       ) : (
         <PlayerTimeline
           playing={playing}
-          currentMs={currentMs}
           durationMs={durationMs}
           onTogglePlay={togglePlay}
           onSeek={seekTo}
