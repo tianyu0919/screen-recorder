@@ -19,6 +19,7 @@ import { displaySelectionOutline } from '../displaySelectionOutline'
 import { installReloadShortcutGuard } from '../windowLifecycle/reloadGuard'
 import packageMetadata from '../../package.json'
 import { transcriptionService } from '../transcription/service'
+import { ttsService } from '../tts/service'
 import { sessionThumbnailCache } from '../store/sessionThumbnailCache'
 import { confirmQuitWithExports } from '../export/exportActivity'
 
@@ -155,6 +156,7 @@ if (!hasSingleInstanceLock) {
     }
     quitting = true
     transcriptionService.cancelAll()
+    ttsService.cancelAll()
     displaySelectionOutline.dispose()
     disposeTray()
   })

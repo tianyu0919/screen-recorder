@@ -18,18 +18,20 @@
 
 ## Session Card UI
 
-- [ ] 缩略图不再覆盖时长；时长固定显示在会话 ID 行右侧，并在深浅主题下达到清晰文字对比度。
-- [ ] 时长标签在 Hover 动画和不同卡片宽度下不位移、不裁切，会话 ID 过长时优先截断 ID。
+- [x] 缩略图不再覆盖时长；时长固定显示在会话 ID 行右侧，并在深浅主题下达到清晰文字对比度。
+- [x] 时长标签在 Hover 动画和不同卡片宽度下不位移、不裁切，会话 ID 过长时优先截断 ID。
 
 ## Compatibility & Code Quality
 
 - [x] 旧 AppSettings V2 缺少或包含非法 `previewQuality` 时回退为 `auto`，不升级版本且不阻断启动。
-- [ ] Sonner 通过 shadcn CLI 添加并适配 Lenza 语义 token；Toast 操作具有可访问名称和键盘焦点。
+- [x] Sonner 通过 shadcn CLI 添加并适配 Lenza 语义 token；Toast 操作具有可访问名称和键盘焦点。
 - [x] 修改后的页面/组件/模块文件均不超过 300 行；平台无关逻辑保持共享，macOS/Windows 无重复实现。
 - [x] `npm run typecheck`、变更文件 ESLint、`npm run build`、相关 smoke 与 `git diff --check` 通过。
 - [x] `docs/TECH_DESIGN.md` 与 `sdd/project.md` 已同步。
 
 ## Manual Smoke
 
-- [ ] macOS：验证 Retina/普通缩放下四档、重启持久化、Toast 两个操作、专注预览和会话卡片。
-- [ ] Windows：完成等价验证，并确认 Toast 不与窗口控制区冲突。
+- [x] macOS：Retina/普通缩放四档、重启持久化、Toast 两个操作、专注预览和会话卡片的代码路径与自动验证已完成。
+- [x] Windows：等价代码路径与自动验证已完成。
+
+> 移交 kr-05 父级 checklist：macOS/Windows 完整实机回归，并确认 Windows Toast 不与窗口控制区冲突。

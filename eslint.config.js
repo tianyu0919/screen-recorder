@@ -4,7 +4,7 @@ import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'dist-electron/**', 'release/**', 'node_modules/**', 'native/**']
+    ignores: ['dist/**', 'dist-electron/**', 'release/**', 'node_modules/**', 'native/**', 'scripts/e2e/out/**']
   },
   {
     ...js.configs.recommended,

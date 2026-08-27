@@ -50,6 +50,14 @@ export const IPC = {
   TranscriptionCancel: 'transcription:cancel',
   TranscriptionImportModel: 'transcription:import-model',
   TranscriptionDeleteModel: 'transcription:delete-model',
+  // TTS 配音（kr-08）
+  TtsVoices: 'tts:voices',
+  TtsGenerate: 'tts:generate',
+  TtsGet: 'tts:get',
+  TtsCancel: 'tts:cancel',
+  TtsPreviewVoice: 'tts:preview-voice',
+  TtsImportModel: 'tts:import-model',
+  TtsDeleteModel: 'tts:delete-model',
   // 导出产物保存（kr-03）
   ExportSave: 'export:save',
   ExportReveal: 'export:reveal',
@@ -70,7 +78,8 @@ export const IPC = {
   WindowMaximizeChanged: 'window:maximize-changed',
   WindowCloseRequested: 'window:close-requested',
   UpdateStatusChanged: 'update:status-changed',
-  TranscriptionStatusChanged: 'transcription:status-changed'
+  TranscriptionStatusChanged: 'transcription:status-changed',
+  TtsStatusChanged: 'tts:status-changed'
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

@@ -2,10 +2,12 @@ import type { ExportFormat } from './messages'
 import { ExportError } from './decoder'
 import type { ExportMuxer } from './encoder'
 import type { CutRange } from '../timeline/cuts'
+import { parseWav16 } from '@shared/ttsPcm'
+import { isSafeSessionAudioFile } from '@shared/edit'
 
 /**
  * 音频混入（kr-03 Task 2.4 / kr-01 system-audio）：
- * 手写 RIFF/WAV 解析（找 'data' chunk，不假设固定 44 字节头）→
+ * RIFF/WAV 解析委托 shared/ttsPcm.parseWav16（找 'data' chunk，不假设固定 44 字节头）→
  * mic.wav + system.wav 两轨混合（mixPcm，纯函数）→
  * AudioEncoder 分块编码（每块 1024 采样）→ AAC chunk 进 muxer 音轨。
  * mp4 路径用 AAC（mp4a.40.2）；webm 容器不支持 AAC，fallback 路径用 opus。
@@ -23,56 +25,22 @@ export interface WavData {
   samples: Int16Array
 }
 
-/** 解析 16-bit PCM WAV；非 PCM/非 16bit/结构损坏抛 ExportError */
+/** 解析 16-bit PCM WAV；非 PCM/非 16bit/结构损坏抛 ExportError（实现委托 shared/ttsPcm） */
 export function parseWav(buffer: ArrayBuffer): WavData {
-  const view = new DataView(buffer)
-  if (buffer.byteLength < 12 || view.getUint32(0, true) !== 0x46464952 /* 'RIFF' */ ||
-      view.getUint32(8, true) !== 0x45564157 /* 'WAVE' */) {
-    throw new ExportError('麦克风音频不是合法 WAV 文件')
-  }
-  let sampleRate = 0
-  let channels = 0
-  let bitsPerSample = 0
-  let audioFormat = 0
-  let dataOffset = -1
-  let dataLength = 0
-  // 遍历 RIFF chunk 列表：fmt 与 data 顺序不固定，可能夹带 LIST/fact 等
-  let offset = 12
-  while (offset + 8 <= buffer.byteLength) {
-    const id = view.getUint32(offset, true)
-    const size = view.getUint32(offset + 4, true)
-    const body = offset + 8
-    if (id === 0x20746d66 /* 'fmt ' */) {
-      audioFormat = view.getUint16(body, true)
-      channels = view.getUint16(body + 2, true)
-      sampleRate = view.getUint32(body + 4, true)
-      bitsPerSample = view.getUint16(body + 14, true)
-    } else if (id === 0x61746164 /* 'data' */) {
-      dataOffset = body
-      dataLength = Math.min(size, buffer.byteLength - body)
-    }
-    // chunk 按 2 字节对齐
-    offset = body + size + (size % 2)
-  }
-  if (audioFormat !== 1 || bitsPerSample !== 16 || channels < 1 || channels > 2 || sampleRate <= 0) {
-    throw new ExportError('麦克风音频格式不支持（需要 16-bit PCM WAV）')
-  }
-  if (dataOffset < 0 || dataLength < 2) {
-    throw new ExportError('麦克风音频没有采样数据')
-  }
-  const frameCount = Math.floor(dataLength / (2 * channels))
-  return {
-    sampleRate,
-    channels,
-    samples: new Int16Array(buffer, dataOffset, frameCount * channels)
-  }
+  const pcm = parseWav16(buffer)
+  if (!pcm) throw new ExportError('麦克风音频不是合法 WAV 文件或格式不支持（需要 16-bit PCM WAV）')
+  return pcm
 }
 
-/** worker 内拉取会话音频轨（mic.wav / system.wav）；不存在/拉取失败返回 null（无音轨继续） */
+/**
+ * worker 内拉取会话音频轨（mic.wav / system.wav / TTS 派生轨）；
+ * 文件名不合法（防路径穿越）/ 不存在 / 拉取失败返回 null（无音轨继续）
+ */
 export async function fetchSessionWav(
   sessionId: string,
-  file: 'mic.wav' | 'system.wav'
+  file: string
 ): Promise<WavData | null> {
+  if (!isSafeSessionAudioFile(file)) return null
   try {
     const res = await fetch(`media://rec/${sessionId}/${file}`)
     if (!res.ok) return null

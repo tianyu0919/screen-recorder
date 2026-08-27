@@ -1,7 +1,7 @@
 ---
 id: "session-display-name"
 kind: feature
-status: in_progress
+status: completed
 impact_radius:
   - "shared/"
   - "electron/store/"

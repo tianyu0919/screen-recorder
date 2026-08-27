@@ -1,6 +1,7 @@
-import { memo, useRef } from 'react'
+import { memo, useMemo, useRef } from 'react'
 import type { CaptionSegment } from '@shared/captions'
 import { cn } from '@/lib/utils'
+import { usePreviewStore } from '@/store/previewStore'
 
 interface CaptionsLayerProps {
   segments: CaptionSegment[]
@@ -16,6 +17,9 @@ interface CaptionsLayerProps {
 type DragMode = 'move' | 'start' | 'end'
 
 export const CaptionsLayer = memo(function CaptionsLayer(props: CaptionsLayerProps): React.JSX.Element {
+  // TTS 溢出段标记（kr-08）：生成时变速超 ±20% 阈值的段，配音可能溢出/被截断
+  const overflowIds = usePreviewStore((state) => state.ttsSettings?.overflowSegmentIds)
+  const overflowSet = useMemo(() => new Set(overflowIds ?? []), [overflowIds])
   const dragRef = useRef<{
     id: string
     mode: DragMode
@@ -80,6 +84,10 @@ export const CaptionsLayer = memo(function CaptionsLayer(props: CaptionsLayerPro
             <button aria-label="调整字幕开始" className="h-full w-1.5 flex-none cursor-ew-resize bg-accent/35 opacity-0 group-hover:opacity-100"
               onPointerDown={(event) => begin(event, segment, 'start')} onPointerMove={move} onPointerUp={end} />
             <span className="min-w-0 flex-1 truncate px-1.5">{segment.text}</span>
+            {overflowSet.has(segment.id) && (
+              <span title="配音语速超出可调范围，可能溢出或被截断"
+                className="flex-none pr-1 text-[10px] leading-none text-amber-400">⚠</span>
+            )}
             <button aria-label="调整字幕结束" className="h-full w-1.5 flex-none cursor-ew-resize bg-accent/35 opacity-0 group-hover:opacity-100"
               onPointerDown={(event) => begin(event, segment, 'end')} onPointerMove={move} onPointerUp={end} />
           </div>

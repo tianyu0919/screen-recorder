@@ -1,5 +1,6 @@
 import type { ExportStartMessage } from '@/export/messages'
 import { getClipAsset } from '@/export/clipCache'
+import { resolveMicSlotFile } from '@shared/edit'
 import { usePreviewStore } from '@/store/previewStore'
 
 export function createExportSnapshot(): ExportStartMessage | null {
@@ -16,6 +17,7 @@ export function createExportSnapshot(): ExportStartMessage | null {
       mic: state.audioMute.mic ? 0 : state.audioGain.mic,
       system: state.audioMute.system ? 0 : state.audioGain.system
     },
+    micFile: resolveMicSlotFile({ tts: state.ttsSettings ?? undefined }),
     renderSettings: structuredClone(state.renderSettings),
     captions: state.captions?.enabled ? structuredClone(state.captions) : null,
     customAudio: state.customClips.flatMap((clip) => {

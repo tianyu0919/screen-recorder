@@ -2,7 +2,7 @@
 id: "kr-06-post-recording-captions"
 kind: change
 parent: "kr-06-captions"
-status: draft
+status: completed
 impact_radius:
   - "native/whisper-caption/"
   - "electron/transcription/"

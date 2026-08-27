@@ -39,6 +39,12 @@ export function useSyncedAudio(
     video.addEventListener('pause', onPause)
     video.addEventListener('seeked', onSeeked)
     video.addEventListener('timeupdate', syncTime)
+    // 源切换时若视频正在播放（kr-08：TTS 开/关会热切换 mic 轨位的 src），
+    // 不会再有 play 事件，必须立即接管，否则播放中无声直到下一次暂停/播放
+    if (!video.paused && !video.ended) {
+      audio.currentTime = video.currentTime + offsetSec
+      void audio.play().catch(() => {})
+    }
     return () => {
       video.removeEventListener('play', onPlay)
       video.removeEventListener('pause', onPause)

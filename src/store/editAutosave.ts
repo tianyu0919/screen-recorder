@@ -11,7 +11,7 @@ let saving = false
 
 function snapshot(state: PreviewState): EditDocument {
   return {
-    version: 2,
+    version: 3,
     updatedAt: new Date().toISOString(),
     motionEnabled: state.motionEnabled,
     motionParams: state.motionParams,
@@ -25,7 +25,8 @@ function snapshot(state: PreviewState): EditDocument {
       clip.assetFile ? [{ ...clip, assetFile: clip.assetFile }] : []
     ),
     keyboardOverlay: state.keyboardOverlay,
-    renderSettings: state.renderSettings
+    renderSettings: state.renderSettings,
+    tts: state.ttsSettings ?? undefined
   }
 }
 

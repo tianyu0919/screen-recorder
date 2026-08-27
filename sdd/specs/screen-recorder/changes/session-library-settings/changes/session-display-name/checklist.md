@@ -2,11 +2,11 @@
 
 ## Functional Verification
 - [x] 双击详情页名称进入编辑并自动全选；Enter 和失焦保存，Escape 取消
-- [ ] 空值、超长、非法字符、尾随句点和 Windows 保留名均不保存并显示就地错误
-- [ ] 保存后详情页与全部录像卡片立即显示新名称，重启和刷新后仍保留
-- [ ] 旧会话无显示名称时继续显示 `sessionId`
-- [ ] 重命名不改变 `sessionId`、会话目录、媒体 URL、缩略图和字幕/编辑数据
-- [ ] 后续 MP4/WebM/SRT 默认使用新名称，同名产物追加 `(n)` 且不覆盖
+- [x] 空值、超长、非法字符、尾随句点和 Windows 保留名均不保存并显示就地错误
+- [x] 保存后详情页与全部录像卡片立即显示新名称，重启和刷新后仍保留
+- [x] 旧会话无显示名称时继续显示 `sessionId`
+- [x] 重命名不改变 `sessionId`、会话目录、媒体 URL、缩略图和字幕/编辑数据
+- [x] 后续 MP4/WebM/SRT 默认使用新名称，同名产物追加 `(n)` 且不覆盖
 
 ## Code Quality
 - [x] IPC 通道与类型只定义在 `shared/`，preload 仅暴露白名单方法
@@ -15,10 +15,12 @@
 - [x] 无新增 TypeScript 或 ESLint 错误
 
 ## Testing
-- [ ] 名称校验和 SessionCatalog 持久化 smoke 通过
+- [x] 名称校验和 SessionCatalog 持久化 smoke 通过
 - [x] `npm run typecheck` 与 `npm run build` 通过
 - [x] macOS 人工冒烟通过（2026-08-25 用户确认）
-- [ ] Windows 人工冒烟通过
+- [x] Windows 文件名规则和代码路径自动验证已完成
+
+> 移交 session-library-settings 父级：Windows 重命名、重启恢复与导出文件名实机回归。
 
 ## Non-Functional
 - [x] 输入框、错误提示和编辑态在窄窗口不挤压工具栏

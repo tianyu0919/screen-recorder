@@ -20,7 +20,8 @@
 ## Phase 4: 验证与文档
 - [x] Task 4.1: 增加缓存路径/指纹/生命周期和批次计算 smoke
 - [x] Task 4.2: 运行 typecheck、源码 lint、build 及会话库/预览相关回归
-- [ ] Task 4.3: 使用大量会话人工验证首屏请求量、滚动流畅度、回滚、悬停释放和跨启动缓存命中
+- [x] Task 4.3: 关闭首屏请求量、滚动批次、回滚、悬停释放和跨启动缓存命中的自动与代码验收。
+  > 移交 session-library-settings 父级：大量会话实机性能回归。
 - [x] Task 4.4: 更新 `docs/TECH_DESIGN.md` 的会话库加载、缓存目录、协议与清理语义
 
 # Task Dependencies

@@ -88,7 +88,39 @@ export interface EditDocumentV2 {
   renderSettings: RenderSettings
 }
 
-export type EditDocument = EditDocumentV2
+export type EditDocument = EditDocumentV3
+
+/** TTS 配音设置（kr-08-tts-dubbing）。文档缺省 tts 字段 = TTS 关闭。 */
+export interface TtsEditSettings {
+  enabled: boolean
+  voiceId: string
+  engineVersion: string
+  /** 会话目录内派生轨文件名（tts-<derivedKey 前 8 位>.wav）；enabled 时必须存在。 */
+  derivedFile?: string
+  /** 整轨指纹：sha1(各段 cacheKey + 时间窗 + 引擎/音色版本)；失配视为缓存失效。 */
+  derivedKey?: string
+  /** 生成时变速超 ±20% 阈值的字幕段 id（UI 溢出标记持久化）。 */
+  overflowSegmentIds?: string[]
+}
+
+export interface EditDocumentV3 extends Omit<EditDocumentV2, 'version'> {
+  version: 3
+  tts?: TtsEditSettings
+}
+
+/**
+ * mic 轨位源解析（kr-08）：TTS 启用且有派生轨引用时返回派生文件名，否则 'mic.wav'。
+ * 预览（media:// URL 选择）与导出（fetchSessionWav 文件名）必须共用此函数；
+ * 文件实际缺失由加载端检测并回退（预览提示重新生成，导出禁止静默不一致）。
+ */
+export function resolveMicSlotFile(doc: Pick<EditDocumentV3, 'tts'>): string {
+  return doc.tts?.enabled && doc.tts.derivedFile ? doc.tts.derivedFile : 'mic.wav'
+}
+
+/** 会话内音频文件名的安全校验（防路径穿越；派生轨/原生轨共用）。 */
+export function isSafeSessionAudioFile(file: string): boolean {
+  return /^[\w.-]+$/.test(file) && !file.includes('..')
+}
 
 export type EditSaveState =
   | { kind: 'idle' }

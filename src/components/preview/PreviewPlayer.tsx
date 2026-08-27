@@ -25,7 +25,7 @@ import type { PreviewQualityMode } from '@shared/types'
 interface PreviewPlayerProps {
   timeline: Timeline
   videoUrl: string
-  /** mic.wav 流式 URL（无麦克风轨为 null），预览时与画面同步播放 */
+  /** mic 轨位流式 URL（原声 mic.wav 或 TTS 派生轨，由 PreviewScreen 经 selectMicSlotUrl 解析），预览时与画面同步播放 */
   audioUrl: string | null
   /** system.wav 流式 URL（无系统音频轨为 null），预览时与画面同步播放 */
   systemAudioUrl: string | null

@@ -27,6 +27,8 @@ export interface ExportStartMessage {
   cuts: CutRange[]
   /** 分轨音量增益（0–1，检查器音频滑杆），混音时应用到 mic/system 轨 */
   audioGain: { mic: number; system: number }
+  /** mic 轨位文件名（kr-08：resolveMicSlotFile(edit doc)，'mic.wav' 或 TTS 派生轨文件名） */
+  micFile: string
   renderSettings: RenderSettings
   captions: CaptionsDocument | null
   /** 自定义音轨（kr-05 custom-audio-track）：Renderer 已解码 PCM，锚定源时间轴 */

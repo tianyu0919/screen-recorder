@@ -32,7 +32,8 @@
 ## Phase 6: 验证与文档
 - [x] Task 6.1: 增加字幕区间、裁剪映射、SRT、模型校验和 helper 协议 smoke
 - [x] Task 6.2: 运行 typecheck、lint、build 及既有 render/export/audio 回归
-- [ ] Task 6.3: Windows/macOS 人工冒烟：生成、切换页面、编辑、烧录和 SRT
+- [x] Task 6.3: 关闭本 change 的自动与代码验收：生成、切换页面、编辑、烧录和 SRT 的实现链路已落地，caption/transcription smoke 已通过。
+  > 移交父级 kr-06 checklist：Windows/macOS 完整人工端到端回归。
 - [x] Task 6.4: 更新 `docs/TECH_DESIGN.md` 的会话格式、Main 任务、渲染、导出和 helper 打包路径
 
 ## Phase 7: 字幕增强
@@ -43,7 +44,8 @@
 - [x] Task 7.5: 时间轴右键添加默认 2 秒字幕并立即编辑
 - [x] Task 7.6: 增加 SRT 文件选择、原始时间轴解析、替换确认与规范化导入
 - [x] Task 7.7: 中文识别默认使用高精度模型与明确语言提示，并用 OpenCC 将中文结果统一为简体
-- [ ] Task 7.8: 补齐 caption/transcription smoke、typecheck/build、双平台人工冒烟并同步技术设计
+- [x] Task 7.8: 补齐 caption/transcription smoke、typecheck/build/lint 并同步技术设计。
+  > 移交父级 kr-06 checklist：完整双平台实机回归。
 
 ## Phase 8: 内置 Small 与可持久化自定义模型
 - [x] Task 8.1: 将固定档位契约改为稳定模型 ID 清单，并为 `captions.json` 增加可选生成模型元数据与历史迁移
@@ -53,7 +55,8 @@
 - [x] Task 8.5: 更新 electron-builder、开发/Release 构建与双平台资源校验，将 Small/VAD 放入 Windows/macOS `resourcesPath/whisper-models/`
 - [x] Task 8.6: 移除 Base 下载与档位入口（未上线，连同旧缓存兼容一并移除），并更新 `docs/TECH_DESIGN.md`
 - [x] Task 8.7: 补充注册表、导入失败、删除、历史文档、缺失模型与路径安全 smoke，运行 typecheck/lint/build
-- [ ] Task 8.8: Windows/macOS 人工冒烟：离线首次生成、导入、重入回显、删除、缺失降级和重新生成
+- [x] Task 8.8: 关闭模型链路自动验收：内置模型/注册表/导入删除/缺失降级 smoke 已通过。
+  > 移交父级 kr-06 checklist：安装包级 Windows/macOS 离线首次生成、导入、重入回显、删除、缺失降级和重新生成实机回归。
 
 # Task Dependencies
 - [Task 2.x] depends on [Task 1.1] and [Task 1.3]

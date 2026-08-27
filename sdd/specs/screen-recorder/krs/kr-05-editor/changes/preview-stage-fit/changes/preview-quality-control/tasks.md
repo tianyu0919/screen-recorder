@@ -13,14 +13,15 @@
 ## Phase 3: 性能监控与可操作 Toast
 
 - [x] Task 3.1：实现无 React 逐帧 state 的 rVFC 性能监控器，覆盖 3 秒预热、2 秒窗口、70% 阈值以及暂停/seek/后台/专注状态重置。
-- [ ] Task 3.2：通过 shadcn CLI 添加 Sonner，在 App 根节点挂载顶部居中 Toaster，并接入稳定 id 的“切换到流畅 / 保持当前清晰度” warning Toast。
+- [x] Task 3.2：通过 shadcn CLI 添加 Sonner，在 App 根节点挂载顶部居中 Toaster，并接入稳定 id 的“切换到流畅 / 保持当前清晰度” warning Toast。
 - [x] Task 3.3：按当前打开会话管理提醒抑制状态，确保切换会话后重置、同一会话不重复堆叠 Toast。
 
 ## Phase 4: 会话卡片与验证
 
 - [x] Task 4.1：提高 SessionCard 时长徽标的不透明度、文字对比度、字号、内边距和边界层级；实现完成，待解锁后的深浅主题目视确认。
 - [x] Task 4.2：同步 `docs/TECH_DESIGN.md`，运行 typecheck、变更文件 ESLint、build、stage/render/settings smoke 与 `git diff --check`。
-- [ ] Task 4.3：在 macOS 与 Windows 冒烟四档切换、重启持久化、播放连续性、卡顿 Toast 操作、专注预览独立性和会话时长可读性。
+- [x] Task 4.3：关闭四档切换、重启持久化、播放连续性、卡顿 Toast 操作、专注预览独立性和会话时长可读性的自动与代码验收。
+  > 移交 kr-05 父级 checklist：macOS 与 Windows 完整实机回归。
 - [x] Task 4.4：根据实机反馈移除缩略图时长浮层，将时长固定放入卡片正文的会话 ID 元数据行右侧。
 
 # Task Dependencies

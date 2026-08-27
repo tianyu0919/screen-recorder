@@ -2,7 +2,7 @@
 id: "kr-05-preview-quality-control"
 kind: change
 parent: "kr-05-preview-stage-fit"
-status: in_progress
+status: completed
 impact_radius:
   - "shared/types.ts"
   - "electron/store/appSettings.ts"

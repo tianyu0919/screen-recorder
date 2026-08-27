@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { usePreviewStore } from '@/store/previewStore'
+import { selectMicSlotUrl } from '@/store/previewTypes'
 import { formatDayLabel, formatDuration, formatTimeOfDay } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { PreviewPlayer } from './PreviewPlayer'
 import { MotionParamsPanel } from './MotionParamsPanel'
 import { AudioPanel } from './AudioPanel'
+import { TtsPanel } from './TtsPanel'
 import { BackgroundPanel } from './BackgroundPanel'
 import { CaptionsPanel } from './CaptionsPanel'
 import { CutsPanel } from './CutsPanel'
@@ -69,6 +71,7 @@ export function PreviewScreen({
     saveState,
     retrySave,
     editLoadError,
+    ttsSettings,
     loadSessions,
     openSession,
     closeSession,
@@ -116,6 +119,8 @@ export function PreviewScreen({
   if (current) {
     const { timeline } = current
     const durationMs = sourceDurationMs ?? timeline.durationMs
+    // mic 轨位：TTS 启用且有派生轨时播放/指示派生轨，否则原声 mic.wav（kr-08）
+    const micSlotUrl = selectMicSlotUrl({ current, ttsSettings })
     const effectiveClickCount = ripples.filter((ripple) => ripple.t >= 0 && ripple.t <= durationMs).length
     const effectiveKeyCount = keyPrompts.filter((prompt) => prompt.t >= 0 && prompt.t <= durationMs).length
     const infoRows: Array<[string, string]> = [
@@ -124,7 +129,7 @@ export function PreviewScreen({
       ['帧率', `${timeline.events.video.fps}fps`],
       ['点击事件', `${effectiveClickCount} 次`],
       ['键盘事件', `${effectiveKeyCount} 次`],
-      ['麦克风轨', current.audioUrl ? '有' : '无'],
+      ['麦克风轨', micSlotUrl ? '有' : '无'],
       ['系统音频轨', current.systemAudioUrl ? '有' : '无']
     ]
     return (
@@ -181,7 +186,7 @@ export function PreviewScreen({
           <PreviewPlayer
             timeline={timeline}
             videoUrl={current.videoUrl}
-            audioUrl={current.audioUrl}
+            audioUrl={micSlotUrl}
             systemAudioUrl={current.systemAudioUrl}
             systemAudioOffsetSec={current.systemAudioOffsetSec}
             keyframes={keyframes}
@@ -207,6 +212,7 @@ export function PreviewScreen({
                 <div className="flex h-full w-[280px] flex-col overflow-y-auto">
                   <MotionParamsPanel />
                   <AudioPanel />
+                  <TtsPanel />
                   <CaptionsPanel />
                   <BackgroundPanel />
                   <CutsPanel />

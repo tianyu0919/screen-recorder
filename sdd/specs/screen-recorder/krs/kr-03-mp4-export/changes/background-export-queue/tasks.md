@@ -24,6 +24,6 @@
 - [x] Task 3.12: 成功反馈继承完成前的展开状态；收起胶囊原位庆祝且不自动展开，展开框保持原位庆祝
 
 ## Phase 4: Verification
-- [ ] Task 4.1: 增加文件命名、队列调度与设置迁移 smoke
-- [ ] Task 4.2: 运行 typecheck/build/export smoke 并同步技术设计（2026-08-25：typecheck/build/变更文件 ESLint/diff check 已通过；export smoke 待执行）
+- [x] Task 4.1: 增加文件命名、队列调度与设置迁移 smoke
+- [x] Task 4.2: 运行 typecheck/build/export smoke 并同步技术设计（2026-08-26：typecheck、lint、build、export smoke 已通过）
 - [ ] Task 4.3: macOS/Windows 人工验证跨页面、排队、取消、退出和无覆盖保存

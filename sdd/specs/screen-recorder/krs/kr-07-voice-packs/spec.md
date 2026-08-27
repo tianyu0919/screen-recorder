@@ -30,7 +30,7 @@ Lenza SHALL 在 macOS 与 Windows 编辑器中提供非破坏式本地 DSP 语�
 ## 1. Scope
 
 - **In Scope**: 原声、低沉、清亮、广播、机器人预设；离线 Worker DSP；生成进度/取消/重试；等长派生 WAV；缓存和清理；编辑文档持久化；原声/派生轨 A/B 切换；音量、静音、裁剪和导出混音一致；历史会话迁移。
-- **Out of Scope**: 录制中实时变声；RVC/AI 音色转换；名人或用户声音克隆；字幕 TTS 配音；用户导入模型；训练模型；云端推理；系统音频和自定义音轨变声；逐片段不同语音包；第三方音色市场。
+- **Out of Scope**: 录制中实时变声；RVC/AI 音色转换（二期 → kr-09-voice-conversion）；名人或用户声音克隆；字幕 TTS 配音（→ kr-08-tts-dubbing）；用户导入模型；训练模型；云端推理；系统音频和自定义音轨变声；逐片段不同语音包；第三方音色市场。
 
 ## 2. Functional Requirements
 

@@ -57,12 +57,16 @@ export async function runExport(
     const totalFrames = Math.max(1, Math.ceil((outDurationMs / 1000) * OUTPUT_FPS))
     onProgress(0, totalFrames, output)
 
-    // 音频：mic.wav + system.wav 两轨混合（缺失/解析失败/编码不支持 → 无音轨继续，结果里标注）
+    // 音频：mic 轨位（mic.wav 或 TTS 派生轨）+ system.wav 两轨混合（缺失/解析失败/编码不支持 → 无音轨继续，结果里标注）
     // 两轨都在时先做回声对齐（音箱外放时 mic 轨含系统音，采集链延迟差见 lib/audioAlign.ts）
     const [micWav, systemWav] = await Promise.all([
-      fetchSessionWav(params.sessionId, 'mic.wav'),
+      fetchSessionWav(params.sessionId, params.micFile),
       fetchSessionWav(params.sessionId, 'system.wav')
     ])
+    // TTS 启用但派生轨缺失：禁止静默用原声导出（spec 要求），提示重新生成
+    if (params.micFile !== 'mic.wav' && !micWav) {
+      throw new ExportError('TTS 派生轨缺失，请重新生成后再导出')
+    }
     const sysOffset = micWav && systemWav ? estimateSystemOffsetSec(micWav, systemWav) : 0
     // 源时间轴 N 轨混音：mic / system（带回声对齐偏移）/ 自定义 clips（offsetMs → 负 offsetSec）；
     // 分轨增益（检查器音频滑杆）随混音应用，预览/导出听感一致；裁剪统一走下方 cutPcm

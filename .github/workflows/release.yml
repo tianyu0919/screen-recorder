@@ -32,6 +32,7 @@ jobs:
       - run: npm run build:native
         env:
           LENZA_REQUIRE_CAPTION_HELPER: '1'
+          LENZA_REQUIRE_TTS_HELPER: '1'
       - run: npm run build
       - run: npx electron-builder --mac --publish never
         env:
@@ -63,6 +64,7 @@ jobs:
       - run: npm run build:native
         env:
           LENZA_REQUIRE_CAPTION_HELPER: '1'
+          LENZA_REQUIRE_TTS_HELPER: '1'
       - run: npm run build
       - run: npx electron-builder --win --publish never
         env:

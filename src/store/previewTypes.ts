@@ -1,5 +1,6 @@
 import type { CameraKeyframe, RecordingSession } from '@shared/types'
-import type { EditSaveState, MotionEffect, RenderSettings } from '@shared/edit'
+import type { EditSaveState, MotionEffect, RenderSettings, TtsEditSettings } from '@shared/edit'
+import type { TtsJobStatus, TtsVoiceListItem } from '@shared/tts'
 import type { Timeline } from '@/timeline/types'
 import type { MotionParams } from '@/timeline/keyframes'
 import type { CutRange } from '@/timeline/cuts'
@@ -22,6 +23,19 @@ export interface PreviewSession {
   audioUrl: string | null
   systemAudioUrl: string | null
   systemAudioOffsetSec: number
+  /** TTS 派生轨 media:// URL（edit.json tts.enabled 且派生文件存在时非空） */
+  ttsDerivedUrl: string | null
+}
+
+/** mic 轨位播放源：TTS 启用且有派生轨时用派生轨，否则用原声 mic.wav（kr-08）。 */
+export function selectMicSlotUrl(
+  state: Pick<PreviewState, 'current' | 'ttsSettings'>
+): string | null {
+  const current = state.current
+  if (!current) return null
+  return state.ttsSettings?.enabled && current.ttsDerivedUrl
+    ? current.ttsDerivedUrl
+    : current.audioUrl
 }
 
 export interface PreviewState {
@@ -58,6 +72,9 @@ export interface PreviewState {
   transcription: TranscriptionJobState
   selectedCaptionId: string | null
   captionPositionMode: 'global' | 'segment'
+  ttsSettings: TtsEditSettings | null
+  ttsVoices: TtsVoiceListItem[]
+  ttsJob: TtsJobStatus | null
 
   loadSessions(refresh?: boolean): Promise<void>
   trashSession(sessionId: string): Promise<void>
@@ -124,4 +141,11 @@ export interface PreviewState {
   addCaptionAt(tMs: number): void
   importCaptionsSrt(source: string): void
   exportCaptionsSrt(): Promise<void>
+  refreshTtsVoices(): Promise<void>
+  startTtsGeneration(voiceId: string): Promise<void>
+  cancelTtsGeneration(): Promise<void>
+  setTtsEnabled(enabled: boolean): void
+  previewTtsVoice(voiceId: string, language: 'zh' | 'en'): Promise<void>
+  importTtsModel(): Promise<void>
+  deleteTtsModel(modelKey: string): Promise<void>
 }

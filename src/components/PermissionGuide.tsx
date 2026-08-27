@@ -20,7 +20,7 @@ export function PermissionGuide(): React.JSX.Element {
   return (
     <section
       aria-labelledby="permission-guide-title"
-      className="permission-guide relative mb-5 overflow-hidden rounded-xl border shadow-card"
+      className="permission-guide relative mb-5 flex-none overflow-hidden rounded-xl border shadow-card"
     >
       <span className="absolute inset-y-0 left-0 w-1 bg-warning" aria-hidden="true" />
 

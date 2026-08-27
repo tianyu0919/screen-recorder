@@ -30,6 +30,8 @@ import { displaySelectionOutline } from './displaySelectionOutline'
 import { registerRecordingIpc } from './capture/recordingIpc'
 import { saveCaptionsDocument } from './store/captionsStore'
 import { transcriptionService } from './transcription/service'
+import { ttsService } from './tts/service'
+import { registerTtsIpc } from './tts/ipc'
 import { sessionThumbnailCache } from './store/sessionThumbnailCache'
 import { setExportBusy } from './export/exportActivity'
 import { saveExportWithoutOverwrite } from './export/saveExport'
@@ -79,16 +81,19 @@ export function registerIpc(getWindow: () => BrowserWindow | null, appIcon?: Ele
   ipcMain.handle(IPC.SessionReveal, (_e, sessionId: string) => revealSession(sessionId))
   ipcMain.handle(IPC.SessionTrash, (_e, sessionId: string) => {
     transcriptionService.cancel(sessionId)
+    ttsService.cancel(sessionId)
     return sessionCatalog.trash(sessionId)
   })
   ipcMain.handle(IPC.SessionRestore, (_e, sessionId: string) => sessionCatalog.restore(sessionId))
   ipcMain.handle(IPC.SessionDeletePermanent, async (_e, sessionId: string) => {
     transcriptionService.cancel(sessionId)
+    ttsService.cancel(sessionId)
     await sessionCatalog.deletePermanent(sessionId)
     await sessionThumbnailCache.remove(sessionId)
   })
   ipcMain.handle(IPC.SessionEmptyTrash, async () => {
     transcriptionService.cancelAll()
+    ttsService.cancelAll()
     const ids = sessionCatalog.list().filter((session) => session.lifecycle === 'trashed')
       .map((session) => session.sessionId)
     await sessionCatalog.emptyTrash()
@@ -264,5 +269,6 @@ export function registerIpc(getWindow: () => BrowserWindow | null, appIcon?: Ele
   )
 
   const inputHook = registerRecordingIpc(getWindow)
+  registerTtsIpc(getWindow)
   return { inputHook }
 }

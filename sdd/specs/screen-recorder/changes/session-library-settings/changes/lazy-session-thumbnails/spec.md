@@ -2,7 +2,7 @@
 id: "session-library-lazy-thumbnails"
 kind: feature
 parent: ""
-status: in_progress
+status: completed
 impact_radius:
   - "electron/store/"
   - "electron/preload/"

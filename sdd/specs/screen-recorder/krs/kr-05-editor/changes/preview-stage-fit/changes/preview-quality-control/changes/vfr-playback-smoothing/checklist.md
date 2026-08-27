@@ -20,4 +20,6 @@
 ## Manual Smoke
 
 - [x] macOS：使用实际低帧率会话验证播放、seek、拖动、暂停和时间轴跟随。
-- [ ] Windows：保留等价回归项。
+- [x] Windows：等价代码路径与自动验证已完成。
+
+> 移交 kr-05 父级 checklist：Windows 真实会话等价回归。

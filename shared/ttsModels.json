@@ -1,0 +1,55 @@
+{
+  "engineVersion": "sherpa-onnx-1.12.20-hq-voices-v1",
+  "models": {
+    "kokoro-multi-v1.1-int8": {
+      "family": "kokoro", "dir": "kokoro-int8-multi-lang-v1_1",
+      "archiveUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_1.tar.bz2",
+      "modelFile": "model.int8.onnx", "voicesFile": "voices.bin", "tokens": "tokens.txt",
+      "dataDir": "espeak-ng-data", "dictDir": "dict", "lexicons": ["lexicon-us-en.txt", "lexicon-zh.txt"],
+      "ruleFsts": ["phone-zh.fst", "date-zh.fst", "number-zh.fst"],
+      "requiredFiles": {
+        "model.int8.onnx": { "size": 114299010, "sha1": "3fb8ac3f1f1c75b2c6dda03415e001450f8479f9" },
+        "voices.bin": { "size": 53790720, "sha1": "83142462d6e77bcf650f2ddfafaf432c1f918c0f" }
+      },
+      "extraFiles": {}, "sampleRate": 24000
+    },
+    "matcha-zh-baker": {
+      "family": "matcha", "dir": "matcha-icefall-zh-baker",
+      "archiveUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/matcha-icefall-zh-baker.tar.bz2",
+      "modelFile": "model-steps-3.onnx", "vocoderFile": "vocos-22khz-univ.onnx",
+      "tokens": "tokens.txt", "dictDir": "dict", "lexicons": ["lexicon.txt"],
+      "ruleFsts": ["phone.fst", "date.fst", "number.fst"],
+      "requiredFiles": {
+        "model-steps-3.onnx": { "size": 75624611, "sha1": "5fd0831a3f2ee1a121ef48392c8a21cbc30dc311" },
+        "vocos-22khz-univ.onnx": { "size": 53884024, "sha1": "e01601716e4dc8f216b69c48e5fb4422d7ad65b1" }
+      },
+      "extraFiles": {
+        "vocos-22khz-univ.onnx": {
+          "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/vocoder-models/vocos-22khz-univ.onnx",
+          "size": 53884024, "sha1": "e01601716e4dc8f216b69c48e5fb4422d7ad65b1"
+        }
+      },
+      "sampleRate": 22050
+    },
+    "kokoro-en-v0.19": {
+      "family": "kokoro", "dir": "kokoro-en-v0_19",
+      "archiveUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-en-v0_19.tar.bz2",
+      "modelFile": "model.onnx", "voicesFile": "voices.bin", "tokens": "tokens.txt",
+      "dataDir": "espeak-ng-data", "lexicons": [], "ruleFsts": [],
+      "requiredFiles": {
+        "model.onnx": { "size": 345555491, "sha1": "9bd7cd8d3a405930d21a9c4a4e4d04ce0fdf7bed" },
+        "voices.bin": { "size": 5755904, "sha1": "8cb0c54046d250a02292a9ea09fd172c3dec8298" }
+      },
+      "extraFiles": {}, "sampleRate": 24000
+    }
+  },
+  "voices": [
+    { "id": "kokoro-multi-f", "name": "中英双语女声 · 晨曦", "languages": ["zh", "en"], "bundled": true, "model": "kokoro-multi-v1.1-int8", "sid": 3 },
+    { "id": "kokoro-multi-m", "name": "中英双语男声 · 沉稳", "languages": ["zh", "en"], "bundled": true, "model": "kokoro-multi-v1.1-int8", "sid": 58 },
+    { "id": "matcha-zh-f", "name": "中文专用女声 · 清晰", "languages": ["zh"], "bundled": true, "model": "matcha-zh-baker", "sid": 0 },
+    { "id": "kokoro-en-sarah", "name": "英文美式女声 · Sarah", "languages": ["en"], "bundled": true, "model": "kokoro-en-v0.19", "sid": 3 },
+    { "id": "kokoro-en-adam", "name": "英文美式男声 · Adam", "languages": ["en"], "bundled": true, "model": "kokoro-en-v0.19", "sid": 5 },
+    { "id": "kokoro-en-emma", "name": "英文英式女声 · Emma", "languages": ["en"], "bundled": true, "model": "kokoro-en-v0.19", "sid": 7 },
+    { "id": "kokoro-en-lewis", "name": "英文英式男声 · Lewis", "languages": ["en"], "bundled": true, "model": "kokoro-en-v0.19", "sid": 10 }
+  ]
+}

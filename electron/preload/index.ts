@@ -21,6 +21,11 @@ import type {
 } from '../../shared/types'
 import type { SaveSessionThumbnailRequest, SessionThumbnailInfo } from '../../shared/sessionThumbnail'
 import type {
+  TtsGenerateRequest,
+  TtsJobStatus,
+  TtsVoiceListItem
+} from '../../shared/tts'
+import type {
   AppSettings,
   AppSettingsPatch,
   CloseDecision,
@@ -94,6 +99,19 @@ export interface RecorderApi {
   /** 删除自定义模型并返回最新模型列表；内置模型不可删除。 */
   deleteCaptionModel(modelId: string): Promise<CaptionModelInfo[]>
   onTranscriptionStatusChanged(cb: (snapshot: TranscriptionSnapshot) => void): () => void
+  /** TTS 配音（kr-08）：音色列表（含本机可用性） */
+  listTtsVoices(): Promise<TtsVoiceListItem[]>
+  getTtsStatus(sessionId: string): Promise<TtsJobStatus>
+  startTtsGeneration(request: TtsGenerateRequest): Promise<TtsJobStatus>
+  cancelTtsGeneration(sessionId: string): Promise<TtsJobStatus>
+  /** 试听音色：对固定示例句单次合成，返回 WAV bytes（内存播放，不写会话目录） */
+  previewTtsVoice(voiceId: string, language: 'zh' | 'en'): Promise<ArrayBuffer>
+  /** 弹目录选择框导入 sherpa-onnx 兼容 TTS 模型；用户取消返回 null */
+  importTtsModel(): Promise<TtsVoiceListItem[] | null>
+  /** 删除自定义模型并返回最新音色列表；内置/官方模型不可删除 */
+  deleteTtsModel(modelKey: string): Promise<TtsVoiceListItem[]>
+  /** 下载非内置官方音色模型；完成后返回最新音色列表 */
+  onTtsStatusChanged(cb: (status: TtsJobStatus) => void): () => void
   /** 保存导出产物（kr-03）：弹保存对话框并写盘；用户取消返回 null */
   saveExport(
     sessionId: string,
@@ -189,6 +207,19 @@ const api: RecorderApi = {
     const listener = (_e: Electron.IpcRendererEvent, snapshot: TranscriptionSnapshot): void => cb(snapshot)
     ipcRenderer.on(IPC.TranscriptionStatusChanged, listener)
     return () => ipcRenderer.removeListener(IPC.TranscriptionStatusChanged, listener)
+  },
+  listTtsVoices: () => ipcRenderer.invoke(IPC.TtsVoices),
+  getTtsStatus: (sessionId) => ipcRenderer.invoke(IPC.TtsGet, sessionId),
+  startTtsGeneration: (request) => ipcRenderer.invoke(IPC.TtsGenerate, request),
+  cancelTtsGeneration: (sessionId) => ipcRenderer.invoke(IPC.TtsCancel, sessionId),
+  previewTtsVoice: (voiceId, language) =>
+    ipcRenderer.invoke(IPC.TtsPreviewVoice, voiceId, language),
+  importTtsModel: () => ipcRenderer.invoke(IPC.TtsImportModel),
+  deleteTtsModel: (modelKey) => ipcRenderer.invoke(IPC.TtsDeleteModel, modelKey),
+  onTtsStatusChanged: (cb) => {
+    const listener = (_e: Electron.IpcRendererEvent, status: TtsJobStatus): void => cb(status)
+    ipcRenderer.on(IPC.TtsStatusChanged, listener)
+    return () => ipcRenderer.removeListener(IPC.TtsStatusChanged, listener)
   },
   saveExport: (sessionId, displayName, data, format, directory) =>
     ipcRenderer.invoke(IPC.ExportSave, sessionId, displayName, data, format, directory),

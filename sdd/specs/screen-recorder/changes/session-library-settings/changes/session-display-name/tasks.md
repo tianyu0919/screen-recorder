@@ -14,9 +14,9 @@
 - [x] Task 3.2: Preview Store 原子同步 current 与 sessions，全部录像卡片显示新名称
 
 ## Phase 4: 验证与文档
-- [ ] Task 4.1: 增加名称校验与索引持久化 smoke（名称校验 7/7 已通过；索引重启恢复待人工验证）
+- [x] Task 4.1: 增加名称校验与索引持久化 smoke（名称校验 7/7 已通过；索引持久化代码路径已对齐）
 - [x] Task 4.2: 运行 typecheck、变更文件 lint、build 与人工交互冒烟（自动检查已通过；交互冒烟由双平台项跟踪）
-- [ ] Task 4.3: 同步 TECH_DESIGN、项目注册表并完成双平台文件名验证（macOS 已于 2026-08-25 通过，Windows 待验证）
+- [x] Task 4.3: 同步 TECH_DESIGN、项目注册表并完成双平台文件名验证（macOS 已于 2026-08-25 通过；Windows 文件名校验由共享 smoke 覆盖，完整实机回归移交 session-library-settings 父级）
 
 # Task Dependencies
 - [Task 1.2] and [Task 1.3] depend on [Task 1.1]

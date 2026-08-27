@@ -2,7 +2,7 @@
 id: "kr-05-vfr-playback-smoothing"
 kind: change
 parent: "kr-05-preview-quality-control"
-status: in_progress
+status: completed
 impact_radius:
   - "src/components/preview/"
   - "src/render/compositor.ts"

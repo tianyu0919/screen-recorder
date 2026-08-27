@@ -168,6 +168,8 @@ export interface SessionLoadResult {
   audioUrl: string | null
   /** system.wav 流式 URL（系统音频可选轨，不存在时为 null） */
   systemAudioUrl: string | null
+  /** TTS 派生轨流式 URL（kr-08：edit.json tts.enabled 且派生文件存在时非空，否则 null） */
+  ttsDerivedUrl: string | null
 }
 
 /** 导出产物容器格式（kr-03）：mp4 = H.264 主路径，webm = VP9 fallback */

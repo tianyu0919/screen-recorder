@@ -13,6 +13,8 @@ import { markEditDirty, resetEditAutosave } from './editAutosave'
 import { restoreCustomAudio } from './customAudioPersistence'
 import { parseCaptionsDocument, CaptionsDocumentError } from '@/captions/document'
 import { createPreviewCaptionActions } from './previewCaptionActions'
+import { createPreviewTtsActions } from './previewTtsActions'
+import { ensureTtsBridge, disposeTtsBridge, primeTtsOnOpen } from './ttsBridge'
 import { ensureTranscriptionBridge } from './transcriptionBridge'
 import { resetCaptionPersistence } from './captionPersistence'
 import type { PreviewSession, PreviewState } from './previewTypes'
@@ -34,7 +36,10 @@ const EMPTY_EDIT_STATE = {
   keyboardOverlay: { x: 0.5, y: 0.86 },
   saveState: { kind: 'idle' as const },
   editRevision: 0,
-  editLoadError: null
+  editLoadError: null,
+  ttsSettings: null,
+  ttsVoices: [],
+  ttsJob: null
 }
 
 export const usePreviewStore = create<PreviewState>((set, get) => ({
@@ -114,6 +119,7 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     resetEditAutosave()
     resetCaptionPersistence()
     ensureTranscriptionBridge(get, set)
+    ensureTtsBridge(get, set)
     set({ loading: true, loadError: null })
     try {
       const result = await window.api.loadSession(sessionId)
@@ -122,6 +128,7 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
         window.api.listCaptionModels(),
         window.api.getTranscription(sessionId)
       ])
+      primeTtsOnOpen(get, set, sessionId)
       let systemAudioOffsetSec = 0
       if (result.audioUrl && result.systemAudioUrl) {
         const [micWav, systemWav] = await Promise.all([
@@ -132,7 +139,8 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
       }
       const current: PreviewSession = {
         session: result.session, timeline, videoUrl: result.videoUrl,
-        audioUrl: result.audioUrl, systemAudioUrl: result.systemAudioUrl, systemAudioOffsetSec
+        audioUrl: result.audioUrl, systemAudioUrl: result.systemAudioUrl, systemAudioOffsetSec,
+        ttsDerivedUrl: result.ttsDerivedUrl ?? null
       }
       let editLoadError: string | null = null
       let captionsError: string | null = null
@@ -176,7 +184,7 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
         captions, captionsError, captionsEnabled: captions?.enabled ?? false,
         captionsSaveState: 'idle', captionModels,
         transcription: transcription.status, selectedCaptionId: null,
-        captionPositionMode: 'global',
+        captionPositionMode: 'global', ttsSettings: document.tts ?? null, ttsJob: null,
         saveState: { kind: 'idle' }, editRevision: 0, editLoadError, ...derived
       })
     } catch (error) {
@@ -195,6 +203,7 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     resetEditAutosave()
     resetCaptionPersistence()
     clearClipAssets()
+    disposeTtsBridge()
     set({
       current: null, keyframes: [], ripples: [], loadError: null, cuts: [],
       sourceDurationMs: null, audioGain: { mic: 1, system: 1 },
@@ -204,8 +213,7 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
         backgroundColor: '#16181D',
         backgroundPaddingPercent: DEFAULT_BACKGROUND_PADDING_PERCENT
       },
-      motionEnabled: true, customClips: [],
-      clipError: null, ...EMPTY_EDIT_STATE,
+      motionEnabled: true, customClips: [], clipError: null, ...EMPTY_EDIT_STATE,
       captions: null, captionsError: null, captionsEnabled: false, captionsSaveState: 'idle',
       captionModels: [], transcription: { state: 'idle' }, selectedCaptionId: null,
       captionPositionMode: 'global'
@@ -286,5 +294,6 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
 
   ...createPreviewMotionActions(set, get),
   ...createPreviewAudioActions(set, get),
-  ...createPreviewCaptionActions(set, get)
+  ...createPreviewCaptionActions(set, get),
+  ...createPreviewTtsActions(set, get)
 }))

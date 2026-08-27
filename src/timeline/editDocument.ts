@@ -1,10 +1,11 @@
 import type {
   EditDocument,
   EditDocumentV1,
-  EditDocumentV2,
+  EditDocumentV3,
   MotionEffect,
   PersistedAudioClip,
-  PersistedAudioClipV1
+  PersistedAudioClipV1,
+  TtsEditSettings
 } from '@shared/edit'
 import {
   DEFAULT_BACKGROUND_PADDING_PERCENT,
@@ -83,9 +84,9 @@ export function parseEditDocument(json: string): EditDocument {
   }
   if (!value || typeof value !== 'object') throw new EditDocumentError('edit.json 结构无效')
   const version = (value as { version?: unknown }).version
-  if (version !== 1 && version !== 2) throw new EditDocumentError('edit.json 版本不受支持')
+  if (version !== 1 && version !== 2 && version !== 3) throw new EditDocumentError('edit.json 版本不受支持')
   const doc = value as Partial<EditDocumentV1> &
-    Partial<Omit<EditDocumentV2, 'version' | 'customAudio'>> & {
+    Partial<Omit<EditDocumentV3, 'version' | 'customAudio'>> & {
       customAudio?: Array<PersistedAudioClipV1 | PersistedAudioClip>
     }
   if (!isMotionParams(doc.motionParams)) throw new EditDocumentError('运镜参数损坏')
@@ -101,9 +102,9 @@ export function parseEditDocument(json: string): EditDocument {
     throw new EditDocumentError('按键提示位置损坏')
   }
   return {
-    version: 2,
+    version: 3,
     updatedAt: typeof doc.updatedAt === 'string' ? doc.updatedAt : new Date(0).toISOString(),
-    motionEnabled: version === 2 ? doc.motionEnabled !== false : true,
+    motionEnabled: version !== 1 ? doc.motionEnabled !== false : true,
     motionParams: doc.motionParams,
     motionEffects: doc.motionEffects,
     manualKeyPrompts: doc.manualKeyPrompts.flatMap((prompt) =>
@@ -126,24 +127,49 @@ export function parseEditDocument(json: string): EditDocument {
         : 1
     },
     audioMute: {
-      mic: version === 2 && doc.audioMute?.mic === true,
-      system: version === 2 && doc.audioMute?.system === true
+      mic: version !== 1 && doc.audioMute?.mic === true,
+      system: version !== 1 && doc.audioMute?.system === true
     },
     customAudio: doc.customAudio.map((clip) => ({
       ...clip,
-      muted: version === 2 && (clip as Partial<PersistedAudioClip>).muted === true
+      muted: version !== 1 && (clip as Partial<PersistedAudioClip>).muted === true
     })),
     keyboardOverlay: {
       x: Math.min(1, Math.max(0, keyboard.x)),
       y: Math.min(1, Math.max(0, keyboard.y))
     },
     renderSettings: {
-      backgroundEnabled: version === 2 && doc.renderSettings?.backgroundEnabled === true,
+      backgroundEnabled: version !== 1 && doc.renderSettings?.backgroundEnabled === true,
       backgroundColor: normalizeColor(doc.renderSettings?.backgroundColor),
       backgroundPaddingPercent: normalizeBackgroundPaddingPercent(
         doc.renderSettings?.backgroundPaddingPercent
       )
-    }
+    },
+    // V3 新增；V1/V2 迁移为未配置（TTS 关闭）。字段损坏按未配置处理（回退原声）。
+    ...(version === 3 ? { tts: parseTtsSettings(doc.tts) } : {})
+  }
+}
+
+/** 宽松解析 tts 字段：仅 enabled=true 且必要字段齐备时保留，否则视为未配置。 */
+function parseTtsSettings(value: unknown): TtsEditSettings | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const t = value as Partial<TtsEditSettings>
+  if (t.enabled !== true) return undefined
+  if (typeof t.voiceId !== 'string' || !t.voiceId) return undefined
+  if (typeof t.engineVersion !== 'string' || !t.engineVersion) return undefined
+  return {
+    enabled: true,
+    voiceId: t.voiceId,
+    engineVersion: t.engineVersion,
+    derivedFile: typeof t.derivedFile === 'string' && /^[\w.-]+$/.test(t.derivedFile)
+      ? t.derivedFile
+      : undefined,
+    derivedKey: typeof t.derivedKey === 'string' && /^[0-9a-f]{40}$/.test(t.derivedKey)
+      ? t.derivedKey
+      : undefined,
+    overflowSegmentIds: Array.isArray(t.overflowSegmentIds)
+      ? t.overflowSegmentIds.filter((id): id is string => typeof id === 'string')
+      : undefined
   }
 }
 
@@ -154,7 +180,7 @@ export function createDefaultEditDocument(
   durationMs: number
 ): EditDocument {
   return {
-    version: 2,
+    version: 3,
     updatedAt: new Date(0).toISOString(),
     motionEnabled: true,
     motionParams,

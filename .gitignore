@@ -16,3 +16,7 @@ native/whisper-caption/models/
 *.log
 # iconutil 中间产物（icon.svg 渲染后生成，icon.icns/icon.ico 已入库）
 build/icon.iconset/
+
+native/tts-helper/bin/
+native/tts-helper/vendor/
+native/tts-helper/models/

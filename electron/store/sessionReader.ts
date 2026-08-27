@@ -3,6 +3,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs'
 import { open, readFile } from 'node:fs/promises'
 import { join, normalize, sep } from 'node:path'
 import type { RecordingSession, SessionLoadResult } from '../../shared/types'
+import { isSafeSessionAudioFile } from '../../shared/edit'
 import { sessionCatalog } from './sessionCatalog'
 import { loadCaptionsJson } from './captionsStore'
 import { sessionThumbnailCache } from './sessionThumbnailCache'
@@ -81,6 +82,7 @@ export function loadSession(sessionId: string): SessionLoadResult {
   const systemAudioUrl = existsSync(join(dir, 'system.wav'))
     ? `media://rec/${sessionId}/system.wav`
     : null
+  const ttsDerivedUrl = resolveTtsDerivedUrl(sessionId, dir, editJson)
   const displayName = sessionCatalog.displayNameFor(sessionId)
   return {
     session: {
@@ -95,7 +97,25 @@ export function loadSession(sessionId: string): SessionLoadResult {
     captionsJson,
     videoUrl: `media://rec/${sessionId}/${encodeURIComponent(videoFile)}`,
     audioUrl,
-    systemAudioUrl
+    systemAudioUrl,
+    ttsDerivedUrl
+  }
+}
+
+/** TTS 派生轨 URL（kr-08）：edit.json 启用 TTS 且派生文件通过安全校验并真实存在时给出 */
+function resolveTtsDerivedUrl(sessionId: string, dir: string, editJson: string | null): string | null {
+  if (!editJson) return null
+  try {
+    const edit = JSON.parse(editJson) as { tts?: { enabled?: unknown; derivedFile?: unknown } }
+    const derivedFile = edit.tts?.derivedFile
+    if (edit.tts?.enabled !== true || typeof derivedFile !== 'string') return null
+    if (!isSafeSessionAudioFile(derivedFile)) return null
+    return existsSync(join(dir, derivedFile))
+      ? `media://rec/${sessionId}/${encodeURIComponent(derivedFile)}`
+      : null
+  } catch {
+    // edit.json 损坏时宽松降级为无派生轨（解析错误由 Renderer 提示）
+    return null
   }
 }
 

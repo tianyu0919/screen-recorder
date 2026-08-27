@@ -44,6 +44,12 @@ mac:
     # 内置 Whisper Small + Silero VAD（electron/transcription/modelManager.ts 按 resourcesPath/whisper-models 引用）
     - from: native/whisper-caption/models
       to: whisper-models
+    # TTS 引擎 helper 与运行时库（electron/tts/darwin.ts 按 resourcesPath/tts-helper 引用）
+    - from: native/tts-helper/bin/darwin
+      to: tts-helper
+    # 内置 TTS 模型（electron/tts/modelManager.ts 按 resourcesPath/tts-models 引用）
+    - from: native/tts-helper/models
+      to: tts-models
 
 win:
   target: nsis
@@ -59,6 +65,12 @@ win:
     # 内置 Whisper Small + Silero VAD（electron/transcription/modelManager.ts 按 resourcesPath/whisper-models 引用）
     - from: native/whisper-caption/models
       to: whisper-models
+    # TTS 引擎 helper 与 DLL（electron/tts/win32.ts 按 resourcesPath/tts-helper 引用）
+    - from: native/tts-helper/bin/win32
+      to: tts-helper
+    # 内置 TTS 模型（electron/tts/modelManager.ts 按 resourcesPath/tts-models 引用）
+    - from: native/tts-helper/models
+      to: tts-models
     # Windows 托盘图标（electron/main/index.ts 按 resourcesPath/tray-icon.ico 引用）
     - from: build/icon.ico
       to: tray-icon.ico
