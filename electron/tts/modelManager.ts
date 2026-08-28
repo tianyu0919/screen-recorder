@@ -190,7 +190,11 @@ export class TtsModelManager {
     const dir = this.manifestModelDir(entry)
     if (!dir) {
       throw new ModelMissingError(
-        voice.bundled ? '内置语音模型缺失或损坏，请重新安装应用' : `音色「${voice.name}」的模型尚未下载`
+        voice.bundled
+          ? app.isPackaged
+            ? '内置语音模型缺失或损坏，请重新安装应用'
+            : '内置语音模型未下载：开发环境请先运行 npm run build:native'
+          : `音色「${voice.name}」的模型尚未下载`
       )
     }
     return {

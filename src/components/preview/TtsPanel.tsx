@@ -38,7 +38,11 @@ function VoiceRow(props: {
           ))}
         </div>
         <p className="mt-0.5 text-[10px] text-ink-3">
-          {voice.available ? (voice.bundled ? '内置 · 离线可用' : '自定义模型') : '内置模型缺失 · 请重新安装'}
+          {voice.available
+            ? (voice.bundled ? '内置 · 离线可用' : '自定义模型')
+            : import.meta.env.DEV
+              ? '内置模型缺失 · 开发环境运行 npm run build:native'
+              : '内置模型缺失 · 请重新安装'}
         </p>
       </div>
       {voice.available && (
